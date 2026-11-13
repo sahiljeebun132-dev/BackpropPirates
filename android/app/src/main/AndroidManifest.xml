@@ -13,12 +13,27 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
-            android:exported="true">
+            android:exported="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Watches the accelerometer once the app is no longer on screen.
+             specialUse, with the subtype spelled out, because none of the
+             predefined foreground service types describes crash detection and
+             claiming one that does not fit would be a lie told to the system. -->
+        <service
+            android:name=".CrashWatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="crash_detection" />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -47,6 +62,20 @@
     <!-- Recording what is happening around the car after an impact. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Watching the sensor once the screen is off, which is how a rider
+         actually carries a phone. A foreground service keeps the process
+         alive; the wake lock keeps the CPU awake, without which the device
+         dozes and sensor callbacks simply stop arriving. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- The alert has to reach a locked, dark phone. POST_NOTIFICATIONS is
+         asked for at runtime on Android 13 and later; the full-screen intent
+         is the same mechanism an alarm clock uses to get a screen up. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- The app is useful without a SIM, so none of the telephony hardware is
          required to install it. Without these a tablet could not install the

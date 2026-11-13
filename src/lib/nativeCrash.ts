@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core'
+import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 
 import { isNative } from './platform'
 
@@ -26,11 +26,23 @@ export type CallResult = {
   reason?: 'emergency-number' | 'permission-denied' | 'refused'
 }
 
+export type NativeImpact = { peak: number; test: boolean }
+
 type CrashResponsePlugin = {
   vibrate(options?: { pattern?: number[] }): Promise<SimpleResult>
   stopVibration(): Promise<SimpleResult>
   sendSms(options: { numbers: string[]; message: string }): Promise<SmsResult>
   placeCall(options: { number: string }): Promise<CallResult>
+  startWatching(options: { threshold: number; test: boolean }): Promise<
+    SimpleResult & { notifications?: boolean }
+  >
+  stopWatching(): Promise<SimpleResult>
+  isWatching(): Promise<{ running: boolean }>
+  consumePendingImpact(): Promise<{ hasImpact: boolean; peak: number; test: boolean }>
+  addListener(
+    event: 'impact',
+    handler: (data: NativeImpact) => void,
+  ): Promise<PluginListenerHandle>
 }
 
 const plugin = registerPlugin<CrashResponsePlugin>('CrashResponse')
@@ -83,5 +95,73 @@ export async function nativePlaceCall(number: string): Promise<CallResult> {
     return await plugin.placeCall({ number })
   } catch {
     return { ok: false, message: 'The call could not be placed.', reason: 'refused' }
+  }
+}
+
+/** Hand the sensor to the foreground service.
+ *
+ *  This is what makes crash watch worth arming. A web view is throttled when
+ *  it is backgrounded and suspended when the screen goes off, so until this
+ *  existed the feature only worked with the app open and the display lit —
+ *  which is not how anybody carries a phone while riding.
+ *
+ *  `notifications` in the result says whether the rider allowed the
+ *  notification. The watch runs either way, but without it the alert cannot
+ *  show itself on a locked phone, and the UI should say so rather than
+ *  implying all is well.
+ */
+export async function nativeStartWatching(
+  threshold: number,
+  test: boolean,
+): Promise<SimpleResult & { notifications?: boolean }> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.startWatching({ threshold, test })
+  } catch {
+    return { ok: false, message: 'Background watching could not be started.' }
+  }
+}
+
+export async function nativeStopWatching(): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.stopWatching()
+  } catch {
+    return unavailable
+  }
+}
+
+export async function nativeIsWatching(): Promise<boolean> {
+  if (!isNative()) return false
+  try {
+    return (await plugin.isWatching()).running
+  } catch {
+    return false
+  }
+}
+
+/** Subscribe to impacts the service detects. Resolves to an unsubscribe. */
+export async function onNativeImpact(
+  handler: (impact: NativeImpact) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('impact', handler)
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+/** An impact detected while no page was running — after Android killed the
+ *  web view, or before the rider reopened the app. Returns null when there is
+ *  nothing waiting, and clears it either way so one crash raises one alert. */
+export async function consumePendingImpact(): Promise<NativeImpact | null> {
+  if (!isNative()) return null
+  try {
+    const r = await plugin.consumePendingImpact()
+    return r.hasImpact ? { peak: r.peak, test: r.test } : null
+  } catch {
+    return null
   }
 }

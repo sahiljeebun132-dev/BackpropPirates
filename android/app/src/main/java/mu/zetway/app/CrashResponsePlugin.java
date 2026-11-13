@@ -50,7 +50,8 @@ import java.util.List;
     name = "CrashResponse",
     permissions = {
         @Permission(alias = "sms", strings = { Manifest.permission.SEND_SMS }),
-        @Permission(alias = "phone", strings = { Manifest.permission.CALL_PHONE })
+        @Permission(alias = "phone", strings = { Manifest.permission.CALL_PHONE }),
+        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
     }
 )
 public class CrashResponsePlugin extends Plugin {
@@ -268,6 +269,111 @@ public class CrashResponsePlugin extends Plugin {
             }
         }
         return FALLBACK_EMERGENCY.contains(cleaned);
+    }
+
+    // ------------------------------------------------- background watching
+
+    /**
+     * Hand the sensor to a foreground service so the watch survives the screen
+     * going off. Everything that happens after an impact still runs in the web
+     * layer; the service only keeps the sensor alive and gets the app in front
+     * of the rider.
+     */
+    @Override
+    public void load() {
+        CrashWatchService.setListener((peak, test) -> {
+            JSObject data = new JSObject();
+            data.put("peak", peak);
+            data.put("test", test);
+            // Retained: the page is very often suspended at the moment this
+            // fires, and an impact must not be dropped for want of a listener.
+            notifyListeners("impact", data, true);
+        });
+    }
+
+    @PluginMethod
+    public void startWatching(PluginCall call) {
+        // Android 13 and later hide the notification without this, and the
+        // notification is how a locked phone shows the alert at all.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            && getPermissionState("notifications") != PermissionState.GRANTED) {
+            requestPermissionForAlias("notifications", call, "notificationsPermissionCallback");
+            return;
+        }
+        launchService(call);
+    }
+
+    @PermissionCallback
+    private void notificationsPermissionCallback(PluginCall call) {
+        // Deliberately started even if refused. Without the notification the
+        // alert is quieter, but the detection itself still works and that is
+        // worth more than refusing to run.
+        launchService(call);
+    }
+
+    private void launchService(PluginCall call) {
+        try {
+            double threshold = call.getDouble("threshold", 30.0);
+            boolean test = Boolean.TRUE.equals(call.getBoolean("test", false));
+            Intent intent = new Intent(getContext(), CrashWatchService.class)
+                .setAction(CrashWatchService.ACTION_START)
+                .putExtra(CrashWatchService.EXTRA_THRESHOLD, (float) threshold)
+                .putExtra(CrashWatchService.EXTRA_TEST, test);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(intent);
+            } else {
+                getContext().startService(intent);
+            }
+            JSObject out = result(true, null);
+            out.put("notifications",
+                getPermissionState("notifications") == PermissionState.GRANTED);
+            call.resolve(out);
+        } catch (Exception e) {
+            call.resolve(result(false, "Background watching could not be started."));
+        }
+    }
+
+    @PluginMethod
+    public void stopWatching(PluginCall call) {
+        try {
+            getContext().stopService(new Intent(getContext(), CrashWatchService.class));
+        } catch (Exception ignored) {
+            // Already gone is the outcome we wanted.
+        }
+        call.resolve(result(true, null));
+    }
+
+    @PluginMethod
+    public void isWatching(PluginCall call) {
+        JSObject out = new JSObject();
+        out.put("running", CrashWatchService.running);
+        call.resolve(out);
+    }
+
+    /**
+     * An impact detected while no web view was running.
+     *
+     * Two places it can be waiting. If the process survived, the service kept
+     * it in memory. If Android killed the process and the notification started
+     * us again from scratch, it is on the intent that launched the activity.
+     * The intent copy is cleared once read, so resuming or rotating does not
+     * raise the same crash a second time.
+     */
+    @PluginMethod
+    public void consumePendingImpact(PluginCall call) {
+        float peak = CrashWatchService.consumePending();
+        if (peak < 0 && getActivity() != null && getActivity().getIntent() != null) {
+            peak = getActivity().getIntent()
+                .getFloatExtra(CrashWatchService.EXTRA_IMPACT_PEAK, -1f);
+            if (peak >= 0) {
+                getActivity().getIntent().removeExtra(CrashWatchService.EXTRA_IMPACT_PEAK);
+            }
+        }
+        JSObject out = new JSObject();
+        out.put("hasImpact", peak >= 0);
+        out.put("peak", peak);
+        out.put("test", CrashWatchService.lastPendingWasTest());
+        call.resolve(out);
     }
 
     // ----------------------------------------------------------------- shared

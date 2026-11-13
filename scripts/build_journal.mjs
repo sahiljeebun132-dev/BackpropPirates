@@ -168,6 +168,8 @@ const TIMELINE = [
     'The web app stays the demo; the APK unlocks what a browser forbids'],
   ['18:10', 'Automatic SMS to every contact and an automatic call to the first, in the Android build',
     'The promise the web build could not keep'],
+  ['19:05', 'Crash watch moved into an Android foreground service',
+    'Until this it only watched while you were looking at it, which is not how anyone carries a phone on a bike'],
 ]
 
 const QA = [
@@ -197,10 +199,12 @@ const QA = [
     'Because Android forbids it to every third-party app, not because we did not try. ACTION_CALL is refused for emergency numbers and redirected to the preloaded dialler; TelecomManager.placeCall accepts an emergency call only from the default or preloaded dialler; and CALL_PRIVILEGED, which would lift the restriction, is closed to third-party apps. No app on the Play Store can auto-dial an ambulance. Our plugin asks the operating system whether a number is an emergency number and refuses rather than throwing a SecurityException mid-crash. Apple’s own Crash Detection, which has the hardware and the OS privileges, still counts down before calling — and still flooded dispatch centres near ski resorts. The countdown is the right design, not a workaround.'],
   ['So what does happen automatically after a crash?',
     'Detection, the alarm and the countdown happen on both builds. In the Android build, when the countdown runs out unanswered, every saved contact is texted a Google Maps link to the rider’s position and the first contact is rung, with nothing touched. That contact is a person who can act: they hear the ambient audio, they already have the location, and they can call 114 themselves. 114 and 999 remain one large button on screen. A rehearsal or a test-mode shake never contacts anybody.'],
+  ['Does crash watch work with the phone in my pocket?',
+    'In the Android app, yes — that was the point of building it. A foreground service holds the accelerometer and a partial wake lock, so detection survives the screen going off and the app being closed; a notification shows the whole time it is running, and it costs extra battery, both of which the app states where you arm it. The wake lock is not optional: a foreground service keeps the process alive but still lets the CPU doze, and sensor callbacks simply stop arriving. In the browser it cannot work that way — a page is throttled when backgrounded and suspended when the screen goes off — so the web build says plainly that it only watches while it is open.'],
   ['Do the crowd reports change the score?',
     'No, deliberately. The score measures recorded exposure over years and cites government tables. An unverified report from a stranger is a different kind of claim. Folding it in quietly would undermine the one thing that makes the score defensible. Reports appear above the score, timestamped, and expire after four hours.'],
   ['What would you do with another day?',
-    'Real road routing instead of straight lines; the Metro Express corridor; and an Android foreground service so crash watch keeps running with the screen off and the phone in a pocket, which is the honest limitation of the current build.'],
+    'Real road routing instead of straight lines; the Metro Express corridor; photos attached to hazard reports; and a signed release build so the APK installs without Android warning about an unknown source.'],
 ]
 
 const doc = new Document({

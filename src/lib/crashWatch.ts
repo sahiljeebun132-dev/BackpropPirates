@@ -12,9 +12,16 @@
  * on a screen built so that tap is the only thing to do. The app says this
  * plainly rather than letting someone believe help is already on its way.
  *
- * It also only works while the app is open and the screen is on, because a
- * background tab is throttled or suspended. A phone face-down in a pocket is
- * not being watched. That limit is stated where the feature is armed.
+ * On the web it also only works while the page is open and the screen is on,
+ * because a background tab is throttled or suspended. A phone face-down in a
+ * pocket is not being watched. That limit is stated where the feature is
+ * armed.
+ *
+ * The Android build does not have that limit: CrashWatchService holds the
+ * sensor and a partial wake lock in a foreground service, so watching
+ * survives the screen going off and the app being closed. In that build the
+ * service is the only detector, and the listener here feeds the on-screen
+ * meter alone — see startWatching in CrashWatch.tsx.
  */
 
 import { getFix } from './position'

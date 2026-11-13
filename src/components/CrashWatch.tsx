@@ -7,7 +7,10 @@ import {
   type EmergencyContact, type Recording,
 } from '../lib/crashWatch'
 import { escalate, type EscalationStep } from '../lib/escalate'
-import { nativeStopVibration, nativeVibrate } from '../lib/nativeCrash'
+import {
+  consumePendingImpact, nativeStartWatching, nativeStopVibration, nativeStopWatching,
+  nativeVibrate, onNativeImpact,
+} from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
 
 type Phase = 'off' | 'armed' | 'asking' | 'alerting'
@@ -40,6 +43,12 @@ export function CrashWatch() {
   const wakeLock = useRef<{ release: () => void } | null>(null)
   const stopRecording = useRef<(() => void) | null>(null)
   const alarm = useRef<ReturnType<typeof createAlarm>>(null)
+  /** Guards against the same impact raising two alerts: with the app open,
+   *  the service reports it and the page may be watching too. */
+  const inAlert = useRef(false)
+  /** Read by the impact listener, which is subscribed once and must not be
+   *  torn down and rebuilt every time the test-mode box changes. */
+  const testModeRef = useRef(testMode)
   /** Read by beginAlerting. Held in a ref so that a location fix arriving
    *  mid-countdown does not change that callback's identity, which would
    *  restart the one-second timer and stretch the countdown. */
@@ -48,6 +57,11 @@ export function CrashWatch() {
   useEffect(() => {
     latest.current = { contacts, position, peak }
   }, [contacts, position, peak])
+
+  useEffect(() => {
+    testModeRef.current = testMode
+  }, [testMode])
+
 
   // The Android build always has a vibrator to reach for.
   const vibrates = isNative() || canVibrate()
@@ -59,6 +73,8 @@ export function CrashWatch() {
   }, [])
 
   const trigger = useCallback((g: number | null, live = false) => {
+    if (inAlert.current) return
+    inAlert.current = true
     setLiveIncident(live)
     setAutoSteps([])
     setPeak(g)
@@ -74,14 +90,52 @@ export function CrashWatch() {
     void currentPosition().then(setPosition)
   }, [])
 
+  // Impacts seen by the foreground service, which is the only detector in the
+  // Android build. Subscribed for the life of the component rather than only
+  // while armed, because the service outlives the page: an impact can arrive
+  // moments after Android has resumed a web view it had suspended.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    void onNativeImpact(({ peak: p, test }) => {
+      trigger(Math.round(p), !test)
+    }).then((off) => {
+      unsubscribe = off
+    })
+    return () => unsubscribe?.()
+  }, [trigger])
+
+  // An impact detected while no page was running at all — the web view killed
+  // under memory pressure, or the app simply closed. Without this the service
+  // would have done its job and the rider would open the app to nothing.
+  useEffect(() => {
+    void consumePendingImpact().then((pending) => {
+      if (pending) trigger(Math.round(pending.peak), !pending.test)
+    })
+  }, [trigger])
+
   const startWatching = useCallback(
     (test: boolean) => {
+      const threshold = test ? TEST_THRESHOLD_MS2 : IMPACT_THRESHOLD_MS2
       stopWatch.current?.()
-      stopWatch.current = watchForImpact(
-        (g) => trigger(g, !test),
-        test ? TEST_THRESHOLD_MS2 : IMPACT_THRESHOLD_MS2,
-        onReading,
-      )
+
+      if (isNative()) {
+        // The service detects; this listener only feeds the on-screen meter,
+        // so an unreachable threshold keeps it from triggering a second alert
+        // for an impact the service has already reported.
+        stopWatch.current = watchForImpact(() => {}, Number.POSITIVE_INFINITY, onReading)
+        void nativeStartWatching(threshold, test).then((r) => {
+          if (!r.ok) {
+            setNotice(r.message ?? 'Background watching could not be started.')
+          } else if (r.notifications === false) {
+            setNotice(
+              'Notifications are turned off for Zetway, so the alert cannot show itself on a locked screen. Detection still works. Turn them on in Settings, Apps, Zetway.',
+            )
+          }
+        })
+        return
+      }
+
+      stopWatch.current = watchForImpact((g) => trigger(g, !test), threshold, onReading)
     },
     [trigger, onReading],
   )
@@ -95,6 +149,7 @@ export function CrashWatch() {
     stopRecording.current = null
     alarm.current?.stop()
     alarm.current = null
+    void nativeStopWatching()
   }, [])
 
   useEffect(() => disarm, [disarm])
@@ -119,6 +174,7 @@ export function CrashWatch() {
   }
 
   const standDown = () => {
+    inAlert.current = false
     disarm()
     setPhase('off')
     setPeak(null)
@@ -179,6 +235,7 @@ export function CrashWatch() {
   }, [phase, left, beginAlerting])
 
   const imOk = () => {
+    inAlert.current = false
     alarm.current?.stop()
     stopRecording.current?.()
     stopRecording.current = null
@@ -218,9 +275,11 @@ export function CrashWatch() {
           <h2 className="text-sm font-semibold text-slate-900">Crash watch</h2>
           <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
             {phase === 'armed'
-              ? 'Watching for an impact. Keep this screen open and the phone mounted.'
+              ? isNative()
+                ? 'Watching for an impact — screen off, phone in a pocket, app closed. Uses extra battery while it runs.'
+                : 'Watching for an impact. Keep this screen open and the phone mounted.'
               : isNative()
-                ? 'Watches the phone’s motion sensor while you ride. On a heavy impact it sounds an alarm, and if you do not answer within 30 seconds it texts your contacts your location and rings the first one, without you touching anything.'
+                ? 'Watches the phone’s motion sensor while you ride, and keeps watching with the screen off. On a heavy impact it sounds an alarm, and if you do not answer within 30 seconds it texts your contacts your location and rings the first one, without you touching anything.'
                 : 'Watches the phone’s motion sensor while you ride. On a heavy impact it sounds an alarm, and if you do not answer it puts calling for help one tap away.'}
           </p>
         </div>
@@ -292,6 +351,8 @@ export function CrashWatch() {
 
       {isNative() && phase !== 'armed' && (
         <p className="mt-2 rounded-xl bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
+          Watching continues with the screen off and the app closed, which is the only way it is
+          any use on a real ride — a notification shows while it runs, and it costs extra battery.
           After a real impact and an unanswered countdown, Zetway texts everyone below and rings
           the first of them by itself. 114 and 999 stay one tap: Android does not let any app dial
           an emergency number on its own. A rehearsal or a test-mode shake never contacts anyone.

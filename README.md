@@ -156,13 +156,20 @@ browser is deliberately barred and the app is not.
 | After a detected impact | Web | Android app |
 |---|---|---|
 | Detect, alarm, 30-second countdown | yes | yes |
+| Keep watching with the screen off and the app closed | no — the page is suspended | **yes, foreground service** |
 | Vibrate | only where the browser allows it, never on iOS | yes |
 | Text every emergency contact with your location | one tap each | **automatic, no tap** |
 | Call your first contact | one tap | **automatic, no tap** |
 | Call 114 / 999 | one tap | one tap |
 | Works with no signal | no | yes, the data ships inside the APK |
 
-That last row of "one tap" is not an oversight. **Android refuses `ACTION_CALL` for emergency
+The second row is the one that decides whether any of this is real. A web page is throttled the
+moment it is backgrounded and suspended when the screen goes off, so the web build is only
+watching while you are looking at it — and nobody rides like that. In the Android build a
+foreground service holds the sensor and a partial wake lock, so the phone is watched in a pocket.
+It shows a notification the whole time and costs extra battery, and the app says both.
+
+The "one tap" row for 114 is not an oversight. **Android refuses `ACTION_CALL` for emergency
 numbers from any third-party app**, redirects it to the preloaded dialler, and `TelecomManager`
 accepts an emergency call only from the default dialler; `CALL_PRIVILEGED` would lift the
 restriction and is closed to third-party apps. No app on the Play Store can auto-dial an
