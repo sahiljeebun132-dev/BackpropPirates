@@ -7,6 +7,7 @@ import {
 import { distanceKm } from '../lib/geo'
 import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
 import type { AppData, Place } from '../lib/types'
+import { GaragesPanel } from './GaragesPanel'
 
 type Props = {
   data: AppData
@@ -255,7 +256,23 @@ export function BreakdownFlow(props: Props) {
         />
       )}
 
-      {stage !== 'safety' && stage !== 'where' && <NearestHelpCard nearest={nearest} position={position} onUseGps={onUseGps} fallbackName={fallbackPlace.name} />}
+      {stage !== 'safety' && stage !== 'where' && (
+        <>
+          <NearestHelpCard
+            nearest={nearest}
+            position={position}
+            onUseGps={onUseGps}
+            fallbackName={fallbackPlace.name}
+          />
+          <GaragesPanel
+            lat={lat}
+            lon={lon}
+            enabled={stage === 'symptom' || stage === 'guide'}
+            usingGps={position !== null}
+            onUseGps={onUseGps}
+          />
+        </>
+      )}
     </div>
   )
 }
