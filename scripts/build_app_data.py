@@ -457,13 +457,53 @@ def build_conditions() -> dict:
         })
     road_out.sort(key=lambda r: -r["accidents"])
 
+    # --- weather ------------------------------------------------------------ #
+    # Pooled across every published year on purpose. Rain is only about 8% of
+    # casualty accidents, so a single year leaves too few fatal cases in the wet
+    # to say anything. Six years pooled gives 1,275 rainy accidents.
+    weather: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    w_rows = load("accidents_by_weather")["rows"]
+    w_years = sorted({int(r["year"]) for r in w_rows if num(r.get("year")) is not None})
+    for r in w_rows:
+        cond = fix_text(r.get("dimension_weatherconditions"))
+        sev = fix_text(r.get("dimension_severityofaccident"))
+        v = num(r.get("value"))
+        if cond and sev and v is not None:
+            weather[cond][sev] += v
+
+    weather_out = []
+    for cond, sev in weather.items():
+        total = sum(sev.values())
+        if not total:
+            continue
+        weather_out.append({
+            "condition": cond,
+            "accidents": total,
+            "fatal": sev.get("Fatal", 0),
+            "fatalShare": round(sev.get("Fatal", 0) / total, 4),
+            # Below this many accidents the fatal share swings on a handful of
+            # cases, so the app labels it instead of quoting it as fact.
+            "reliable": total >= 200,
+        })
+    weather_out.sort(key=lambda w: -w["accidents"])
+    fine = next((w for w in weather_out if w["condition"] == "Fine"), None)
+    for w in weather_out:
+        w["fatalRatioVsFine"] = (round(w["fatalShare"] / fine["fatalShare"], 2)
+                                 if fine and fine["fatalShare"] else None)
+
     return {
         "light": {"year": light_year, "conditions": light_out},
         "junctions": {"year": j_year, "types": junction_out},
         "roads": {"year": r_year, "types": road_out},
+        "weather": {
+            "years": [w_years[0], w_years[-1]] if w_years else [],
+            "pooled": True,
+            "conditions": weather_out,
+        },
         "sources": [source_of("casualties_by_light_condition"),
                     source_of("accidents_by_junction_type"),
-                    source_of("accidents_by_road_type")],
+                    source_of("accidents_by_road_type"),
+                    source_of("accidents_by_weather")],
     }
 
 

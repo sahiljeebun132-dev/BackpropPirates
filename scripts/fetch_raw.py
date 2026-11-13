@@ -34,6 +34,7 @@ DATASETS: dict[str, str] = {
     "casualties_by_light_condition": "electricsheepafrica/africa-mauritius-number-of-casualty-by-severity-of-accident-and-light-condi-f6b50a86",
     "accidents_by_junction_type": "electricsheepafrica/africa-mauritius-number-of-casualty-accidents-by-degree-of-casualties-and-j-4a00567c",
     "accidents_by_road_type": "electricsheepafrica/africa-mauritius-number-of-casualty-accidents-by-type-of-road-severity-of-a-4cb9074c",
+    "accidents_by_weather": "electricsheepafrica/africa-mauritius-number-of-casualty-accidents-by-severity-of-accident-and-w-05cb1a49",
     # --- travel mode risk, and the exposure denominator for it -------------
     "drivers_riders_involved": "electricsheepafrica/africa-mauritius-number-of-drivers-and-riders-involved-in-casualty-accident-7552cd0e",
     "vehicles_registered": "electricsheepafrica/africa-mauritius-vehicles-registered-by-type-as-at-end-of-year-island-of-ma-4410f6cf",
