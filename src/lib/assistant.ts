@@ -353,12 +353,10 @@ function emergencyNumbers(): Answer {
   return {
     reply: `${list}. ${DIAL_LIMIT} Zetway puts all three on screen as one-tap buttons on the roadside help screen and on the crash alert.`,
     source: 'Emergency numbers Zetway already dials, src/lib/breakdown.ts and src/components/EmergencyList.tsx',
-    // No goTo. The roadside help screen does carry this list, but it opens
-    // on the triage question - "is anyone hurt?" - so an Open it button here
-    // would answer "where is the nearest hospital" with a question. The
-    // reply already carries the name, the distance and the phone number,
-    // which is the whole of what was asked.
-    goTo: null,
+    // Worth opening. BreakdownFlow renders the three call buttons above its
+    // stage switch, so the help screen lands straight on them rather than on
+    // the triage question.
+    goTo: { view: 'help' },
     confidence: 'high',
   }
 }
@@ -450,9 +448,11 @@ function nearest(q: string, data: AppData): Answer {
     return {
       reply:
         `I cannot tell where you are from the question alone. Zetway holds ${counted} with their coordinates, ` +
-        `and the roadside help screen ranks them by distance as soon as it has your location. ` +
-        `Name a town and I will give you the nearest one to it.`,
+        `but ranking them needs a starting point. Name a town and I will give you the nearest one to it.`,
       source: citation,
+      // Nowhere useful to send them. The help screen only ranks the nearest
+      // places once the rider has answered the triage question, so opening it
+      // on this question would be a detour, not an answer.
       goTo: null,
       confidence: 'low',
     }
@@ -474,11 +474,10 @@ function nearest(q: string, data: AppData): Answer {
       (best.place.phone ? ` Phone ${best.place.phone}.` : '') +
       ` Zetway holds ${pool.length} ${kind.plural} in all.`,
     source: citation,
-    // No goTo. The roadside help screen does carry this list, but it opens
-    // on the triage question - "is anyone hurt?" - so an Open it button here
-    // would answer "where is the nearest hospital" with a question. The
-    // reply already carries the name, the distance and the phone number,
-    // which is the whole of what was asked.
+    // No goTo. The help screen does hold this list, but only behind its
+    // triage question, so an "open it" button would answer the question with
+    // another question. The reply already carries the name, the distance and
+    // the phone number, which is the whole of what was asked.
     goTo: null,
     confidence: 'high',
   }

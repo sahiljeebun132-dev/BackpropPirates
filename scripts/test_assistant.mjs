@@ -193,12 +193,12 @@ const CASES = [
   {
     q: 'where is the nearest hospital',
     expect: [
-      view('help'),
+      noTarget,
       confidence('low'),
       says(`${data.emergency.counts.hospital} hospitals`),
       says('cannot tell where you are'),
     ],
-    note: 'no position in a pure function, so it says so',
+    note: 'no position in a pure function, so it says so instead of guessing one',
   },
   {
     q: 'nearest hospital to Curepipe',
@@ -219,8 +219,10 @@ const CASES = [
     expect: [
       says(...EMERGENCY_NUMBERS.map((e) => e.number)),
       says('No app can dial these for you'),
+      view('help'),
       confidence('high'),
     ],
+    note: 'the three call buttons sit above BreakdownFlow’s stage switch, so the help screen opens onto them',
   },
   { q: 'who do I call if there is a crash', expect: [says('114', '999', '115')] },
 
