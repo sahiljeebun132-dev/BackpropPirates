@@ -21,7 +21,7 @@ const D = {
 }
 
 const PAGE_WIDTH = 9026 // A4 content width in DXA, inside 1" margins
-const TEAL = '0F766E'
+const TEAL = '0E6FA3'  // the deep blue from the Zetway logo
 const INK = '0F172A'
 const MUTED = '475569'
 
@@ -214,7 +214,7 @@ const doc = new Document({
       new Paragraph({ text: 'Zetway', heading: HeadingLevel.TITLE }),
       new Paragraph({
         spacing: { after: 40 },
-        children: [new TextRun({ text: 'Build journal — Team BackpropPirates', size: 24, color: MUTED })],
+        children: [new TextRun({ text: 'Vigilance en route  ·  build journal, Team BackpropPirates', size: 24, color: MUTED })],
       }),
       new Paragraph({
         spacing: { after: 240 },

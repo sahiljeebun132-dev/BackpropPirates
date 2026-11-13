@@ -34,7 +34,7 @@ export default function App() {
 
   if (state.status === 'loading') {
     return (
-      <AppShell title="Zetway" subtitle="Know the road before you take it">
+      <AppShell>
         <p className="py-12 text-center text-sm text-slate-500">Loading road safety data…</p>
       </AppShell>
     )
@@ -42,7 +42,7 @@ export default function App() {
 
   if (state.status === 'error') {
     return (
-      <AppShell title="Zetway" subtitle="Know the road before you take it">
+      <AppShell>
         <section className="rounded-2xl bg-red-50 p-4 ring-1 ring-red-200">
           <h2 className="text-sm font-semibold text-red-900">Could not load the data</h2>
           <p className="mt-1 text-sm text-red-800">{state.message}</p>
@@ -54,7 +54,7 @@ export default function App() {
   const appData = state.data
 
   return (
-    <AppShell title="Zetway" subtitle="Know the road before you take it">
+    <AppShell>
       {view === 'result' && assessment ? (
         <RouteResult assessment={assessment} data={appData} onBack={() => setView('plan')} />
       ) : (

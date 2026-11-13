@@ -13,7 +13,7 @@ export function IslandContext({ data }: { data: AppData }) {
   ]
 
   return (
-    <section className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm">
+    <section className="rounded-2xl bg-ink p-4 text-white shadow-sm">
       <div className="grid grid-cols-3 gap-2 text-center">
         {stats.map((s) => (
           <div key={s.label}>

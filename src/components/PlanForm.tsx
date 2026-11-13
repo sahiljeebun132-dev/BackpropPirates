@@ -48,7 +48,7 @@ export function PlanForm(props: Props) {
             <select
               value={origin}
               onChange={(e) => onOrigin(e.target.value)}
-              className="mt-1 w-full rounded-xl border-0 bg-slate-100 px-3 py-3 text-base text-slate-900 ring-1 ring-slate-200 focus:ring-2 focus:ring-teal-600"
+              className="mt-1 w-full rounded-xl border-0 bg-slate-100 px-3 py-3 text-base text-slate-900 ring-1 ring-slate-200 focus:ring-2 focus:ring-brand"
             >
               {places.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -74,7 +74,7 @@ export function PlanForm(props: Props) {
             <select
               value={destination}
               onChange={(e) => onDestination(e.target.value)}
-              className="mt-1 w-full rounded-xl border-0 bg-slate-100 px-3 py-3 text-base text-slate-900 ring-1 ring-slate-200 focus:ring-2 focus:ring-teal-600"
+              className="mt-1 w-full rounded-xl border-0 bg-slate-100 px-3 py-3 text-base text-slate-900 ring-1 ring-slate-200 focus:ring-2 focus:ring-brand"
             >
               {places.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -103,7 +103,7 @@ export function PlanForm(props: Props) {
                 onClick={() => onMode(m)}
                 className={`flex items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium ring-1 transition ${
                   active
-                    ? 'bg-teal-700 text-white ring-teal-700'
+                    ? 'bg-brand-deep text-white ring-brand-deep'
                     : 'bg-slate-50 text-slate-700 ring-slate-200 active:bg-slate-100'
                 }`}
               >
@@ -134,7 +134,7 @@ export function PlanForm(props: Props) {
                 onClick={() => onTimeBand(t)}
                 className={`rounded-xl px-3 py-3 text-sm font-medium ring-1 transition ${
                   active
-                    ? 'bg-teal-700 text-white ring-teal-700'
+                    ? 'bg-brand-deep text-white ring-brand-deep'
                     : 'bg-slate-50 text-slate-700 ring-slate-200 active:bg-slate-100'
                 }`}
               >
@@ -148,7 +148,7 @@ export function PlanForm(props: Props) {
       <button
         type="submit"
         disabled={sameEndpoints}
-        className="w-full rounded-2xl bg-teal-700 px-4 py-4 text-base font-semibold text-white shadow-sm active:bg-teal-800 disabled:bg-slate-300"
+        className="w-full rounded-2xl bg-brand-deep px-4 py-4 text-base font-semibold text-white shadow-sm active:bg-brand-deep/90 disabled:bg-slate-300"
       >
         Check this route
       </button>

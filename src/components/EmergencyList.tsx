@@ -57,7 +57,7 @@ function Group({ title, places }: { title: string; places: NearbyPlace[] }) {
               <a
                 href={`tel:${p.phone}`}
                 aria-label={`Call ${p.name}`}
-                className="shrink-0 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white active:bg-teal-800"
+                className="shrink-0 rounded-lg bg-brand-deep px-3 py-2 text-xs font-semibold text-white active:bg-brand-deep/90"
               >
                 Call
               </a>

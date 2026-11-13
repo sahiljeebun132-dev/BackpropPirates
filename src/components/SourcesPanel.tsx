@@ -53,7 +53,7 @@ export function SourcesPanel({ data }: { data: AppData }) {
                   href={e.source.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1 inline-block break-all text-[11px] font-medium text-teal-700 underline"
+                  className="mt-1 inline-block break-all text-[11px] font-medium text-brand-deep underline"
                 >
                   {e.source.resource ?? 'Open source file'}
                 </a>

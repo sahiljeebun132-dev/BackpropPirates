@@ -37,7 +37,7 @@ export function FactorBreakdown({ factors }: { factors: Factor[] }) {
                 <div className="mt-1.5 flex items-center gap-2">
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-teal-600 transition-all"
+                      className="h-full rounded-full bg-brand transition-all"
                       style={{ width: `${Math.max(2, f.risk * 100)}%` }}
                     />
                   </div>

@@ -22,7 +22,7 @@ export function RouteResult({
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm font-medium text-teal-700"
+        className="flex items-center gap-1.5 text-sm font-medium text-brand-deep"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
           <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />

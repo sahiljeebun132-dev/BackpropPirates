@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Brand palette, sampled from the Zetway logo so the app and the mark match
+   exactly. The four flag colours are the ones inside the pin. */
+@theme {
+  --color-ink: #15181f;          /* the logo's own background */
+  --color-ink-soft: #1e2430;     /* raised surfaces on the dark bar */
+  --color-brand: #189edb;        /* the blue in WAY: accents, and text on dark */
+  --color-brand-deep: #0e6fa3;   /* darker, for white text on it to pass contrast */
+  --color-flag-red: #d83030;
+  --color-flag-yellow: #f0c000;
+  --color-flag-green: #007848;
+  --color-flag-blue: #181860;
+}
+
 html,
 body,
 #root {
