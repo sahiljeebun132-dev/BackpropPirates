@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { AppShell } from './components/AppShell'
 import { AssistantPage } from './components/AssistantPage'
@@ -20,6 +20,7 @@ import { PageHeader, Row, Section, Icon } from './components/ui'
 import { planDeparture } from './lib/departure'
 import { lightBandAt } from './lib/live'
 import { assessRoute } from './lib/risk'
+import { applyScanPref } from './lib/roadScan'
 import type { TimeBand, TravelMode } from './lib/types'
 import { useAppData } from './lib/useAppData'
 import { useGeolocation } from './lib/useGeolocation'
@@ -32,6 +33,17 @@ type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash' | 'as
 
 export default function App() {
   const state = useAppData()
+
+  // The road scanner's switch lives in this phone's storage; the service
+  // keeps its own copy and loses it every time Android restarts the
+  // process. Pushed back on every start rather than only when the scanner
+  // screen is opened, because a rider who switched it on last week arms
+  // crash watch from the home row and never visits that screen again —
+  // and a scanner that silently stopped scanning is the worst version of
+  // this feature.
+  useEffect(() => {
+    void applyScanPref()
+  }, [])
 
   const [origin, setOrigin] = useState('grand-baie')
   const [destination, setDestination] = useState('port-louis')
