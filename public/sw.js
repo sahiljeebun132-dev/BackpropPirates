@@ -31,7 +31,7 @@
 // Bump to retire old caches. The hashed asset names make a stale bundle
 // impossible, but the data files keep their names across deploys, so a
 // version is the only thing that forces them to refresh.
-const CACHE = 'zetway-v1'
+const CACHE = 'zetway-v2'
 
 const DATA = [
   'cars', 'conditions', 'districts', 'emergency', 'exposure',
@@ -49,14 +49,42 @@ const SHELL = [
   '/crash-demo.html',
 ]
 
+/**
+ * The app's own compiled JavaScript and CSS, read out of index.html.
+ *
+ * These have content-hashed names that change every build, so they cannot
+ * be listed here. Relying on runtime caching to pick them up does not work
+ * either, and that is a bug worth remembering: on a first visit the page
+ * has already fetched its bundle before the worker takes control, so those
+ * requests never pass through it. The cache then looks healthy — shell
+ * present, all nine data files present — and an offline reload gets a blank
+ * page, because the one thing missing is the application itself.
+ *
+ * So install reads index.html and caches whatever it references. No build
+ * step to keep in sync, and it is correct from the very first visit.
+ */
+async function assetsFromShell() {
+  try {
+    const html = await (await fetch('/index.html', { cache: 'reload' })).text()
+    const urls = new Set()
+    const pattern = /(?:src|href)="(\/[^"]+\.(?:js|css))"/g
+    let m
+    while ((m = pattern.exec(html)) !== null) urls.add(m[1])
+    return [...urls]
+  } catch {
+    return []
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then(async (cache) => {
+      const assets = await assetsFromShell()
       // Added one at a time rather than with addAll, which rejects the whole
       // batch if a single file 404s. One missing icon must not be the reason
       // a rider has no offline score.
       await Promise.all(
-        [...SHELL, ...DATA].map((url) =>
+        [...SHELL, ...DATA, ...assets].map((url) =>
           cache.add(new Request(url, { cache: 'reload' })).catch(() => {}),
         ),
       )
