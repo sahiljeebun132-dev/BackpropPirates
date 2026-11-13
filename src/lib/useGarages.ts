@@ -4,7 +4,7 @@ import { distanceKm } from './geo'
 
 export type Garage = {
   id: string
-  kind: 'garage' | 'tyres' | 'parts' | 'fuel'
+  kind: 'garage' | 'tyres' | 'parts' | 'fuel' | 'dealer' | 'motorcycle' | 'inspection'
   name: string
   phone: string | null
   lat: number
@@ -26,6 +26,9 @@ export const GARAGE_KIND_LABEL: Record<Garage['kind'], string> = {
   tyres: 'Tyre shop',
   parts: 'Car parts',
   fuel: 'Filling station',
+  dealer: 'Dealer and service',
+  motorcycle: 'Motorcycle garage',
+  inspection: 'Vehicle inspection',
 }
 
 let cache: Promise<GarageData> | null = null

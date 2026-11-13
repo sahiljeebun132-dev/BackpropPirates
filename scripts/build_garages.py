@@ -23,11 +23,18 @@ import sys
 RAW = pathlib.Path("data/raw/osm/vehicle_services.json")
 OUT = pathlib.Path("public/data/garages.json")
 
+# Dealers service what they sell, and motorcycle shops matter because riders
+# are half the casualties on these roads. Car washes and kiosks turn up in the
+# same query and are left out: they help nobody who has broken down.
 KIND_OF = {
     "car_repair": "garage",
     "tyres": "tyres",
     "car_parts": "parts",
     "fuel": "fuel",
+    "car": "dealer",
+    "motorcycle": "motorcycle",
+    "motorcycle_repair": "motorcycle",
+    "vehicle_inspection": "inspection",
 }
 
 KIND_LABEL = {
@@ -35,6 +42,9 @@ KIND_LABEL = {
     "tyres": "Tyre shop",
     "parts": "Car parts",
     "fuel": "Filling station",
+    "dealer": "Dealer and service",
+    "motorcycle": "Motorcycle garage",
+    "inspection": "Vehicle inspection",
 }
 
 
@@ -80,7 +90,7 @@ def main() -> int:
 
     for el in payload.get("elements", []):
         tags = el.get("tags", {})
-        kind = KIND_OF.get(tags.get("shop") or tags.get("amenity") or "")
+        kind = KIND_OF.get(tags.get("shop") or tags.get("amenity") or tags.get("craft") or "")
         if not kind:
             continue
         lat = el.get("lat") or (el.get("center") or {}).get("lat")
@@ -88,7 +98,14 @@ def main() -> int:
         if lat is None or lon is None:
             continue
         name = (tags.get("name") or tags.get("operator") or "").strip()
-        phone = clean_phone(tags.get("phone") or tags.get("contact:phone"))
+        # Checked every contact spelling OSM uses. In Mauritius only "phone"
+        # and "contact:phone" are ever populated, but the others cost nothing.
+        phone = clean_phone(next(
+            (tags[k] for k in ("phone", "contact:phone", "contact:mobile", "mobile",
+                               "phone:mobile", "contact:phone:mobile", "contact:telephone")
+             if tags.get(k)),
+            None,
+        ))
         # An unnamed point with no phone is a dot on a map, not something a
         # stranded driver can use.
         if not name and not phone:
