@@ -1,19 +1,34 @@
+import type { DepartureAdvice } from '../lib/departure'
+import type { LiveConditions } from '../lib/live'
 import { MODE_LABEL, TIME_BAND_LABEL, type RouteAssessment } from '../lib/risk'
 import type { AppData } from '../lib/types'
 import { AdviceList } from './AdviceList'
 import { EmergencyList } from './EmergencyList'
 import { FactorBreakdown } from './FactorBreakdown'
 import { HotspotList } from './HotspotList'
+import { LiveConditionsPanel } from './LiveConditions'
 import { ScoreDial } from './ScoreDial'
 import { SourcesPanel } from './SourcesPanel'
+
+const timeFmt = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', hour: '2-digit', minute: '2-digit',
+})
 
 export function RouteResult({
   assessment,
   data,
+  live,
+  departureAdvice,
+  departAt,
+  onDepartAt,
   onBack,
 }: {
   assessment: RouteAssessment
   data: AppData
+  live: LiveConditions | null
+  departureAdvice: DepartureAdvice | null
+  departAt: Date
+  onDepartAt: (d: Date) => void
   onBack: () => void
 }) {
   const a = assessment
@@ -35,8 +50,8 @@ export function RouteResult({
           {a.origin.name} <span className="text-slate-400">to</span> {a.destination.name}
         </p>
         <p className="mt-1 text-sm text-slate-600">
-          {MODE_LABEL[a.mode]} · {TIME_BAND_LABEL[a.timeBand].toLowerCase()} ·{' '}
-          {a.directDistanceKm.toFixed(1)} km direct
+          {MODE_LABEL[a.mode]} · {timeFmt.format(departAt)} ·{' '}
+          {TIME_BAND_LABEL[a.timeBand].toLowerCase()} · {a.directDistanceKm.toFixed(1)} km direct
         </p>
         <p className="mt-1 text-xs text-slate-500">
           Police {a.districts.length === 1 ? 'district' : 'districts'}:{' '}
@@ -45,6 +60,18 @@ export function RouteResult({
       </section>
 
       <ScoreDial assessment={a} />
+
+      {live && departureAdvice && (
+        <LiveConditionsPanel
+          data={data}
+          live={live}
+          advice={departureAdvice}
+          departAt={departAt}
+          directKm={a.directDistanceKm}
+          onAccept={onDepartAt}
+        />
+      )}
+
       <AdviceList advice={a.advice} />
       <FactorBreakdown factors={a.factors} />
       <HotspotList

@@ -70,6 +70,16 @@ export type RoadType = {
   hitPedestrianShare: number
 }
 
+export type WeatherCondition = {
+  condition: string
+  accidents: number
+  fatal: number
+  fatalShare: number
+  /** False when too few accidents were recorded to quote the share as fact. */
+  reliable: boolean
+  fatalRatioVsFine: number | null
+}
+
 export type EmergencyPlace = {
   id: string
   kind: 'hospital' | 'clinic' | 'police'
@@ -101,6 +111,7 @@ export type AppData = {
     light: { year: number; conditions: LightCondition[] }
     junctions: { year: number; types: JunctionType[] }
     roads: { year: number; types: RoadType[] }
+    weather: { years: number[]; pooled: boolean; conditions: WeatherCondition[] }
     sources: Source[]
   }
   emergency: { places: EmergencyPlace[]; counts: Record<string, number>; sources: Source[] }

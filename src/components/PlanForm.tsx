@@ -6,11 +6,19 @@ type Props = {
   origin: string
   destination: string
   mode: TravelMode
-  timeBand: TimeBand
+  departAt: Date
+  /** Whether the rider chose "Now" rather than a specific time. */
+  departIsNow: boolean
+  roadIsLit: boolean
+  /** Only used when the live forecast cannot be reached. */
+  fallbackBand: TimeBand
+  liveFailed: boolean
   onOrigin: (id: string) => void
   onDestination: (id: string) => void
   onMode: (m: TravelMode) => void
-  onTimeBand: (t: TimeBand) => void
+  onDepartAt: (d: Date, isNow?: boolean) => void
+  onRoadIsLit: (lit: boolean) => void
+  onFallbackBand: (b: TimeBand) => void
   onSubmit: () => void
   onSwap: () => void
   sameEndpoints: boolean
@@ -25,10 +33,17 @@ const MODE_ICON: Record<TravelMode, string> = {
 }
 const TIME_BANDS: TimeBand[] = ['day', 'dawn-dusk', 'night-lit', 'night-unlit']
 
+/** <input type="datetime-local"> wants local wall-clock with no zone. */
+function toInputValue(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 export function PlanForm(props: Props) {
   const {
-    places, origin, destination, mode, timeBand,
-    onOrigin, onDestination, onMode, onTimeBand, onSubmit, onSwap, sameEndpoints,
+    places, origin, destination, mode, departAt, departIsNow, roadIsLit, fallbackBand, liveFailed,
+    onOrigin, onDestination, onMode, onDepartAt, onRoadIsLit, onFallbackBand,
+    onSubmit, onSwap, sameEndpoints,
   } = props
 
   return (
@@ -122,27 +137,76 @@ export function PlanForm(props: Props) {
       </section>
 
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-sm font-semibold text-slate-900">When?</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {TIME_BANDS.map((t) => {
-            const active = t === timeBand
-            return (
-              <button
-                key={t}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onTimeBand(t)}
-                className={`rounded-xl px-3 py-3 text-sm font-medium ring-1 transition ${
-                  active
-                    ? 'bg-brand-deep text-white ring-brand-deep'
-                    : 'bg-slate-50 text-slate-700 ring-slate-200 active:bg-slate-100'
-                }`}
-              >
-                {TIME_BAND_LABEL[t]}
-              </button>
-            )
-          })}
+        <h2 className="text-sm font-semibold text-slate-900">When are you leaving?</h2>
+
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            aria-pressed={departIsNow}
+            onClick={() => onDepartAt(new Date(), true)}
+            className={`shrink-0 rounded-xl px-4 py-3 text-sm font-medium ring-1 transition ${
+              departIsNow
+                ? 'bg-brand-deep text-white ring-brand-deep'
+                : 'bg-slate-50 text-slate-700 ring-slate-200 active:bg-slate-100'
+            }`}
+          >
+            Now
+          </button>
+          <input
+            type="datetime-local"
+            value={toInputValue(departAt)}
+            onChange={(e) => {
+              const d = new Date(e.target.value)
+              if (!Number.isNaN(d.getTime())) onDepartAt(d)
+            }}
+            aria-label="Departure time"
+            className="min-w-0 flex-1 rounded-xl border-0 bg-slate-100 px-3 py-3 text-base text-slate-900 ring-1 ring-slate-200 focus:ring-2 focus:ring-brand"
+          />
         </div>
+
+        <label className="mt-3 flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={!roadIsLit}
+            onChange={(e) => onRoadIsLit(!e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[var(--color-brand-deep)]"
+          />
+          <span className="text-xs leading-relaxed text-slate-600">
+            My route has stretches with no street lighting.
+            <span className="block text-slate-500">
+              After dark that is the single biggest factor in the score, and a forecast cannot
+              tell us whether your road is lit.
+            </span>
+          </span>
+        </label>
+
+        {liveFailed && (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="text-xs font-medium text-slate-700">
+              No live forecast, so pick the light yourself
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {TIME_BANDS.map((t) => {
+                const active = t === fallbackBand
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onFallbackBand(t)}
+                    className={`rounded-xl px-3 py-2.5 text-xs font-medium ring-1 transition ${
+                      active
+                        ? 'bg-brand-deep text-white ring-brand-deep'
+                        : 'bg-slate-50 text-slate-700 ring-slate-200 active:bg-slate-100'
+                    }`}
+                  >
+                    {TIME_BAND_LABEL[t]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       <button
