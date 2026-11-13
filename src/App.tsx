@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { AppShell } from './components/AppShell'
 import { BreakdownFlow } from './components/BreakdownFlow'
+import { CrashWatch } from './components/CrashWatch'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
 import { RouteResult } from './components/RouteResult'
@@ -169,6 +170,7 @@ export default function App() {
             onSubmit={() => setView('result')}
             sameEndpoints={origin === destination}
           />
+          <CrashWatch />
           <SourcesPanel data={appData} />
         </>
       )}
