@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell'
 import { BreakdownFlow } from './components/BreakdownFlow'
 import { CrashWatch } from './components/CrashWatch'
 import { LegalPanel } from './components/LegalPanel'
+import { OfflineBanner } from './components/OfflineBanner'
 import { FirstRunPermissions } from './components/FirstRunPermissions'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
@@ -133,6 +134,10 @@ export default function App() {
         />
       ) : (
         <>
+          {/* Before anything else: if there is no signal, say so and say what
+              still works, rather than letting the rider find out by tapping. */}
+          <OfflineBanner />
+
           {/* First launch only, and before anything else on the screen: the
               permissions it asks for are useless if they are first requested
               during a crash. */}

@@ -234,6 +234,58 @@ def build_bike(parent):
     return frame, head
 
 
+def build_car():
+    """A saloon, built facing +Y like the bike so the two share a convention.
+
+    Deliberately light-coloured: the road, the night and the bike are all
+    dark, and a dark car would be a hole in the frame exactly where the eye
+    needs to understand what happened.
+    """
+    paint = mat("CarPaint", (0.52, 0.55, 0.60, 1), rough=0.22, metal=0.6)
+    glass = mat("CarGlass", (0.02, 0.03, 0.05, 1), rough=0.08, metal=0.9)
+    rubber = mat("CarRubber", (0.012, 0.012, 0.014, 1), rough=0.9)
+
+    car = empty("Car")
+
+    # body and cabin
+    cube("CarBody", loc=(0, 0, 0.62), scale=(1.78, 4.25, 0.62),
+         material=paint, parent=car)
+    cube("CarCabin", loc=(0, -0.28, 1.17), scale=(1.62, 2.25, 0.52),
+         material=glass, parent=car)
+    # a lip along the sill so the body is not a single slab
+    cube("CarSill", loc=(0, 0, 0.34), scale=(1.84, 4.05, 0.16),
+         material=mat("CarSill", (0.03, 0.033, 0.04, 1), rough=0.6), parent=car)
+
+    for sx in (-1, 1):
+        for y in (1.34, -1.36):
+            cyl(f"CarWheel{sx}{y}", r=0.33, d=0.24,
+                loc=(sx * 0.86, y, 0.33), rot=(0, math.radians(90), 0),
+                material=rubber, parent=car)
+
+    # lights: headlights lead the turn across the rider's lane, and the
+    # brake lights are what a rider sees a fraction too late
+    head = mat("CarHead", (1, 0.97, 0.9, 1), emit=(1, 0.97, 0.88, 1), emit_strength=14)
+    tail = mat("CarTail", (0.6, 0.02, 0.02, 1), emit=(1, 0.04, 0.04, 1), emit_strength=9)
+    for sx in (-1, 1):
+        cube(f"CarHeadlight{sx}", loc=(sx * 0.62, 2.14, 0.72),
+             scale=(0.42, 0.06, 0.2), material=head, parent=car)
+        cube(f"CarTaillight{sx}", loc=(sx * 0.66, -2.14, 0.78),
+             scale=(0.36, 0.06, 0.16), material=tail, parent=car)
+
+    beam = bpy.data.lights.new("CarBeam", type="SPOT")
+    beam.energy = 2400
+    beam.spot_size = math.radians(64)
+    beam.spot_blend = 0.55
+    beam.color = (1.0, 0.96, 0.88)
+    bo = bpy.data.objects.new("CarBeamObj", beam)
+    bpy.context.collection.objects.link(bo)
+    bo.parent = car
+    bo.location = (0, 2.3, 0.8)
+    bo.rotation_euler = Euler((math.radians(84), 0, 0))
+
+    return car
+
+
 def build_rider(parent):
     kit = mat("Kit", (0.05, 0.055, 0.075, 1), rough=0.6)
     hi_vis = mat("HiVis", YELLOW, rough=0.45,
@@ -339,7 +391,7 @@ def build_lights():
 
 
 # ---------------------------------------------------------------- animation
-def animate(rig, bike, rider, phone, screen_m, glow, cam, cam_target):
+def animate(rig, bike, rider, phone, car, screen_m, glow, cam, cam_target):
     """Ride, crash, settle, then let the phone take the frame.
 
     Timed off F_IMPACT so the whole sequence moves together if that changes.
@@ -350,10 +402,23 @@ def animate(rig, bike, rider, phone, screen_m, glow, cam, cam_target):
     # Three bodies that separate on impact is the whole picture here.
     R = math.radians
 
+    # --- the car: coming the other way, then turning right across the
+    # rider's lane. Mauritius drives on the left, so a right turn crosses
+    # oncoming traffic, and this is the collision riders actually have.
+    key(car, F_START, loc=(-3.6, 54, 0), rot=(0, 0, R(180)), interp="LINEAR")
+    key(car, F_IMPACT - 22, loc=(-3.6, 17, 0), rot=(0, 0, R(180)), interp="LINEAR")
+    # the turn begins, and it is already too late for the rider
+    key(car, F_IMPACT - 6, loc=(-2.0, 10.5, 0), rot=(0, 0, R(232)))
+    key(car, F_IMPACT, loc=(0.4, 8.2, 0), rot=(0, 0, R(268)))
+    # shoved round by the impact, then still
+    key(car, F_IMPACT + 12, loc=(1.3, 8.0, 0), rot=(0, 0, R(286)))
+    key(car, F_SETTLE, loc=(1.5, 7.9, 0), rot=(0, 0, R(290)))
+    key(car, F_END, loc=(1.5, 7.9, 0), rot=(0, 0, R(290)))
+
     # --- the bike: straight up the road, then thrown onto its side
     key(rig, F_START, loc=(0, -26, 0), rot=(0, 0, 0), interp="LINEAR")
     key(rig, F_IMPACT, loc=(0, 4, 0), rot=(0, 0, 0), interp="LINEAR")
-    key(rig, F_IMPACT + 10, loc=(1.1, 9.5, 0.70), rot=(R(-38), R(26), 0))
+    key(rig, F_IMPACT + 10, loc=(1.0, 9.9, 1.35), rot=(R(-46), R(26), 0))
     key(rig, F_IMPACT + 22, loc=(2.4, 13.0, 0.18), rot=(R(-96), R(68), R(14)))
     key(rig, F_SETTLE, loc=(3.0, 14.6, 0.10), rot=(R(-104), R(88), R(18)))
     key(rig, F_END, loc=(3.0, 14.6, 0.10), rot=(R(-104), R(88), R(18)))
@@ -361,7 +426,7 @@ def animate(rig, bike, rider, phone, screen_m, glow, cam, cam_target):
     # --- the rider: with the bike until impact, then over the bars
     key(rider, F_START, loc=(0, -26, 0), rot=(0, 0, 0), interp="LINEAR")
     key(rider, F_IMPACT, loc=(0, 4, 0), rot=(0, 0, 0), interp="LINEAR")
-    key(rider, F_IMPACT + 12, loc=(-0.9, 8.4, 1.05), rot=(R(-52), 0, R(-22)))
+    key(rider, F_IMPACT + 12, loc=(-0.9, 9.6, 1.85), rot=(R(-52), 0, R(-22)))
     key(rider, F_IMPACT + 26, loc=(-1.5, 12.4, 0.06), rot=(R(-96), 0, R(-54)))
     key(rider, F_SETTLE, loc=(-1.9, 13.4, 0.04), rot=(R(-98), 0, R(-62)))
     key(rider, F_END, loc=(-1.9, 13.4, 0.04), rot=(R(-98), 0, R(-62)))
@@ -454,6 +519,7 @@ def main() -> int:
     bike, _head = build_bike(rig)
     rider = build_rider(rig)
     rider.parent = None          # animated in world space; see animate()
+    car = build_car()
     phone, screen_m, glow = build_phone()
 
     cam_target = empty("CamTarget")
@@ -467,7 +533,7 @@ def main() -> int:
     trk.track_axis = "TRACK_NEGATIVE_Z"
     trk.up_axis = "UP_Y"
 
-    animate(rig, bike, rider, phone, screen_m, glow, cam, cam_target)
+    animate(rig, bike, rider, phone, car, screen_m, glow, cam, cam_target)
     setup_render(scene)
 
     os.makedirs(OUT_DIR, exist_ok=True)
