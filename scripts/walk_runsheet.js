@@ -27,17 +27,48 @@
   const footer = document.body.innerText.match(/(Android app|Web app) · build[^\n]*/)
   note('pre-flight: footer names the build', !!footer, footer ? footer[0] : 'not found')
 
-  // 1. Grand Baie -> Port Louis, motorcycle, now. Check this route.
+  // 1. Grand Baie -> Port Louis, motorcycle, departing 19:00.
+  //
+  // The hour is pinned, and that is the point. This step used to leave the
+  // departure on "now" and assert 31. It passed at 01:29 because the forecast
+  // put the trip after dark, and it would have failed at the 13:00 pitch,
+  // where the same route scores 46 in daylight. The light band is the largest
+  // single factor in the score, so a check that inherits the clock only tests
+  // the hour it happened to run at.
   const sel = document.querySelectorAll('select')
   setSelect(sel[0], 'grand-baie')
   setSelect(sel[1], 'port-louis')
   await sleep(200)
   exact('Motorcycle')?.click()
   await sleep(200)
+
+  // The disclosure's accessible text is the whole row — the question, the
+  // current summary and the word Change — so match the row, not the word.
+  const change = B().find((b) => /When are you leaving\?/.test(b.textContent))
+  note(
+    '1a. departure sits behind a disclosure',
+    !!change && /Change|Hide/.test(change.textContent),
+    change ? change.textContent.trim().replace(/\s+/g, ' ').slice(0, 54) : 'missing',
+  )
+  change?.click()
+  await sleep(400)
+
+  const when = document.querySelector('input[type="datetime-local"]')
+  if (when) {
+    const d = new Date()
+    const p2 = (n) => String(n).padStart(2, '0')
+    const v = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T19:00`
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(when, v)
+    when.dispatchEvent(new Event('input', { bubbles: true }))
+    when.dispatchEvent(new Event('change', { bubbles: true }))
+    await sleep(500)
+  }
+  note('1b. departure set to 19:00', !!when, when ? when.value : 'input missing')
+
   exact('Check this route')?.click()
   await sleep(2600)
   const m = document.body.innerText.match(/(\d{1,3})\s*\n+\s*out of 100\s*\n+\s*(\w+) risk/)
-  note('1. score is 31 Severe', !!m && m[1] === '31' && m[2] === 'Severe', m ? `${m[1]} ${m[2]}` : 'no score')
+  note('1c. score is 31 Severe at 19:00', !!m && m[1] === '31' && m[2] === 'Severe', m ? `${m[1]} ${m[2]}` : 'no score')
 
   // 2. Tap a factor; it must name a table.
   const factor = B().find((b) => /pts/.test(b.textContent) && b.textContent.length < 200)
