@@ -29,6 +29,10 @@ coverage/
 *.pt
 *.ckpt
 
+# Blender framing checks. The finished render and the .blend are kept; these
+# are the throwaway stills used to check a shot before committing to it.
+docs/pitch-assets/still_*.png
+
 # Logs and OS junk
 *.log
 .DS_Store

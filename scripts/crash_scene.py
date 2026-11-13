@@ -41,9 +41,14 @@ F_START = 1
 F_IMPACT = 54           # the moment of contact
 F_SETTLE = 96           # everything has come to rest
 F_SCREEN = 108          # the phone takes over
-F_END = 210
+F_ARRIVE = 180          # the camera is on the phone by here
+F_END = 240             # and holds, so the shot can be read
 
-OUT_DIR = os.path.join("docs", "pitch-assets")
+# Absolute, derived from this file. Blender resolves a relative render path
+# against the .blend, not the working directory, so a relative one here lands
+# somewhere nobody can find and the render looks like it silently failed.
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT_DIR = os.path.join(_REPO, "docs", "pitch-assets")
 
 # Zetway's palette, linear-ish. Blender wants scene-referred values, so these
 # are the sRGB hex values roughly de-gammaed by eye rather than converted
@@ -52,7 +57,7 @@ INK = (0.015, 0.018, 0.028, 1)
 BRAND = (0.016, 0.26, 0.60, 1)
 RED = (0.62, 0.025, 0.025, 1)
 YELLOW = (0.85, 0.52, 0.0, 1)
-TARMAC = (0.022, 0.024, 0.030, 1)
+TARMAC = (0.040, 0.044, 0.054, 1)
 SKIN = (0.09, 0.10, 0.13, 1)
 
 
@@ -185,7 +190,7 @@ def build_road():
 def build_bike(parent):
     """A stylised motorcycle. Enough mass to read as a motorbike in one frame,
     no more: this is a diagram that moves, not a model."""
-    body_m = mat("BikeBody", BRAND, rough=0.32, metal=0.55)
+    body_m = mat("BikeBody", (0.05, 0.40, 0.78, 1), rough=0.28, metal=0.45)
     dark_m = mat("BikeDark", (0.02, 0.022, 0.03, 1), rough=0.5, metal=0.3)
     rubber = mat("Rubber", (0.012, 0.012, 0.014, 1), rough=0.9)
 
@@ -262,31 +267,41 @@ def build_phone():
     detail of what the screen says lives in the 2D walkthrough; here it only
     has to read, from across a room, as "the phone has woken up and it is
     shouting"."""
-    body = cube("Phone", scale=(0.085, 0.012, 0.17),
+    # An empty at the root, with the body and the screen as siblings under it.
+    # The screen used to be a child of the body and so inherited its scale —
+    # 0.076 of 0.085 of a metre — which rendered as a speck of light in the
+    # middle of a black slab instead of a lit face. Siblings under an
+    # unscaled parent each keep the size they were given.
+    root = empty("PhoneRoot")
+
+    body = cube("PhoneBody", scale=(0.085, 0.012, 0.17),
                 material=mat("PhoneBody", (0.01, 0.01, 0.013, 1), rough=0.35, metal=0.6))
+    body.parent = root
+
     screen_m = mat("Screen", (0.02, 0.03, 0.04, 1), rough=0.1,
                    emit=(0.03, 0.14, 0.26, 1), emit_strength=2.0)
     screen = cube("Screen", loc=(0, -0.0075, 0),
-                  scale=(0.075, 0.002, 0.155), material=screen_m, parent=body)
+                  scale=(0.076, 0.0015, 0.156), material=screen_m)
+    screen.parent = root
 
     # A light so the screen actually throws colour onto the road and the rider.
     gl = bpy.data.lights.new("ScreenGlow", type="AREA")
     gl.energy = 12
-    gl.size = 0.3
+    gl.size = 0.14
     gl.color = (0.1, 0.5, 1.0)
     glo = bpy.data.objects.new("ScreenGlowObj", gl)
     bpy.context.collection.objects.link(glo)
-    glo.parent = body
-    glo.location = (0, -0.1, 0)
+    glo.parent = root
+    glo.location = (0, -0.05, 0)
     glo.rotation_euler = Euler((math.radians(-90), 0, 0))
 
-    return body, screen_m, gl
+    return root, screen_m, gl
 
 
 def build_lights():
     moon = bpy.data.lights.new("Moon", type="SUN")
-    moon.energy = 0.45
-    moon.color = (0.52, 0.64, 1.0)
+    moon.energy = 3.2
+    moon.color = (0.55, 0.68, 1.0)
     mo = bpy.data.objects.new("MoonObj", moon)
     bpy.context.collection.objects.link(mo)
     mo.rotation_euler = Euler((math.radians(56), 0, math.radians(32)))
@@ -294,22 +309,33 @@ def build_lights():
     # One street lamp, so there is a pool of light for the crash to land in
     # and the scene is not uniformly black.
     lamp = bpy.data.lights.new("Lamp", type="SPOT")
-    lamp.energy = 14000
-    lamp.spot_size = math.radians(96)
+    lamp.energy = 26000
+    lamp.spot_size = math.radians(112)
     lamp.spot_blend = 0.6
     lamp.color = (1.0, 0.83, 0.55)
     lo = bpy.data.objects.new("LampObj", lamp)
     bpy.context.collection.objects.link(lo)
-    lo.location = (-7.5, 26, 9.5)
-    lo.rotation_euler = Euler((math.radians(26), 0, 0))
-    cyl("LampPost", r=0.13, d=9.5, loc=(-7.8, 26, 4.75),
+    lo.location = (-10.5, 17, 9.5)
+    lo.rotation_euler = Euler((math.radians(20), 0, 0))
+    cyl("LampPost", r=0.13, d=9.5, loc=(-10.8, 17, 4.75),
         material=mat("Post", (0.02, 0.02, 0.024, 1), rough=0.7, metal=0.4))
 
     world = bpy.data.worlds.new("Night")
     world.use_nodes = True
-    world.node_tree.nodes["Background"].inputs[0].default_value = (0.006, 0.009, 0.018, 1)
+    world.node_tree.nodes["Background"].inputs[0].default_value = (0.035, 0.05, 0.09, 1)
     world.node_tree.nodes["Background"].inputs[1].default_value = 1.0
     bpy.context.scene.world = world
+
+    # A cool fill from the camera side. Without it the near face of the bike
+    # is unlit and the whole machine reads as a silhouette.
+    fill = bpy.data.lights.new("Fill", type="AREA")
+    fill.energy = 2600
+    fill.size = 22
+    fill.color = (0.62, 0.74, 1.0)
+    fo = bpy.data.objects.new("FillObj", fill)
+    bpy.context.collection.objects.link(fo)
+    fo.location = (20, 2, 11)
+    fo.rotation_euler = Euler((math.radians(58), 0, math.radians(78)))
 
 
 # ---------------------------------------------------------------- animation
@@ -318,27 +344,34 @@ def animate(rig, bike, rider, phone, screen_m, glow, cam, cam_target):
 
     Timed off F_IMPACT so the whole sequence moves together if that changes.
     """
-    # --- the bike travels up +Y, then is thrown
+    # The rider and the phone are animated in world space, not parented to
+    # the bike. Parented, they inherited the tumble — so the rider rotated
+    # with the machine instead of coming off it, and ended up under the road.
+    # Three bodies that separate on impact is the whole picture here.
+    R = math.radians
+
+    # --- the bike: straight up the road, then thrown onto its side
     key(rig, F_START, loc=(0, -26, 0), rot=(0, 0, 0), interp="LINEAR")
     key(rig, F_IMPACT, loc=(0, 4, 0), rot=(0, 0, 0), interp="LINEAR")
-    # the tumble: forward, over, and off to the verge
-    key(rig, F_IMPACT + 10, loc=(1.1, 9.5, 0.75), rot=(math.radians(-38), math.radians(26), 0))
-    key(rig, F_IMPACT + 22, loc=(2.8, 13.4, 0.18), rot=(math.radians(-96), math.radians(68), math.radians(14)))
-    key(rig, F_SETTLE, loc=(3.6, 15.1, 0.0), rot=(math.radians(-104), math.radians(88), math.radians(18)))
+    key(rig, F_IMPACT + 10, loc=(1.1, 9.5, 0.70), rot=(R(-38), R(26), 0))
+    key(rig, F_IMPACT + 22, loc=(2.4, 13.0, 0.18), rot=(R(-96), R(68), R(14)))
+    key(rig, F_SETTLE, loc=(3.0, 14.6, 0.10), rot=(R(-104), R(88), R(18)))
+    key(rig, F_END, loc=(3.0, 14.6, 0.10), rot=(R(-104), R(88), R(18)))
 
-    # --- the rider separates from the bike and slides
-    key(rider, F_START, loc=(0, 0, 0), rot=(0, 0, 0))
-    key(rider, F_IMPACT, loc=(0, 0, 0), rot=(0, 0, 0))
-    key(rider, F_IMPACT + 12, loc=(-0.7, 2.6, 0.55), rot=(math.radians(-52), 0, math.radians(-22)))
-    key(rider, F_IMPACT + 26, loc=(-1.9, 5.0, -0.42), rot=(math.radians(-96), 0, math.radians(-54)))
-    key(rider, F_SETTLE, loc=(-2.4, 5.8, -0.46), rot=(math.radians(-98), 0, math.radians(-62)))
+    # --- the rider: with the bike until impact, then over the bars
+    key(rider, F_START, loc=(0, -26, 0), rot=(0, 0, 0), interp="LINEAR")
+    key(rider, F_IMPACT, loc=(0, 4, 0), rot=(0, 0, 0), interp="LINEAR")
+    key(rider, F_IMPACT + 12, loc=(-0.9, 8.4, 1.05), rot=(R(-52), 0, R(-22)))
+    key(rider, F_IMPACT + 26, loc=(-1.5, 12.4, 0.06), rot=(R(-96), 0, R(-54)))
+    key(rider, F_SETTLE, loc=(-1.9, 13.4, 0.04), rot=(R(-98), 0, R(-62)))
+    key(rider, F_END, loc=(-1.9, 13.4, 0.04), rot=(R(-98), 0, R(-62)))
 
-    # --- the phone is flung off the mount and lands screen-up
-    key(phone, F_START, loc=(0.16, 0.74, 1.14), rot=(math.radians(66), 0, 0))
-    key(phone, F_IMPACT, loc=(0.16, 0.74, 1.14), rot=(math.radians(66), 0, 0))
-    key(phone, F_IMPACT + 14, loc=(-1.4, 4.4, 1.5), rot=(math.radians(220), math.radians(140), 0))
-    key(phone, F_IMPACT + 30, loc=(-2.9, 7.4, 0.06), rot=(math.radians(360), math.radians(352), math.radians(18)))
-    key(phone, F_END, loc=(-2.9, 7.4, 0.06), rot=(math.radians(360), math.radians(352), math.radians(18)))
+    # --- the phone: off the bar mount, and it lands screen up
+    key(phone, F_START, loc=(0.16, -25.26, 1.14), rot=(R(66), 0, 0), interp="LINEAR")
+    key(phone, F_IMPACT, loc=(0.16, 4.74, 1.14), rot=(R(66), 0, 0), interp="LINEAR")
+    key(phone, F_IMPACT + 14, loc=(-2.6, 9.4, 1.9), rot=(R(-200), R(130), 0))
+    key(phone, F_IMPACT + 30, loc=(-4.4, 10.4, 0.013), rot=(R(-90), 0, R(22)))
+    key(phone, F_END, loc=(-4.4, 10.4, 0.013), rot=(R(-90), 0, R(22)))
 
     # --- the screen: calm, then red and pulsing
     bsdf = screen_m.node_tree.nodes["Principled BSDF"]
@@ -355,30 +388,37 @@ def animate(rig, bike, rider, phone, screen_m, glow, cam, cam_target):
     f = F_SCREEN
     high = True
     while f < F_END:
-        stg.default_value = 16.0 if high else 4.0
+        # Tuned by eye against a render: much above this and AgX pushes the
+        # red to white, so the screen stops reading as an alarm and starts
+        # reading as a torch.
+        stg.default_value = 9.0 if high else 2.2
         stg.keyframe_insert("default_value", frame=f)
-        glow.energy = 70 if high else 18
+        glow.energy = 90 if high else 20
         glow.keyframe_insert("energy", frame=f)
         high = not high
         f += 7
 
     # --- camera: tracking alongside, then pushing in on the phone
-    key(cam, F_START, loc=(9.5, -30, 3.4))
-    key(cam, F_IMPACT, loc=(9.5, 0.5, 3.4))
-    key(cam, F_IMPACT + 24, loc=(9.0, 10.0, 3.9))
-    key(cam, F_SETTLE, loc=(6.4, 12.0, 3.0))
-    key(cam, F_SCREEN + 30, loc=(1.4, 10.2, 1.5))
-    key(cam, F_END, loc=(-0.9, 9.0, 0.78))
+    key(cam, F_START, loc=(16.5, -31, 5.6))
+    key(cam, F_IMPACT, loc=(16.5, -0.5, 5.6))
+    key(cam, F_IMPACT + 24, loc=(14.5, 10.5, 6.0))
+    key(cam, F_SETTLE, loc=(9.5, 14.0, 4.2))
+    key(cam, F_SCREEN + 30, loc=(1.0, 12.4, 1.6))
+    # Arrive early and hold. Pushing in right up to the last frame meant the
+    # shot the whole sequence builds to was on screen for an instant.
+    key(cam, F_ARRIVE, loc=(-4.03, 10.06, 0.30))
+    key(cam, F_END, loc=(-4.06, 10.02, 0.29))
 
     key(cam_target, F_START, loc=(0, -24, 1.1))
     key(cam_target, F_IMPACT, loc=(0, 4, 1.1))
-    key(cam_target, F_SETTLE, loc=(0.4, 11.0, 0.5))
-    key(cam_target, F_SCREEN + 30, loc=(-2.4, 7.8, 0.15))
-    key(cam_target, F_END, loc=(-2.9, 7.4, 0.06))
+    key(cam_target, F_SETTLE, loc=(0.3, 13.2, 0.5))
+    key(cam_target, F_SCREEN + 30, loc=(-3.6, 10.8, 0.15))
+    key(cam_target, F_ARRIVE, loc=(-4.4, 10.4, 0.013))
+    key(cam_target, F_END, loc=(-4.4, 10.4, 0.013))
 
 
 # ------------------------------------------------------------------- render
-def setup_render(scene, *, samples=24, resolution=(1280, 720)):
+def setup_render(scene, *, samples=64, resolution=(1280, 720)):
     scene.render.engine = "BLENDER_EEVEE"   # 5.2 calls it this again
     scene.render.resolution_x, scene.render.resolution_y = resolution
     scene.render.fps = FPS
@@ -386,7 +426,10 @@ def setup_render(scene, *, samples=24, resolution=(1280, 720)):
     scene.eevee.taa_render_samples = samples
     scene.eevee.use_shadows = True
     try:
-        scene.eevee.use_raytracing = True   # nicer reflections on the tarmac
+        # Off deliberately. It added speckle to the emissive screen, which is
+        # the one surface the whole sequence ends on, in exchange for
+        # reflections on tarmac nobody will look at.
+        scene.eevee.use_raytracing = False
     except Exception:
         pass
     scene.view_settings.view_transform = "AgX"
@@ -410,8 +453,8 @@ def main() -> int:
     rig = empty("Rig")
     bike, _head = build_bike(rig)
     rider = build_rider(rig)
+    rider.parent = None          # animated in world space; see animate()
     phone, screen_m, glow = build_phone()
-    phone.parent = rig
 
     cam_target = empty("CamTarget")
     cam_data = bpy.data.cameras.new("Cam")
@@ -436,6 +479,12 @@ def main() -> int:
         bpy.ops.render.render(write_still=True)
         print(f"WROTE {scene.render.filepath}")
     elif do_render:
+        # Blender 5 split still and movie output behind media_type. The
+        # file_format enum still *lists* FFMPEG, but assigning it before
+        # switching media_type raises "enum not found" with a list that
+        # silently omits every video format. Introspection and assignment
+        # disagree, so this is set first and deliberately.
+        scene.render.image_settings.media_type = "VIDEO"
         scene.render.image_settings.file_format = "FFMPEG"
         scene.render.ffmpeg.format = "MPEG4"
         scene.render.ffmpeg.codec = "H264"

@@ -3,6 +3,18 @@
 
 **Live app: https://backprop-pirates.vercel.app** (open it on a phone — nothing to install)
 
+**3D crash animation:** `docs/pitch-assets/zetway-crash.mp4`, built by
+[`scripts/crash_scene.py`](scripts/crash_scene.py) — a scripted Blender scene, not a hand-modelled
+file, so its timing stays tied to the app's own constants and the whole thing rebuilds from one
+command:
+
+```bash
+blender --background --factory-startup --python scripts/crash_scene.py -- --render
+```
+
+`--still N` renders one frame instead, which is how every shot in it was checked.
+`docs/pitch-assets/zetway-crash.blend` is saved alongside it if you want to open and nudge it.
+
 **Crash walkthrough for the pitch:** [backprop-pirates.vercel.app/crash-demo.html](https://backprop-pirates.vercel.app/crash-demo.html)
 — a self-contained page that plays the whole sequence, from the sensor reading to the text arriving.
 It has no external dependencies, so it runs from a laptop with the network off.
