@@ -477,10 +477,14 @@ pres.addSection({ title: 'Impact' })
     isTextBox: true, x: M + 0.3, y: 4.03, w: 2.2, h: 0.3, margin: 0,
     fontSize: 13, bold: true, color: C.accent3,
   })
-  s.addText('[ Card drawn: ______________ · What we changed, and where you can see it in the demo ]', {
-    isTextBox: true, x: M + 0.3, y: 4.38, w: W - 2 * M - 0.6, h: 0.5, margin: 0,
-    fontSize: 13, color: 'FDE68A', italic: true,
-  })
+  s.addText(
+    [
+      { text: 'Offline Mode. ', options: { bold: true, color: C.accent3 } },
+      { text: 'We kept the Corridor Safety Score working with no internet — and it never needed the network. It is computed on the device from 269 KB of government tables, so a service worker storing them is all it took. The score, the 48 black spots, the emergency numbers and all 15 roadside guides work in airplane mode. The forecast and other riders’ reports cannot, are not cached, and the app says which is which. The APK already shipped those files inside it.' },
+    ],
+    { isTextBox: true, x: M + 0.3, y: 4.36, w: W - 2 * M - 0.6, h: 0.62, margin: 0,
+      fontSize: 11, color: 'FDE68A', lineSpacing: 13.5 },
+  )
 
   s.addText('Next', {
     isTextBox: true, x: M, y: 5.25, w: 1.2, h: 0.3, margin: 0, fontSize: 13, bold: true, color: C.accent6,
@@ -500,7 +504,7 @@ pres.addSection({ title: 'Impact' })
     `Reach: a link works on any phone, with no store review and no install friction, and that is still what we demo from. The Android build is additive — it exists only because a browser may not text or call on its own after a crash — and inside the APK the data ships too, so the core works with no signal at all.\n\n` +
     `Who runs it: the people who publish this data already. Handing it over is a repo transfer, not a procurement exercise.\n\n` +
     `Limits, if asked: routes are straight lines between towns, not real road paths, and the app says so. Light and junction tables are 2018, the latest published. 26 towns, limited to places with an official health facility so the coordinates are real.\n\n` +
-    `FILL IN THE SURPRISE CARD BOX BEFORE PITCHING.`,
+    `Surprise card, Offline Mode: the honest version of this answer is that we picked the one feature that never needed the network. The score is worked out in the browser from nine static files; the app only ever died offline because they had to be fetched. A service worker precaches them and the app's own bundle. Demo it by putting the phone in airplane mode and running a route — the score, the black spots, the emergency numbers and every roadside guide still work. The weather and other riders' reports genuinely cannot work offline, so they are not cached and not faked, and a banner names what is stored and what is waiting for signal. One trap worth mentioning if a judge is technical: on a first visit the page fetches its own JavaScript before the worker takes control, so runtime caching misses it and an offline reload is a blank page. Install reads index.html and caches what it references.`,
   )
 }
 

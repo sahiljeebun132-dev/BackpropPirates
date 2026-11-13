@@ -228,8 +228,37 @@ lands in one place rather than across the app.
 
 ## Surprise card
 
-**Card drawn:** _not yet drawn_
-**How we adapted:** _to be filled in_
+**Card drawn: Offline Mode.** _"Your user suddenly has no internet. Adapt one important feature so
+it still works offline."_
+
+**What we kept working: the Corridor Safety Score** — and we chose it for an honest reason. It is
+the one feature that never needed the network. The score is computed in the browser from nine
+static JSON files totalling **269 KB**: the casualty tables, the 48 accident-prone segments, the
+hospitals and police stations, the garages, the car list. Nothing is asked of a server. The app
+only ever died offline because those files had to be fetched.
+
+So [`public/sw.js`](public/sw.js) precaches them, the shell and the app's own bundle. In airplane
+mode you still get:
+
+- the Corridor Safety Score and every figure behind it
+- the 48 designated accident-prone segments on your route, by road number
+- hospitals, police stations and garages, with numbers to call
+- all 15 roadside guides, for cars and motorcycles
+- crash watch, which reads a sensor rather than a server
+
+**What we did not fake.** The Open-Meteo forecast and other riders' hazard reports genuinely
+cannot work offline. They are not cached, because a stale forecast is worse than none — a rider
+would act on it. They fail, the app degrades to choosing the light condition by hand, and a banner
+names what is stored and what is waiting for signal.
+
+**The Android build never had the problem.** The APK already ships those nine files inside it, so
+the core has always worked with no signal. This closed the same gap on the web.
+
+One trap worth recording: on a first visit the page fetches its own JavaScript before the service
+worker takes control, so runtime caching never sees it. The cache looked healthy — shell and all
+nine data files present — and an offline reload would have been a blank page. It would have passed
+a casual test and failed the airplane-mode demo. Install now reads `index.html` and caches
+whatever it references, so the hashed bundle names stay correct across builds.
 
 ## AI tools used (disclosure)
 
