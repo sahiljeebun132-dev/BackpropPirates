@@ -267,7 +267,13 @@ export function BreakdownFlow(props: Props) {
           <GaragesPanel
             lat={lat}
             lon={lon}
-            enabled={stage === 'symptom' || stage === 'guide'}
+            // On screen means needed. This used to be a second, narrower stage
+            // test that had drifted from the one this panel is rendered under,
+            // so on the 'car' stage the panel appeared but was never asked to
+            // load — and then reported itself broken. The compiler confirms
+            // the outer condition already narrows the stage to the three that
+            // render it, so there is nothing left to test here.
+            enabled
             usingGps={position !== null}
             onUseGps={onUseGps}
           />

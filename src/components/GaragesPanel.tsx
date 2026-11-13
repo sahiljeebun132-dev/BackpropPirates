@@ -22,7 +22,7 @@ type Filter = 'help' | 'fuel'
  *  rather than presenting it as authoritative.
  */
 export function GaragesPanel({ lat, lon, enabled, usingGps, onUseGps }: Props) {
-  const { nearest, source, total } = useGarages(enabled, lat, lon)
+  const { nearest, source, total, status } = useGarages(enabled, lat, lon)
   const [filter, setFilter] = useState<Filter>('help')
 
   const matches = nearest.filter((g) =>
@@ -34,10 +34,16 @@ export function GaragesPanel({ lat, lon, enabled, usingGps, onUseGps }: Props) {
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <h2 className="text-sm font-semibold text-slate-900">Garages and fuel nearby</h2>
 
-      {total === 0 ? (
+      {status === 'loading' || status === 'idle' ? (
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Finding places nearby…</p>
+      ) : status === 'failed' ? (
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          The garage list has not loaded. The emergency numbers above still work, and so does
+          The garage list did not load. The emergency numbers above still work, and so does
           everything else on this page.
+        </p>
+      ) : total === 0 ? (
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          No garages or filling stations are mapped on this part of the island.
         </p>
       ) : (
         <>

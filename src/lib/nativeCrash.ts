@@ -34,6 +34,16 @@ export type NativeImpact = { peak: number; test: boolean }
 export type Readiness = {
   /** Android 13+: without it the alert cannot post at all. */
   notifications: boolean
+  /** Without this the automatic text cannot be sent — and it would be asked
+   *  for at the moment of the crash, in front of someone who may be unable
+   *  to answer a dialog. */
+  sms: boolean
+  /** Same, for the automatic call to the first contact. */
+  phone: boolean
+  /** Same, for recording what is happening around the car. */
+  microphone: boolean
+  /** Same, for the location that is the most useful thing in the message. */
+  location: boolean
   /** Android 14+ reserved full-screen intents for calling and alarm apps.
    *  Denied, the alert is downgraded to a heads-up notification, which on a
    *  locked screen means it never shows — the rider has to wake the phone. */
@@ -57,6 +67,7 @@ type CrashResponsePlugin = {
   isWatching(): Promise<{ running: boolean }>
   consumePendingImpact(): Promise<{ hasImpact: boolean; peak: number; test: boolean }>
   checkReadiness(): Promise<Readiness>
+  requestPermissions(): Promise<Record<string, string>>
   openLockScreenSettings(): Promise<SimpleResult>
   requestUnrestricted(): Promise<SimpleResult>
   openAppSettings(): Promise<SimpleResult>
@@ -192,6 +203,10 @@ export async function consumePendingImpact(): Promise<NativeImpact | null> {
 export async function nativeReadiness(): Promise<Readiness> {
   const none: Readiness = {
     notifications: false,
+    sms: false,
+    phone: false,
+    microphone: false,
+    location: false,
     lockScreen: false,
     unrestricted: false,
     watching: false,
@@ -233,4 +248,27 @@ export async function openAppSettings(): Promise<SimpleResult> {
   } catch {
     return { ok: false, message: 'Could not open the app settings.' }
   }
+}
+
+/**
+ * Ask for everything the crash response needs, in one go, before any of it
+ * is needed.
+ *
+ * This exists because of a genuine fault in the first version: SEND_SMS and
+ * CALL_PHONE were requested at the moment the app tried to use them, which
+ * is immediately after a crash. A rider face-down on a road cannot answer a
+ * permission dialog, so the escalation would have stopped dead at exactly
+ * the point it mattered — and nothing on screen would have warned them.
+ *
+ * Capacitor generates this from the aliases the plugin declares, so adding a
+ * permission there is enough to have it asked for here.
+ */
+export async function requestCrashPermissions(): Promise<Readiness> {
+  if (!isNative()) return nativeReadiness()
+  try {
+    await plugin.requestPermissions()
+  } catch {
+    // A refusal is not an error. What matters is the state afterwards.
+  }
+  return nativeReadiness()
 }

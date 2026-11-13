@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { BreakdownFlow } from './components/BreakdownFlow'
 import { CrashWatch } from './components/CrashWatch'
+import { FirstRunPermissions } from './components/FirstRunPermissions'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
 import { RouteResult } from './components/RouteResult'
@@ -129,6 +130,11 @@ export default function App() {
         />
       ) : (
         <>
+          {/* First launch only, and before anything else on the screen: the
+              permissions it asks for are useless if they are first requested
+              during a crash. */}
+          <FirstRunPermissions />
+
           <IslandContext data={appData} />
 
           <button

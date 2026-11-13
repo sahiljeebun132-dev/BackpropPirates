@@ -10,7 +10,7 @@ import { escalate, type EscalationStep } from '../lib/escalate'
 import {
   consumePendingImpact, nativeReadiness, nativeStartWatching, nativeStopVibration,
   nativeStopWatching, nativeVibrate, onNativeImpact, openAppSettings,
-  openLockScreenSettings, requestUnrestricted, type Readiness,
+  openLockScreenSettings, requestCrashPermissions, requestUnrestricted, type Readiness,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
 
@@ -156,6 +156,10 @@ export function CrashWatch() {
   useEffect(() => disarm, [disarm])
 
   const arm = async () => {
+    // Everything the escalation needs, asked for now rather than during a
+    // crash. Declining is allowed: the checklist then says what is missing.
+    if (isNative()) await requestCrashPermissions()
+
     const allowed = await requestMotionPermission()
     if (!allowed) {
       setNotice(
@@ -457,12 +461,21 @@ function LockScreenChecklist() {
 
   if (!isNative() || !ready) return null
 
+  const ask = async () => {
+    await requestCrashPermissions()
+    refresh()
+  }
+
   const rows = [
+    { ok: ready.sms, label: 'Can text your contacts', fixLabel: 'Allow', fix: ask },
+    { ok: ready.phone, label: 'Can ring your first contact', fixLabel: 'Allow', fix: ask },
+    { ok: ready.location, label: 'Can read your location', fixLabel: 'Allow', fix: ask },
+    { ok: ready.microphone, label: 'Can record after an impact', fixLabel: 'Allow', fix: ask },
     {
       ok: ready.notifications,
       label: 'Notifications allowed',
-      fixLabel: 'Settings',
-      fix: () => void openAppSettings(),
+      fixLabel: 'Allow',
+      fix: ask,
     },
     {
       ok: ready.lockScreen,
@@ -514,7 +527,16 @@ function LockScreenChecklist() {
       </ul>
       {missing > 0 && (
         <p className="mt-2 text-[11px] leading-relaxed text-amber-900">
-          Detection still runs without these. They decide whether you are told about it.
+          Detection still runs without these. They decide whether anyone is told about it. If
+          tapping Allow does nothing, Android has stopped asking —{' '}
+          <button
+            type="button"
+            onClick={() => void openAppSettings()}
+            className="font-semibold underline"
+          >
+            open app settings
+          </button>{' '}
+          and turn them on there.
         </p>
       )}
     </div>

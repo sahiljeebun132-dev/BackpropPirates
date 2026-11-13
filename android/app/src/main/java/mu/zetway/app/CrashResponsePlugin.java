@@ -52,7 +52,15 @@ import java.util.List;
     permissions = {
         @Permission(alias = "sms", strings = { Manifest.permission.SEND_SMS }),
         @Permission(alias = "phone", strings = { Manifest.permission.CALL_PHONE }),
-        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
+        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS }),
+        @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO }),
+        @Permission(
+            alias = "location",
+            strings = {
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            }
+        )
     }
 )
 public class CrashResponsePlugin extends Plugin {
@@ -391,6 +399,13 @@ public class CrashResponsePlugin extends Plugin {
         out.put("notifications",
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
                 || getPermissionState("notifications") == PermissionState.GRANTED);
+        // The four that decide whether the escalation can run at all. Asking
+        // for any of these at the moment of a crash would mean a permission
+        // dialog in front of someone who cannot answer it.
+        out.put("sms", getPermissionState("sms") == PermissionState.GRANTED);
+        out.put("phone", getPermissionState("phone") == PermissionState.GRANTED);
+        out.put("microphone", getPermissionState("microphone") == PermissionState.GRANTED);
+        out.put("location", getPermissionState("location") == PermissionState.GRANTED);
         out.put("lockScreen", CrashWatchService.canRaiseOnLockScreen(getContext()));
         out.put("unrestricted", CrashWatchService.isUnrestricted(getContext()));
         out.put("watching", CrashWatchService.running);
