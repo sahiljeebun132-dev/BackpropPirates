@@ -46,7 +46,15 @@ jobs:
           # at configuration time with "no locally installed toolchains match".
           java-version: '21'
 
-      - uses: android-actions/setup-android@v3
+      # No setup-android action: the Ubuntu runner image already ships the SDK,
+      # and the action itself failed here. This only tops up the two packages
+      # the build pins, and is a no-op when they are already present.
+      - name: Make sure the SDK has what this build pins
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Install dependencies
         run: npm ci

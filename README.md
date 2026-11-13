@@ -218,8 +218,10 @@ npm run lint
 
 ### Building the Android app
 
-Needs JDK 17 and the Android SDK (platform 35, build-tools 35.0.0); `ANDROID_HOME` must point at
-the SDK, or `android/local.properties` must set `sdk.dir`.
+Needs **JDK 21** and the Android SDK (platform 35, build-tools 35.0.0); `ANDROID_HOME` must point
+at the SDK, or `android/local.properties` must set `sdk.dir`. Capacitor 7's Gradle plugins request
+a Java 21 toolchain specifically — on 17 the build fails at configuration with "no locally
+installed toolchains match".
 
 ```bash
 npm run cap:sync                      # build the web app and copy it into the Android project
