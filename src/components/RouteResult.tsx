@@ -5,6 +5,7 @@ import { MODE_LABEL, TIME_BAND_LABEL, type RouteAssessment } from '../lib/risk'
 import type { HazardReport } from '../lib/reports'
 import type { AppData } from '../lib/types'
 import { AdviceList } from './AdviceList'
+import { CorridorMap } from './CorridorMap'
 import { EmergencyList } from './EmergencyList'
 import { FactorBreakdown } from './FactorBreakdown'
 import { HotspotList } from './HotspotList'
@@ -120,6 +121,17 @@ export function RouteResult({
 
       <AdviceList advice={a.advice} />
       <FactorBreakdown factors={a.factors} />
+      {/* Drawn before the list, because "B37" means nothing to a rider who
+          has never heard of it and everything once they see it lying across
+          the line they are about to ride. */}
+      <CorridorMap
+        data={data}
+        origin={a.origin}
+        destination={a.destination}
+        hotspots={a.hotspots}
+        emergency={a.emergency}
+      />
+
       <HotspotList
         hotspots={a.hotspots}
         totalOnIsland={data.hotspots.hotspots.length}

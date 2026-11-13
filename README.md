@@ -68,6 +68,8 @@ Pick origin, destination, travel mode and time of day. It returns:
   its figures and the table they came from.
 - Which of the island's **48 officially designated accident-prone road segments** your corridor
   passes, by road number and name.
+- **A map of the corridor**, drawn from the real geometry of those segments. No tiles and no
+  requests, so it works in airplane mode like the rest of the score.
 - **Advice specific to you**, each line citing the table it came from.
 - The **nearest hospitals, health centres and police stations** along the corridor, with
   tap-to-call numbers, plus 114 and 999 buttons.
