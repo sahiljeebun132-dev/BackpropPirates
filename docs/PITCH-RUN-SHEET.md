@@ -8,14 +8,15 @@ Everything below is a thing that already works. Nothing here needs building.
 
 ## Before you walk in
 
-- [ ] Phone charged, **airplane mode off for now**, APK installed, crash watch armed once so the permissions are already granted
+- [ ] Phone charged, **airplane mode off for now**, APK installed, crash watch armed once so the permissions are already granted. Arm it by tapping the **Crash watch** line on the home screen, then *Turn crash watch on* on the page it opens
+- [ ] **Check the footer says `Android app`**, not `Web app`. Only the Android build buzzes, texts and calls on its own — the web one cannot, by design of the browser, and the footer is there because an evening was lost to not knowing which was installed
 - [ ] Laptop charged. Open these four tabs **before** the room fills:
   1. `backprop-pirates.vercel.app`
   2. `backprop-pirates.vercel.app/crash-demo.html`
   3. `docs/pitch-assets/zetway-demo.mp4` (the backup video, **local file**, not streamed)
   4. The deck
 - [ ] Load the live app once on the laptop **while you still have wifi**, so the service worker caches it. If the venue wifi dies, the demo still runs. **Do this after the last deploy, not before** — the cache is versioned, so a deploy empties it and the first online load is what refills it.
-- [ ] Judges can install it themselves: the site now carries both builds, in a card under crash watch. Say so — it is a stronger line than any slide about shipping twice from one codebase.
+- [ ] Judges can install it themselves: the site carries both builds, in a card low on the home screen. Say so — it is a stronger line than any slide about shipping twice from one codebase.
 - [ ] Team leader: repo link submitted via the organisers' form
 
 ---
@@ -46,11 +47,13 @@ Do it on **your phone**, mirrored or held up. Say what you are about to do befor
    → *"This is the whole idea. Not a district average — the black spots on the road you are about to ride."* Tap one; it names the road.
 4. **Tap "leave at 18:00" if it offers it.** The score moves.
    → *Darkness with no street lighting is 2.2× as likely to end in a death. 8.2% fatal against 3.7%.*
-5. **Broken down or had a crash? → No one is hurt → Fully off the road → Continue.**
+5. **Broken down or had a crash?** — the second pill row, under the two tiles. Then *No, everyone is fine → Fully off the road → Continue*.
    → Motorcycle guides, because the planner already knew you were on a bike.
 6. **Chain trouble.** Point at *"Stop and call for help if"* sitting **above** the steps.
    → *A chain that comes off at speed can lock the rear wheel.*
-7. **Then the surprise card.** See below.
+7. **Point at _Watch someone do this_** above the steps, and say what it is.
+   → *"That opens YouTube. Someone else's video, and we say so. The steps underneath are the ones we wrote and the ones that work with no signal."* Honesty about a borrowed thing reads better than pretending it is yours.
+8. **Then the surprise card.** See below.
 
 ---
 
@@ -103,7 +106,7 @@ The people who already publish this data. Handing it over is a repo transfer, no
 | Venue wifi | **Nothing.** The app is cached. That *is* the surprise-card answer — lean into it. |
 | Phone won't mirror | Hold it up and narrate. Or switch to the laptop tab. |
 | Live demo misbehaves | `zetway-demo.mp4`, 93 seconds, plays from the local file with no network. |
-| Crash watch won't fire | Use *Show me what happens in a crash* — the rehearsal. Say it's a rehearsal. |
+| Crash watch won't fire | Tap the **Crash watch** line, then *Show me what happens in a crash* — the rehearsal. Two taps now, not one, so know where it is. Say it's a rehearsal. |
 | Everything | The deck has screenshots of all of it. |
 
 ---
