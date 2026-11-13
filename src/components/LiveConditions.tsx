@@ -2,7 +2,7 @@ import type { DepartureAdvice } from '../lib/departure'
 import { estimateTripMinutes, AVERAGE_SPEED_KMH } from '../lib/departure'
 import { HEAVY_RAIN_MM, RAIN_MM_THRESHOLD, rainOverTrip, type LiveConditions as Live } from '../lib/live'
 import { TIME_BAND_LABEL } from '../lib/risk'
-import type { AppData } from '../lib/types'
+import type { AppData, TimeBand } from '../lib/types'
 
 const timeFmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
 
@@ -141,19 +141,23 @@ function explainShift(data: AppData, from: string, to: string): string {
   )
 }
 
-/** Shown when the forecast cannot be reached, so the rider can still set the
- *  light condition by hand and the score keeps working. */
-export function LiveUnavailable({ band, onPick }: { band: string; onPick: () => void }) {
+/** Shown when the forecast cannot be reached, so the rider knows the score is
+ *  running on what they set by hand rather than on live conditions. */
+export function LiveUnavailable({ band, onChange }: { band: TimeBand; onChange: () => void }) {
   return (
     <section className="rounded-2xl bg-slate-100 p-4 ring-1 ring-slate-200">
-      <h2 className="text-sm font-semibold text-slate-900">Live conditions unavailable</h2>
+      <h2 className="text-sm font-semibold text-slate-900">No live forecast right now</h2>
       <p className="mt-1 text-xs leading-relaxed text-slate-600">
-        No forecast right now, so the score is using{' '}
-        <span className="font-medium">{TIME_BAND_LABEL[band as keyof typeof TIME_BAND_LABEL]}</span>{' '}
-        as you set it. Everything else on this page comes from data already on your phone.
+        The score is using <span className="font-medium">{TIME_BAND_LABEL[band].toLowerCase()}</span>,
+        as you set it, instead of working the light out from today&rsquo;s sunset. Every other
+        figure on this page comes from data already loaded, so the rest still holds.
       </p>
-      <button type="button" onClick={onPick} className="mt-2 text-xs font-semibold text-brand-deep underline">
-        Change it
+      <button
+        type="button"
+        onClick={onChange}
+        className="mt-2 text-xs font-semibold text-brand-deep underline"
+      >
+        Change the light setting
       </button>
     </section>
   )

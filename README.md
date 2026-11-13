@@ -43,6 +43,11 @@ Pick origin, destination, travel mode and time of day. It returns:
 - **Advice specific to you**, each line citing the table it came from.
 - The **nearest hospitals, health centres and police stations** along the corridor, with
   tap-to-call numbers, plus 114 and 999 buttons.
+- **Live conditions and a leave-by recommendation.** Sunrise, sunset and hourly rain for your
+  corridor come from Open-Meteo (free, no key). The app scores the same journey every half hour
+  around your planned time and offers the safest slot within three hours. Grand Baie to Port
+  Louis by motorcycle at 19:00 scores 31; at 18:00 it scores 46, because the trip is then in
+  daylight.
 
 ## Data sources
 
@@ -59,6 +64,7 @@ published by the Mauritius Digital Promotion Agency and Statistics Mauritius.
 | Locations of Hospitals, Clinics, Medi-Clinics, AHC and CHC (169) | Nearest medical help; also every town coordinate in the planner |
 | Location of Police Stations (72) | Nearest police station |
 | Vehicles registered by type (2024) | The exposure denominator: casualties per 1,000 registered vehicles |
+| Casualty accidents by severity and weather condition (2013–2018 pooled) | The wet-road advice |
 | Road traffic accidents and casualties (2024) | The island-wide figures on the opening screen |
 
 **Nothing is hand-entered.** Two scripts do all of it:
@@ -80,6 +86,19 @@ app links to the original resource file.
 from facility positions, maps the 9 administrative districts onto the 7 police districts (our
 assumption, published inside `places.json`), and computes the shares and rates the score needs.
 
+### Why not satellite imagery
+
+We looked at it and rejected it on the evidence. Seeing something car-sized needs roughly
+sub-metre resolution, which means low Earth orbit and about one pass a day; the satellites that
+watch continuously are weather satellites at 500 m to 2 km a pixel, where a car does not exist.
+Mauritius is also frequently cloudy. Commercial tasking costs hundreds of dollars a shot with
+hours of lead time. So we use the remote-sensed data that does arrive hourly and free — the
+weather model — and turn it into a decision about when to leave.
+
+The app also does not notify the police automatically. A false positive sends officers to
+nothing, we have no integration or authority, and the rules ask us to help people reach services
+rather than investigate. One-tap calling to the nearest station is the honest version.
+
 ## How the score works
 
 Four measurements, weighted, subtracted from 100. Higher is safer.
@@ -93,6 +112,10 @@ Four measurements, weighted, subtracted from 100. Higher is safer.
 
 Each factor is a ratio between two published figures, and **both ends of every scale come from the
 data**. The only numbers we chose are the four weights, and the app prints them on screen.
+
+Rain is deliberately **not** a score factor. Pooled over 2013–2018 it lifts the fatal share from
+4.67% to 5.88%, a ratio of 1.26 — real, but too small to swing a score, and only 8% of casualty
+accidents happen in the wet. The app says so on screen and shows it as advice instead.
 
 The score is an **exposure indicator, not a prediction**. It cannot know about today's traffic,
 weather or the driver, and the app says so.
@@ -123,6 +146,8 @@ equally.
 | `scripts/build_journal.mjs` | Regenerates the build journal |
 | `src/lib/risk.ts` | Scoring model and advice generator — pure functions, no UI |
 | `src/lib/geo.ts` | Distance and corridor maths |
+| `src/lib/live.ts` | Open-Meteo fetch, sunrise/sunset to light band, rain over the trip |
+| `src/lib/departure.ts` | Scores the journey across departure times to find a safer slot |
 | `src/lib/useAppData.ts` | Loads the data files once |
 | `src/components/` | One component per panel |
 
@@ -159,7 +184,8 @@ No environment variables and no API keys. All data is static JSON in `public/dat
 - The light, junction and road-type tables are from 2018, the latest the publisher has released.
   District data is 2024. Every figure in the app carries its year.
 - 26 towns, limited to places with an official health facility so the coordinates are real.
-- No live traffic, weather or crowd reports.
+- No live traffic feed and no crowd reports yet; live conditions are weather and daylight only.
+- Whether a particular road is lit is something no forecast knows, so the rider tells us.
 
 ## Documents
 

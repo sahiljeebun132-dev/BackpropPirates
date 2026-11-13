@@ -6,7 +6,7 @@ import { AdviceList } from './AdviceList'
 import { EmergencyList } from './EmergencyList'
 import { FactorBreakdown } from './FactorBreakdown'
 import { HotspotList } from './HotspotList'
-import { LiveConditionsPanel } from './LiveConditions'
+import { LiveConditionsPanel, LiveUnavailable } from './LiveConditions'
 import { ScoreDial } from './ScoreDial'
 import { SourcesPanel } from './SourcesPanel'
 
@@ -18,6 +18,7 @@ export function RouteResult({
   assessment,
   data,
   live,
+  liveFailed,
   departureAdvice,
   departAt,
   onDepartAt,
@@ -26,6 +27,7 @@ export function RouteResult({
   assessment: RouteAssessment
   data: AppData
   live: LiveConditions | null
+  liveFailed: boolean
   departureAdvice: DepartureAdvice | null
   departAt: Date
   onDepartAt: (d: Date) => void
@@ -61,7 +63,7 @@ export function RouteResult({
 
       <ScoreDial assessment={a} />
 
-      {live && departureAdvice && (
+      {live && departureAdvice ? (
         <LiveConditionsPanel
           data={data}
           live={live}
@@ -70,7 +72,9 @@ export function RouteResult({
           directKm={a.directDistanceKm}
           onAccept={onDepartAt}
         />
-      )}
+      ) : liveFailed ? (
+        <LiveUnavailable band={a.timeBand} onChange={onBack} />
+      ) : null}
 
       <AdviceList advice={a.advice} />
       <FactorBreakdown factors={a.factors} />

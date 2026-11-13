@@ -88,6 +88,7 @@ export default function App() {
           assessment={assessment}
           data={appData}
           live={liveConditions}
+          liveFailed={live.status === 'error'}
           departureAdvice={departureAdvice}
           departAt={departAt}
           onDepartAt={(d) => {

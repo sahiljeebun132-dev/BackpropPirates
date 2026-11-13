@@ -70,9 +70,20 @@ export function fetchLiveConditions(lat: number, lon: number): Promise<LiveCondi
     '&daily=sunrise,sunset' +
     '&forecast_days=2&timezone=Indian%2FMauritius'
 
-  const promise = fetch(url)
+  // A free public endpoint returns the occasional 503 under load, and we saw
+  // one in testing. One retry turns a blip into nothing the rider notices.
+  const getOnce = async (): Promise<Response> => {
+    const res = await fetch(url)
+    if (res.ok) return res
+    throw new Error(`weather ${res.status}`)
+  }
+
+  const promise = getOnce()
+    .catch(async () => {
+      await new Promise((r) => setTimeout(r, 700))
+      return getOnce()
+    })
     .then(async (res) => {
-      if (!res.ok) throw new Error(`weather ${res.status}`)
       const j = await res.json()
       const sun: LiveConditions['sun'] = {}
       for (let i = 0; i < (j.daily?.time?.length ?? 0); i += 1) {
