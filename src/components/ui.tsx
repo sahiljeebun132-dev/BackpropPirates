@@ -287,4 +287,15 @@ export const Icon = {
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
     </svg>
   ),
+  camera: (c = 'h-4 w-4') => (
+    <svg {...s} className={c}>
+      <path d="M14.5 4h-5L8 6.5H4.5A1.5 1.5 0 003 8v10a1.5 1.5 0 001.5 1.5h15A1.5 1.5 0 0021 18V8a1.5 1.5 0 00-1.5-1.5H16z" />
+      <circle cx="12" cy="12.5" r="3.5" />
+    </svg>
+  ),
+  check: (c = 'h-4 w-4') => (
+    <svg {...s} className={c}>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  ),
 }
