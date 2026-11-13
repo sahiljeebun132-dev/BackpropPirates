@@ -97,7 +97,8 @@ LAY = {
     "ground": 1.50,
     "jack": 1.10,
     "body": 1.00,
-    "window": 0.95,
+    "cut": 0.97,
+    "window": 0.93,
     "trim": 0.90,
     "mark": 0.85,
     "halo": 0.75,
@@ -159,8 +160,15 @@ WHEEL_PARK = (3.70, 0.32)   # just off the right edge of the close framing
 WHEEL_GONE = (4.30, -0.90)  # and then out of the scene entirely
 SPARE_PARK_X = 7.00
 
-TRAY_X0 = 0.52
-TRAY_STEP = 0.15
+# A wedge, drawn as a tilted block. Its centre sits high enough that the
+# low corner clears the road line once the tilt is applied.
+CHOCK_Z = 0.17
+CHOCK_TILT = math.radians(-16)
+
+# The row the nuts wait in, kept left of the jack foot: laid out under it,
+# two of the five sat on the jack and read as part of it.
+TRAY_X0 = 0.30
+TRAY_STEP = 0.13
 TRAY_Z = NUT_R
 
 WIDE = ((0.15, 0.80), 5.0)
@@ -250,6 +258,27 @@ def triangle(name, r, loc, *, material=None, parent=None):
     return put(o, loc=loc, rot=(math.pi / 2, 0, 0), material=material, parent=parent)
 
 
+def corner_cut(name, a, b, toward, material, parent, *, over=0.06, depth=1.0):
+    """Notch a corner off a box with a plate the colour of the sky.
+
+    There is no boolean here and no outline pass, so the silhouette is shaped
+    by covering the corner rather than cutting it. Both ends of every cut in
+    this file run off the cabin into open sky, which is what stops the plate
+    biting a hole in the bodywork below.
+    """
+    (ax, az), (bx, bz) = a, b
+    dx, dz = bx - ax, bz - az
+    length = math.hypot(dx, dz)
+    ux, uz = dx / length, dz / length
+    nx, nz = -uz, ux
+    mx, mz = (ax + bx) / 2, (az + bz) / 2
+    if (toward[0] - mx) * nx + (toward[1] - mz) * nz < 0:
+        nx, nz = -nx, -nz
+    plate(name, length + 2 * over, depth,
+          (mx + nx * depth / 2, LAY["cut"], mz + nz * depth / 2),
+          material=material, parent=parent, spin=-math.atan2(uz, ux))
+
+
 def empty(name, loc=(0, 0, 0), parent=None):
     o = bpy.data.objects.new(name, None)
     bpy.context.collection.objects.link(o)
@@ -330,7 +359,7 @@ def build_road(mats):
 
 
 # ------------------------------------------------------------------- the car
-def build_wheel(name, parent, mats, *, rim_mat):
+def build_wheel(name, parent, mats, *, rim_mat, with_nuts=False):
     """Tyre, rim, spokes, cap, and a pale ring behind the lot.
 
     The ring is the cheap way to get an outline: the tyre is nearly the same
@@ -349,6 +378,15 @@ def build_wheel(name, parent, mats, *, rim_mat):
               (SPOKE_LEN / 2 * math.cos(a), LAY["spoke"], SPOKE_LEN / 2 * math.sin(a)),
               material=mats["ink_soft"], parent=root, spin=-a)
     disc(name + "Cap", CAP_R, (0, LAY["cap"], 0), material=mats["ink"], parent=root)
+    if with_nuts:
+        # Only the rear wheel gets nuts of its own. The front wheel's nuts are
+        # separate objects because they have to come off, and the spare has
+        # none until they are put back on it.
+        for i in range(NUT_COUNT):
+            a = math.radians(90 + i * 72)
+            disc(f"{name}Nut{i}", NUT_R,
+                 (NUT_RING_R * math.cos(a), LAY["nut"], NUT_RING_R * math.sin(a)),
+                 material=mats["ink"], parent=root, verts=6)
     return root
 
 
@@ -361,9 +399,19 @@ def build_car(mats):
           material=mats["ink_soft"], parent=car)
     plate("Cabin", 2.45, 0.48, (-0.18, LAY["body"], 1.19),
           material=mats["ink_soft"], parent=car)
-    for i, x in enumerate((0.34, -0.70)):
-        plate(f"Window{i}", 0.86, 0.30, (x, LAY["window"], 1.19),
-              material=mats["bg"], parent=car)
+    # A square-cornered cabin on a slab read as a pickup truck, which is the
+    # wrong vehicle for a guide that says "car" in its first line. A raked
+    # screen at each end is the cheapest thing that fixes it.
+    corner_cut("Windscreen", (0.30, 1.43), (1.045, 1.05), (1.045, 1.43),
+               mats["bg"], car)
+    corner_cut("RearScreen", (-0.95, 1.43), (-1.405, 1.12), (-1.405, 1.43),
+               mats["bg"], car)
+    # Both windows sit clear of those rakes; a window that crossed one would
+    # join up with the sky and punch a hole in the roofline.
+    plate("WindowFront", 0.62, 0.24, (0.18, LAY["window"], 1.15),
+          material=mats["bg"], parent=car)
+    plate("WindowRear", 0.70, 0.24, (-0.78, LAY["window"], 1.15),
+          material=mats["bg"], parent=car)
     plate("Sill", 3.90, 0.07, (0.0, LAY["trim"], BODY_BOTTOM + 0.035),
           material=mats["slate"], parent=car)
 
@@ -380,7 +428,7 @@ def build_car(mats):
     mark = triangle("JackMark", 0.095, (JACK_X, LAY["mark"], BODY_BOTTOM - 0.08),
                     material=mats["brand"], parent=car)
 
-    rear = build_wheel("Rear", car, mats, rim_mat=mats["steel"])
+    rear = build_wheel("Rear", car, mats, rim_mat=mats["steel"], with_nuts=True)
     rear.location = (REAR_X, 0, TYRE_R)
 
     disc("HubHalo", HUB_R + 0.035, (FRONT_X, LAY["hubhalo"], TYRE_R),
@@ -410,8 +458,8 @@ def build_car(mats):
              TYRE_R + NUT_RING_R * math.sin(a)),
             material=mats["nut"][i], parent=car, verts=6))
 
-    chock = plate("Chock", 0.30, 0.24, (-3.50, LAY["chock"], 0.12),
-                  material=mats["chock"], parent=car, spin=math.radians(-20))
+    chock = plate("Chock", 0.30, 0.24, (-3.50, LAY["chock"], CHOCK_Z),
+                  material=mats["chock"], parent=car, spin=CHOCK_TILT)
 
     return dict(pivot=pivot, car=car, wheel=wheel, spare=spare, nuts=nuts,
                 mark=mark, hazards=hazards, chock=chock)
@@ -520,9 +568,9 @@ def animate(rig, jack_root, jack_lift, brace, lines, cam, nut_positions):
         key_colour(nut.data.materials[0], 1, INK)
 
     # --- secure: the chock goes in behind the rear wheel.
-    key(chock, F["secure"], loc=(-3.50, LAY["chock"], 0.12), interp="LINEAR")
-    key(chock, F["secure"] + 11, loc=(-3.50, LAY["chock"], 0.12))
-    key(chock, F["secure"] + 28, loc=(-2.02, LAY["chock"], 0.12))
+    key(chock, F["secure"], loc=(-3.50, LAY["chock"], CHOCK_Z), interp="LINEAR")
+    key(chock, F["secure"] + 11, loc=(-3.50, LAY["chock"], CHOCK_Z))
+    key(chock, F["secure"] + 28, loc=(-2.02, LAY["chock"], CHOCK_Z))
 
     # The jack point mark is hidden by being scaled away rather than dimmed:
     # an emission strength of zero is black, and a black triangle on a slate

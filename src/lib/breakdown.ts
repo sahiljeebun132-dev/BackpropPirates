@@ -100,6 +100,7 @@ export const GUIDES: Guide[] = [
     blurb: 'A puncture, or the tyre pressure warning came on',
     before: [
       'The car must be on firm, level ground, out of the traffic lane, handbrake on and in gear or park.',
+      'If you have anything to chock a wheel with, put it against the wheel diagonally opposite the one coming off. A handbrake holds two wheels; a jack takes one of them off the ground.',
       'Everyone out through the kerb-side doors and behind a barrier or well off the road. Not sitting in the car, and not standing on the traffic side.',
       'Hazard lights on. If you carry a warning triangle, put it well back along the road, far enough that a driver coming round the last bend still has time to slow.',
     ],

@@ -75,7 +75,7 @@ export function HomeDashboard({
       <Row
         accent="blue"
         icon={Icon.wrench()}
-        title="Broken down or had a crash?"
+        title="Broken down or had a crash"
         subtitle="Safety check first, then fifteen roadside guides"
         onClick={onRoadside}
       />

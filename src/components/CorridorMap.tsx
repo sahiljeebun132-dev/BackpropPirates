@@ -138,7 +138,11 @@ export function CorridorMap({
         </span>
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-xl bg-ink ring-1 ring-slate-800">
+      {/* A light canvas, inverted from the near-black it used to be. The red
+          stretches were legible on black because everything else receded;
+          on #F8FAFC the same reds still carry, but the context layers had to
+          come down in weight rather than up, or the map turns into noise. */}
+      <div className="mt-3 overflow-hidden rounded-xl bg-[#F8FAFC] ring-1 ring-edge">
         <svg
           viewBox={`0 0 ${VIEW_W} ${viewH}`}
           className="block w-full"
@@ -151,10 +155,10 @@ export function CorridorMap({
               key={h.id}
               d={path(h.points as [number, number][])}
               fill="none"
-              stroke="#475569"
+              stroke="#94a3b8"
               strokeWidth={5}
               strokeLinecap="round"
-              opacity={0.5}
+              opacity={0.55}
             />
           ))}
 
@@ -163,14 +167,14 @@ export function CorridorMap({
             const [x, y] = to(p.lat, p.lon)
             const end = p.id === origin.id || p.id === destination.id
             if (end) return null
-            return <circle key={p.id} cx={x} cy={y} r={4.5} fill="#64748b" />
+            return <circle key={p.id} cx={x} cy={y} r={4.5} fill="#94a3b8" />
           })}
 
           {/* The trip itself. A straight line, which is what it is: the app
               says so here and in the sources panel. */}
           <line
             x1={ox} y1={oy} x2={dx} y2={dy}
-            stroke="#189edb" strokeWidth={6} strokeDasharray="14 11" opacity={0.9}
+            stroke="#0e6fa3" strokeWidth={6} strokeDasharray="14 11" opacity={0.85}
           />
 
           {/* Hospitals and police stations near the route. */}
@@ -178,16 +182,16 @@ export function CorridorMap({
             const [x, y] = to(p.lat, p.lon)
             return (
               <g key={`h${p.name}`} opacity={0.9}>
-                <circle cx={x} cy={y} r={7} fill="#0f172a" stroke="#007848" strokeWidth={2} />
+                <circle cx={x} cy={y} r={7} fill="#ffffff" stroke="#007848" strokeWidth={2} />
                 <path d={`M${x - 3.4} ${y}H${x + 3.4}M${x} ${y - 3.4}V${y + 3.4}`}
-                      stroke="#34d399" strokeWidth={2} strokeLinecap="round" />
+                      stroke="#007848" strokeWidth={2} strokeLinecap="round" />
               </g>
             )
           })}
           {emergency.police.slice(0, 4).map((p) => {
             const [x, y] = to(p.lat, p.lon)
-            return <circle key={`p${p.name}`} cx={x} cy={y} r={5} fill="#0f172a"
-                           stroke="#f0c000" strokeWidth={2} opacity={0.9} />
+            return <circle key={`p${p.name}`} cx={x} cy={y} r={5} fill="#ffffff"
+                           stroke="#b45309" strokeWidth={2.4} opacity={0.95} />
           })}
 
           {/* The black spots on this corridor, over everything else. */}
@@ -210,8 +214,8 @@ export function CorridorMap({
           })}
 
           {/* Endpoints last, so nothing is drawn over them. */}
-          <circle cx={ox} cy={oy} r={13} fill="#189edb" stroke="#0b1220" strokeWidth={4} />
-          <circle cx={dx} cy={dy} r={13} fill="#fff" stroke="#189edb" strokeWidth={5} />
+          <circle cx={ox} cy={oy} r={13} fill="#0e6fa3" stroke="#ffffff" strokeWidth={4} />
+          <circle cx={dx} cy={dy} r={13} fill="#ffffff" stroke="#0e6fa3" strokeWidth={5} />
         </svg>
       </div>
 

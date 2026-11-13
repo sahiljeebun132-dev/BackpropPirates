@@ -5,7 +5,8 @@ import {
   WHERE_PHRASE, WHERE_LABEL, type Guide, type Powertrain, type StoppedWhere, type Vehicle,
 } from '../lib/breakdown'
 import { distanceKm } from '../lib/geo'
-import { hasVideo, videoSearchUrl } from '../lib/guideVideo'
+import { isNative } from '../lib/platform'
+import { hasVideo, localClip, videoSearchUrl } from '../lib/guideVideo'
 import { useOnline } from '../lib/useOnline'
 import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
 import type { AppData, Place } from '../lib/types'
@@ -78,7 +79,7 @@ export function BreakdownFlow(props: Props) {
         <a href="tel:115" className="flex-1 rounded-xl bg-flag-yellow px-3 py-3 text-center text-sm font-bold text-ink active:opacity-90">
           Fire 115
         </a>
-        <a href="tel:999" className="flex-1 rounded-xl bg-ink px-3 py-3 text-center text-sm font-bold text-white active:opacity-90">
+        <a href="tel:999" className="flex-1 rounded-xl bg-brand-deep px-3 py-3 text-center text-sm font-bold text-white active:opacity-90">
           Police 999
         </a>
       </div>
@@ -127,7 +128,7 @@ export function BreakdownFlow(props: Props) {
       )}
 
       {stage === 'where' && (
-        <Card title="Where has the car stopped?">
+        <Card title="Where the car has stopped">
           <p className="text-sm leading-relaxed text-slate-700">
             This decides whether you should touch the car at all.
           </p>
@@ -155,7 +156,7 @@ export function BreakdownFlow(props: Props) {
 
       {stage === 'car' && (
         <Card title="Your vehicle">
-          <h3 className="text-sm font-semibold text-slate-900">What are you on?</h3>
+          <h3 className="text-sm font-semibold text-slate-900">What you are on</h3>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {(Object.keys(VEHICLE_LABEL) as Vehicle[]).map((v) => (
               <button
@@ -225,7 +226,7 @@ export function BreakdownFlow(props: Props) {
                 : 'Type your car. The suggestion list is still loading, and the field works without it.'}
           </p>
 
-          <h3 className="mt-4 text-sm font-semibold text-slate-900">What does it run on?</h3>
+          <h3 className="mt-4 text-sm font-semibold text-slate-900">What it runs on</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-700">
             This is the one answer that changes what is safe to do.
           </p>
@@ -264,7 +265,7 @@ export function BreakdownFlow(props: Props) {
       )}
 
       {stage === 'symptom' && (
-        <Card title="What is happening?">
+        <Card title="What is happening">
           <div className="mt-1 grid gap-2">
             {guidesFor(vehicle).map((g) => (
               <button
@@ -458,7 +459,7 @@ function GuideView({
       )}
 
       {extra.length > 0 && (
-        <section className="rounded-2xl bg-ink p-4 text-white shadow-sm">
+        <section className="rounded-[20px] bg-[#F8FAFC] p-4 text-slate-800 shadow-sm ring-1 ring-edge">
           <h2 className="text-sm font-semibold text-brand">
             Because you said {POWERTRAIN_LABEL[powertrain].toLowerCase()}
           </h2>
@@ -502,7 +503,28 @@ function GuideView({
               checked by us, and it needs a connection the rest of the page
               does not. Offered for every guide except the two where the
               right answer is to get away from the vehicle. */}
-          {hasVideo(guide.id) && (
+          {/* Our own clip where we have drawn one: it plays inside the APK
+              with no signal, which the linked video cannot. */}
+          {localClip(guide.id) && (isNative() || online) && (
+            <section className="overflow-hidden rounded-[20px] bg-white shadow-sm ring-1 ring-edge">
+              <video
+                src={localClip(guide.id)!.src}
+                controls
+                playsInline
+                muted
+                loop
+                preload="metadata"
+                className="block w-full bg-[#F8FAFC]"
+                aria-label={`Animation showing ${guide.label.toLowerCase()}`}
+              />
+              <p className="px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
+                Drawn by us and stored in the app, so it plays with no signal. The written
+                steps below are the ones to follow — where the two differ, the text is right.
+              </p>
+            </section>
+          )}
+
+          {!localClip(guide.id) && hasVideo(guide.id) && (
             <a
               href={videoSearchUrl(guide.id) ?? '#'}
               target="_blank"

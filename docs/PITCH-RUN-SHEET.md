@@ -39,7 +39,7 @@ Everything below is a thing that already works. Nothing here needs building.
 
 Do it on **your phone**, mirrored or held up. Say what you are about to do before you do it.
 
-1. **Grand Baie → Port Louis, motorcycle.** The two dropdowns and *Motorcycle* are already the defaults. Under **When are you leaving?** tap **Change**, then set the time to **19:00** — your rider commutes home after dark, and that is the number on your slides. Tap *Check this route*.
+1. **Grand Baie → Port Louis, motorcycle.** The two dropdowns and *Motorcycle* are already the defaults. Under **When you are leaving** tap **Change**, then set the time to **19:00** — your rider commutes home after dark, and that is the number on your slides. Tap *Check this route*.
    → **31 out of 100. Severe risk.**
 
    > **Do not leave it on _Now_.** At 13:00 the forecast puts you in daylight and the same route scores **46** — still Severe, but not the number on the deck, and not the number the airplane-mode run will show, because offline it falls back to after-dark and reads 31. The score would change mid-pitch with nothing to explain it. Verified across all four light bands: day 46, dawn-dusk 38, night-lit 32, night-unlit 31.
@@ -50,7 +50,7 @@ Do it on **your phone**, mirrored or held up. Say what you are about to do befor
 4. **Scroll back up to the card under the dial** — it sits above the factors, not below the map. It reads *Leaving earlier, at … scores 46, not 31*; the app picks the time. Tap *Use … instead* and the score moves.
    → *Darkness with no street lighting is 2.2× as likely to end in a death. 8.2% fatal against 3.7%.*
    → If the card does not appear, the same comparison is already written in **What to do about it** further down. It only offers a slot that is at least 6 points better and within three hours, which is why departing in daylight it never shows.
-5. **Broken down or had a crash?** — the second pill row, under the two tiles. Then *No, everyone is fine → Fully off the road → Continue*.
+5. **Broken down or had a crash** — the second pill row, under the two tiles. Then *No, everyone is fine → Fully off the road → Continue*.
    → Motorcycle guides, because the planner already knew you were on a bike.
 6. **Chain trouble.** Point at *"Stop and call for help if"* sitting **above** the steps.
    → *A chain that comes off at speed can lock the rear wheel.*

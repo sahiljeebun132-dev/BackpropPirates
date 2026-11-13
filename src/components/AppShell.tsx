@@ -36,9 +36,20 @@ const buildLabel = new Date(__BUILD_TIME__).toLocaleString('en-GB', {
  */
 export function AppShell({ children, location = null }: Props) {
   return (
-    <div className="zw-canvas flex min-h-dvh justify-center">
-      <div className="zw-page zw-scroll flex min-h-dvh w-full max-w-md flex-col shadow-sm ring-1 ring-slate-200/70">
-        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-white/95 backdrop-blur-md">
+    <div className="zw-canvas flex min-h-dvh w-full flex-col items-center justify-center sm:p-4">
+      {/* A phone, on a laptop.
+       *
+       *  Every frame decoration is behind `sm:`, so on a real handset and
+       *  inside the APK this is still edge-to-edge and square-cornered — the
+       *  rounding and the drop shadow exist only for the mirrored demo,
+       *  where a full-width column on a 27-inch screen reads as a website
+       *  rather than the phone app it is.
+       *
+       *  The scroll moves from the document into <main> here. That is what
+       *  makes `h-dvh` with `overflow-hidden` hold the frame to a fixed
+       *  height instead of letting the page grow past it. */}
+      <div className="zw-page relative flex h-dvh w-full flex-col overflow-hidden sm:h-[min(915px,calc(100dvh-2rem))] sm:w-[412px] sm:rounded-[34px] sm:border sm:border-slate-200/90 sm:shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
+        <header className="z-30 shrink-0 border-b border-slate-200/70 bg-white/95 backdrop-blur-md">
           <div className="flex items-center justify-between gap-2 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
             <div className="flex min-w-0 items-center gap-2.5">
               <img src={mark} alt="" width={298} height={298} className="h-8 w-8 shrink-0" />
@@ -90,13 +101,16 @@ export function AppShell({ children, location = null }: Props) {
           </div>
         </header>
 
-        <main className="flex-1 space-y-3.5 px-4 py-4">{children}</main>
+        {/* The only scroll container. Children must not assume the document
+            scrolls: a `sticky` element inside a page now sticks to this, not
+            to the viewport. */}
+        <main className="zw-scroll flex-1 space-y-3.5 overflow-y-auto px-4 py-4">{children}</main>
 
         {/* Which build this is, spelled out. Two people lost an evening to a
             phone that would not vibrate before anyone established whether it
             was running the Android app or the web one, and only the Android
             app can buzz at alarm priority. A word in the footer settles it. */}
-        <footer className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-center text-[11px] text-slate-400">
+        <footer className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-center text-[11px] text-slate-400">
           Team BackpropPirates · Life Powered by Tech 2026
           <br />
           {isNative() ? 'Android app' : 'Web app'} · build {buildLabel}

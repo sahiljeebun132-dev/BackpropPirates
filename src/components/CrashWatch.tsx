@@ -1037,7 +1037,7 @@ function BuzzSelfTest() {
 
       {ran && report && (
         <div className="mt-2 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-700 ring-1 ring-slate-200">
-          <p className="font-semibold text-slate-900">Did you feel two buzzes?</p>
+          <p className="font-semibold text-slate-900">Did you feel two buzzes</p>
           {reason ? (
             <p className="mt-1 text-flag-red">{reason}</p>
           ) : (

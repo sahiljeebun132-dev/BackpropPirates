@@ -44,7 +44,7 @@
 
   // The disclosure's accessible text is the whole row — the question, the
   // current summary and the word Change — so match the row, not the word.
-  const change = B().find((b) => /When are you leaving\?/.test(b.textContent))
+  const change = B().find((b) => /When you are leaving/.test(b.textContent))
   note(
     '1a. departure sits behind a disclosure',
     !!change && /Change|Hide/.test(change.textContent),
@@ -114,9 +114,17 @@
   const stepsIdx = text.search(/\nStep by step/)
   note('6b. warning sits above the steps', warn >= 0 && stepsIdx > warn, `warn@${warn} steps@${stepsIdx}`)
 
-  // 7. The video link.
-  const vid = text.includes('Watch someone do this')
-  note('7. "Watch someone do this" on the guide', vid, vid ? 'present' : 'missing')
+  // 7. Something to watch. Which one depends on the guide: the two we have
+  //    drawn an animation for play it inline from the app, and the rest
+  //    offer the YouTube search. Either satisfies the run sheet's step; what
+  //    would be wrong is a guide with neither.
+  const ownClip = !!document.querySelector('video')
+  const linkOut = text.includes('Watch someone do this')
+  note(
+    '7. the guide offers something to watch',
+    ownClip || linkOut,
+    ownClip ? 'plays our own animation' : linkOut ? 'links out to YouTube' : 'neither',
+  )
 
   // Fallback path: crash watch rehearsal, two taps.
   for (let i = 0; i < 10; i++) {

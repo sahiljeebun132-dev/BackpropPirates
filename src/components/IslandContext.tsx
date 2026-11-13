@@ -13,16 +13,18 @@ export function IslandContext({ data }: { data: AppData }) {
   ]
 
   return (
-    <section className="rounded-2xl bg-ink p-4 text-white shadow-sm">
+    <section className="rounded-[20px] bg-white p-4 shadow-sm ring-1 ring-edge">
       <div className="grid grid-cols-3 gap-2 text-center">
         {stats.map((s) => (
           <div key={s.label}>
-            <p className="text-2xl font-bold tabular-nums leading-none">{s.value}</p>
-            <p className="mt-1.5 text-[11px] leading-tight text-slate-300">{s.label}</p>
+            {/* The figure in flag red: on a near-white page the number has to
+                carry the weight the black panel used to. */}
+            <p className="tabular text-2xl font-bold leading-none text-flag-red">{s.value}</p>
+            <p className="mt-1.5 text-[11px] leading-tight text-slate-500">{s.label}</p>
           </div>
         ))}
       </div>
-      <p className="mt-3 border-t border-white/10 pt-2 text-[11px] text-slate-400">
+      <p className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-400">
         Republic of Mauritius, {island.year}. Statistics Mauritius via data.govmu.org.
       </p>
     </section>

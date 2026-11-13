@@ -93,6 +93,7 @@ SAG_SWING = 0.024               # how far the free-play check moves it
 
 # Depth order. Nothing here is lit, so Y only decides what covers what:
 # the hand in front of everything, the ground behind it all.
+Y_MARK = -0.18
 Y_HAND = -0.14
 Y_ARROW = -0.10
 Y_CHAIN = -0.06
@@ -124,14 +125,23 @@ def lin(hexstr: str, a: float = 1.0):
 
 
 # src/index.css, plus the slate ramp the UI already uses everywhere.
-INK = "#15181f"
-MACHINE = "#94a3b8"      # slate-400: the bike itself
-MACHINE_DIM = "#475569"  # slate-600: rims, ground, things behind
-STEEL = "#cbd5e1"        # slate-300: the sprocket, the part being aimed at
-CHAIN = "#f0c000"        # flag yellow: the one thing to follow
+#
+# Drawn on paper, not on a black screen. The first cut of this clip put a
+# light-grey bike on an ink ground, which read well on its own and wrong in
+# the app: every surface around it is near-white, and a black rectangle in
+# the middle of a guide is the one thing the design rules out. Inverting the
+# background alone would have hidden the bike, so the whole ramp is flipped —
+# the machine is now the dark subject and the ground is the page.
+BG = "#f1f5f9"           # the page, matching fix_tyre.py
+INK = "#f1f5f9"          # kept as the world colour under its old name
+MACHINE = "#334155"      # slate-700: the bike itself, now the dark shape
+MACHINE_DIM = "#94a3b8"  # slate-400: rims, ground, things behind
+STEEL = "#64748b"        # slate-500: the sprocket, the part being aimed at
+CHAIN = "#d97706"        # amber-600: flag yellow is too pale on a light ground
 HAND = "#189edb"         # brand blue
 GREEN = "#007848"        # flag green: the neutral light
-MARK = "#189edb"         # the free-play marks
+MARK = "#64748b"         # the free-play marks: not the blue of the hand
+                         # that sits next to them
 
 
 # ---------------------------------------------------------------- plumbing
@@ -443,7 +453,7 @@ def build_hand():
             scale=(0.052, 0.004, 0.018), material=m, parent=root)
     box("Thumb", loc=(-0.012, Y_HAND, 0.050), rot=(0, math.radians(26), 0),
         scale=(0.050, 0.004, 0.020), material=m, parent=root)
-    box("Cuff", loc=(0.084, Y_HAND, 0), scale=(0.042, 0.004, 0.092),
+    box("Cuff", loc=(0.080, Y_HAND, 0), scale=(0.034, 0.004, 0.092),
         material=m, parent=root)
     return root
 
@@ -487,11 +497,11 @@ def build_marks():
     root = empty("Marks")
     root.location = (CHECK_X, 0, CHECK_Z)
     m = flat("MarkMat", MARK)
-    for i, dz in enumerate((SAG_SWING + 0.012, -SAG_SWING - 0.012)):
-        box("Mark%d" % i, loc=(0, Y_ARROW, dz), scale=(0.075, 0.004, 0.007),
+    for i, dz in enumerate((SAG_SWING + 0.014, -SAG_SWING - 0.014)):
+        box("Mark%d" % i, loc=(0, Y_MARK, dz), scale=(0.085, 0.004, 0.008),
             material=m, parent=root)
-    box("MarkStem", loc=(-0.042, Y_ARROW, 0),
-        scale=(0.006, 0.004, 2 * (SAG_SWING + 0.012)), material=m, parent=root)
+    box("MarkStem", loc=(-0.048, Y_MARK, 0),
+        scale=(0.007, 0.004, 2 * (SAG_SWING + 0.014)), material=m, parent=root)
     return root
 
 
@@ -591,8 +601,10 @@ def hand_at(f: int, st):
     if F_SLACK_IN - 12 <= f:
         enter = ease(seg(f, F_SLACK_IN - 12, F_SLACK_IN + 6))
         # Under the lower run, fingers up, riding with it as it is pushed.
+        # Offset along the run so the hand is beside the free-play marks
+        # rather than on top of the one thing they are there to show.
         z = CHECK_Z - st["sag"] - HAND_REACH - 0.016
-        return ((mix(park[0], CHECK_X, enter), mix(park[1], z, enter)),
+        return ((mix(park[0], CHECK_X + 0.100, enter), mix(park[1], z, enter)),
                 math.pi / 2, enter)
 
     return park, 0.0, 0.0

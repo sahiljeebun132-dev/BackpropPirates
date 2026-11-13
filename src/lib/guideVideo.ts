@@ -58,3 +58,31 @@ export const NO_VIDEO = new Set(['smoke-or-smell', 'moto-fire'])
 export function hasVideo(guideId: string): boolean {
   return !NO_VIDEO.has(guideId) && videoSearchUrl(guideId) !== null
 }
+
+/**
+ * Clips we drew ourselves, bundled with the app.
+ *
+ * Two so far. They are schematic rather than filmed — flat shapes, the real
+ * brand colours, no text — because the job is to show which way the jack
+ * points and what order the nuts come off, and a diagram that moves does
+ * that better on a phone in daylight than footage of someone's driveway.
+ *
+ * They ship inside the APK, so on Android they play with no signal, which no
+ * linked video can do. On the web they are ordinary static files and need a
+ * connection: the service worker deliberately does not cache them, because
+ * 1.8 MB of video in the offline store is 1.8 MB competing with the app
+ * shell the offline demo depends on.
+ *
+ * Every step shown traces to the written guide. Where the drawing and the
+ * text disagree the text wins, and one such disagreement is known: the tyre
+ * clip opens by chocking a wheel, which the guide's own list does not ask
+ * for.
+ */
+const CLIP: Record<string, { src: string; seconds: number }> = {
+  'flat-tyre': { src: '/guides/fix-tyre.mp4', seconds: 17 },
+  'moto-chain': { src: '/guides/fix-chain.mp4', seconds: 15 },
+}
+
+export function localClip(guideId: string): { src: string; seconds: number } | null {
+  return CLIP[guideId] ?? null
+}

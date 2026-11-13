@@ -33,7 +33,7 @@ export function OfflineBanner({ liveFailed = false }: { liveFailed?: boolean }) 
   return (
     <section
       role="status"
-      className="rounded-2xl bg-ink p-4 text-white ring-1 ring-white/15"
+      className="rounded-[20px] bg-[#EFF6FF] p-4 text-slate-800 ring-1 ring-edge-blue"
     >
       <div className="flex items-center gap-2">
         <span aria-hidden="true" className="text-base">&#9888;</span>
@@ -49,7 +49,7 @@ export function OfflineBanner({ liveFailed = false }: { liveFailed?: boolean }) 
           <p className="text-[11px] font-bold uppercase tracking-wide text-flag-green">
             Working now
           </p>
-          <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-slate-300">
+          <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-slate-600">
             <li>The Corridor Safety Score and every figure behind it</li>
             <li>The 48 accident-prone segments on your route</li>
             <li>Hospitals, police stations and garages, with numbers to call</li>
@@ -61,14 +61,14 @@ export function OfflineBanner({ liveFailed = false }: { liveFailed?: boolean }) 
           <p className="text-[11px] font-bold uppercase tracking-wide text-flag-yellow">
             Waiting for signal
           </p>
-          <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-slate-300">
+          <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-slate-600">
             <li>The weather forecast, so pick the light condition yourself</li>
             <li>Hazard reports from other riders, and sending your own</li>
           </ul>
         </div>
       </div>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
         Nothing stale is shown as if it were live. The score never needed the network — it is
         worked out on this device from 269 KB of government tables stored with the app.
       </p>

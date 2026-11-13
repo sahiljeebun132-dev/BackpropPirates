@@ -60,22 +60,32 @@ h3 {
 .zw-page {
   background-color: #fafbfd;
   background-image:
-    radial-gradient(at 8% 6%, rgba(216, 48, 48, 0.085) 0px, transparent 48%),
-    radial-gradient(at 92% 24%, rgba(24, 158, 219, 0.085) 0px, transparent 50%),
-    radial-gradient(at 15% 68%, rgba(240, 192, 0, 0.09) 0px, transparent 52%),
-    radial-gradient(at 88% 92%, rgba(0, 120, 72, 0.09) 0px, transparent 50%),
+    radial-gradient(at 8% 6%, rgba(239, 68, 68, 0.085) 0px, transparent 48%),
+    radial-gradient(at 92% 24%, rgba(37, 99, 235, 0.085) 0px, transparent 50%),
+    radial-gradient(at 15% 68%, rgba(245, 158, 11, 0.09) 0px, transparent 52%),
+    radial-gradient(at 88% 92%, rgba(16, 185, 129, 0.09) 0px, transparent 50%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
 }
 
-/* Behind the phone-width column on a wide screen, so a laptop demo does not
-   show a bare grey gutter either side. */
+/* Behind the phone frame on a desktop, so a mirrored demo does not show a
+   bare grey gutter either side of the column. */
 .zw-canvas {
   background-color: #f1f5f9;
   background-image:
-    radial-gradient(at 18% 15%, rgba(216, 48, 48, 0.07) 0px, transparent 45%),
-    radial-gradient(at 82% 20%, rgba(24, 158, 219, 0.07) 0px, transparent 45%),
-    radial-gradient(at 22% 82%, rgba(240, 192, 0, 0.08) 0px, transparent 45%),
-    radial-gradient(at 80% 85%, rgba(0, 120, 72, 0.07) 0px, transparent 45%);
+    radial-gradient(at 18% 15%, rgba(239, 68, 68, 0.07) 0px, transparent 45%),
+    radial-gradient(at 82% 20%, rgba(37, 99, 235, 0.07) 0px, transparent 45%),
+    radial-gradient(at 22% 82%, rgba(250, 204, 21, 0.08) 0px, transparent 45%),
+    radial-gradient(at 80% 85%, rgba(16, 185, 129, 0.07) 0px, transparent 45%);
+}
+
+/* The semantic card borders the design calls for, as tokens rather than hex
+   repeated at thirty call sites. */
+@theme {
+  --color-edge: #e2e8f0;
+  --color-edge-rose: #fecdd3;
+  --color-edge-amber: #fde68a;
+  --color-edge-blue: #bfdbfe;
+  --color-edge-green: #a7f3d0;
 }
 
 .zw-scroll::-webkit-scrollbar {

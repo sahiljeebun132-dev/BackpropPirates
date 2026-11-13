@@ -126,7 +126,7 @@ export function PlanForm(props: Props) {
         </div>
 
         <div className="mt-4 border-t border-slate-100 pt-3">
-        <span className="text-xs font-medium text-slate-500">How are you travelling?</span>
+        <span className="text-xs font-medium text-slate-500">How you are travelling</span>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {MODES.map((m) => {
             const active = m === mode
@@ -163,7 +163,7 @@ export function PlanForm(props: Props) {
           className="flex w-full items-center justify-between gap-3 text-left"
         >
           <span className="min-w-0">
-            <span className="block text-xs font-medium text-slate-500">When are you leaving?</span>
+            <span className="block text-xs font-medium text-slate-500">When you are leaving</span>
             <span className="mt-0.5 block truncate text-sm font-medium text-slate-900">
               {whenSummary}
             </span>
