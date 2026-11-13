@@ -43,6 +43,9 @@ Pick origin, destination, travel mode and time of day. It returns:
 - **Advice specific to you**, each line citing the table it came from.
 - The **nearest hospitals, health centres and police stations** along the corridor, with
   tap-to-call numbers, plus 114 and 999 buttons.
+- **Live hazard reports from other riders.** Report a crash, blockage, flood, road hazard or
+  police check and it reaches everyone on that corridor within seconds. A crash or flood shows as
+  a banner above the score. Reports expire after four hours.
 - **Live conditions and a leave-by recommendation.** Sunrise, sunset and hourly rain for your
   corridor come from Open-Meteo (free, no key). The app scores the same journey every half hour
   around your planned time and offers the safest slot within three hours. Grand Baie to Port
@@ -148,6 +151,8 @@ equally.
 | `src/lib/geo.ts` | Distance and corridor maths |
 | `src/lib/live.ts` | Open-Meteo fetch, sunrise/sunset to light band, rain over the trip |
 | `src/lib/departure.ts` | Scores the journey across departure times to find a safer slot |
+| `api/reports.ts` | Serverless function behind the hazard reports, with all validation |
+| `src/lib/reports.ts` | Client for the reports API |
 | `src/lib/useAppData.ts` | Loads the data files once |
 | `src/components/` | One component per panel |
 
@@ -176,7 +181,12 @@ npm run build    # type-check and production build
 npm run lint
 ```
 
-No environment variables and no API keys. All data is static JSON in `public/data`.
+The official data is static JSON in `public/data`, and the weather forecast needs no key.
+
+Hazard reports need a Vercel Blob store. `vercel blob create-store zetway-reports --access private`
+links it to the project and sets `BLOB_READ_WRITE_TOKEN` automatically. The token stays on the
+server: the browser only ever talks to `/api/reports`, which decides what may be written. Without
+the store the rest of the app works unchanged and the reports panel says it is unavailable.
 
 ## What we have not done
 
@@ -184,7 +194,8 @@ No environment variables and no API keys. All data is static JSON in `public/dat
 - The light, junction and road-type tables are from 2018, the latest the publisher has released.
   District data is 2024. Every figure in the app carries its year.
 - 26 towns, limited to places with an official health facility so the coordinates are real.
-- No live traffic feed and no crowd reports yet; live conditions are weather and daylight only.
+- No live traffic feed; live layers are weather, daylight and rider reports.
+- Reports are unverified by design, so they inform the rider but never move the score.
 - Whether a particular road is lit is something no forecast knows, so the rider tells us.
 
 ## Documents
