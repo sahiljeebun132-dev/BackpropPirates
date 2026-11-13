@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import {
-  canWorkOnCarHere, GUIDES, POWERTRAIN_LABEL, powertrainWarnings, waitingAdvice, WHERE_PHRASE,
-  WHERE_LABEL, type Guide, type Powertrain, type StoppedWhere,
+  canWorkHere, guidesFor, POWERTRAIN_LABEL, powertrainWarnings, VEHICLE_LABEL, waitingAdvice,
+  WHERE_PHRASE, WHERE_LABEL, type Guide, type Powertrain, type StoppedWhere, type Vehicle,
 } from '../lib/breakdown'
 import { distanceKm } from '../lib/geo'
 import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
@@ -16,6 +16,9 @@ type Props = {
   onUseGps: () => void
   /** Used as a fallback origin when there is no GPS fix. */
   fallbackPlace: Place
+  /** What they already said they were travelling on, so the flow does not
+   *  ask the same question twice. Still changeable here. */
+  defaultVehicle: Vehicle
   isDark: boolean
   onBack: () => void
 }
@@ -23,9 +26,10 @@ type Props = {
 type Stage = 'safety' | 'where' | 'car' | 'symptom' | 'guide'
 
 export function BreakdownFlow(props: Props) {
-  const { data, position, onUseGps, fallbackPlace, isDark, onBack } = props
+  const { data, position, onUseGps, fallbackPlace, isDark, onBack, defaultVehicle } = props
   const [stage, setStage] = useState<Stage>('safety')
   const [where, setWhere] = useState<StoppedWhere | null>(null)
+  const [vehicle, setVehicle] = useState<Vehicle>(defaultVehicle)
   const [powertrain, setPowertrain] = useState<Powertrain>('petrol-diesel')
   const [guide, setGuide] = useState<Guide | null>(null)
   const [injured, setInjured] = useState<boolean | null>(null)
@@ -143,12 +147,40 @@ export function BreakdownFlow(props: Props) {
       )}
 
       {where && stage !== 'safety' && stage !== 'where' && (
-        <WaitingCard where={where} isDark={isDark} />
+        <WaitingCard where={where} isDark={isDark} vehicle={vehicle} />
       )}
 
       {stage === 'car' && (
-        <Card title="Your car">
-          <label className="block">
+        <Card title="Your vehicle">
+          <h3 className="text-sm font-semibold text-slate-900">What are you on?</h3>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(Object.keys(VEHICLE_LABEL) as Vehicle[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={v === vehicle}
+                onClick={() => {
+                  setVehicle(v)
+                  // A car guide must not survive a switch to the bike list.
+                  setGuide(null)
+                  if (v === 'motorcycle' && powertrain === 'hybrid') setPowertrain('petrol-diesel')
+                }}
+                className={`rounded-xl px-3 py-3 text-sm font-medium ring-1 transition ${
+                  v === vehicle
+                    ? 'bg-brand-deep text-white ring-brand-deep'
+                    : 'bg-slate-50 text-slate-700 ring-slate-200 active:bg-slate-100'
+                }`}
+              >
+                {VEHICLE_LABEL[v]}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            Half of everyone hurt on Mauritian roads is on two wheels or on foot, so the two sets
+            of guidance are written separately. A bike puncture is not a car puncture.
+          </p>
+
+          <label className="mt-4 block">
             <span className="text-xs font-medium text-slate-500">
               Make and model, if you want it remembered
             </span>
@@ -183,9 +215,11 @@ export function BreakdownFlow(props: Props) {
             </ul>
           )}
           <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-            {cars.length
-              ? `${cars.length.toLocaleString()} models from Wikidata. Japanese imports are mostly there, but a few, the Nissan March and Toyota Aqua among them, are not — so this field takes anything you type.`
-              : 'Type your car. The suggestion list is still loading, and the field works without it.'}
+            {vehicle === 'motorcycle'
+              ? 'The suggestion list is car models, so most bikes will not appear in it. Type yours anyway — the field takes anything, and nothing below depends on it.'
+              : cars.length
+                ? `${cars.length.toLocaleString()} models from Wikidata. Japanese imports are mostly there, but a few, the Nissan March and Toyota Aqua among them, are not — so this field takes anything you type.`
+                : 'Type your car. The suggestion list is still loading, and the field works without it.'}
           </p>
 
           <h3 className="mt-4 text-sm font-semibold text-slate-900">What does it run on?</h3>
@@ -193,7 +227,9 @@ export function BreakdownFlow(props: Props) {
             This is the one answer that changes what is safe to do.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {(Object.keys(POWERTRAIN_LABEL) as Powertrain[]).map((p) => (
+            {(Object.keys(POWERTRAIN_LABEL) as Powertrain[])
+              .filter((p) => !(vehicle === 'motorcycle' && p === 'hybrid'))
+              .map((p) => (
               <button
                 key={p}
                 type="button"
@@ -210,9 +246,9 @@ export function BreakdownFlow(props: Props) {
             ))}
           </div>
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            A hybrid or electric car carries high-voltage cabling, usually orange, which changes
-            what you must never touch. We ask rather than guess, because no free database reliably
-            says which models are hybrids.
+            {vehicle === 'motorcycle'
+              ? 'An electric bike carries high-voltage cabling, usually orange, which changes what you must never touch and what the fire service needs to know.'
+              : 'A hybrid or electric car carries high-voltage cabling, usually orange, which changes what you must never touch. We ask rather than guess, because no free database reliably says which models are hybrids.'}
           </p>
           <button
             type="button"
@@ -227,7 +263,7 @@ export function BreakdownFlow(props: Props) {
       {stage === 'symptom' && (
         <Card title="What is happening?">
           <div className="mt-1 grid gap-2">
-            {GUIDES.map((g) => (
+            {guidesFor(vehicle).map((g) => (
               <button
                 key={g.id}
                 type="button"
@@ -249,6 +285,7 @@ export function BreakdownFlow(props: Props) {
         <GuideView
           guide={guide}
           where={where}
+          vehicle={vehicle}
           car={car}
           powertrain={powertrain}
           nearest={nearest}
@@ -292,8 +329,16 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   )
 }
 
-function WaitingCard({ where, isDark }: { where: StoppedWhere; isDark: boolean }) {
-  const lines = waitingAdvice(where, isDark)
+function WaitingCard({
+  where,
+  isDark,
+  vehicle,
+}: {
+  where: StoppedWhere
+  isDark: boolean
+  vehicle: Vehicle
+}) {
+  const lines = waitingAdvice(where, isDark, vehicle)
   const risky = where === 'motorway' || where === 'main-road'
   return (
     <section className={`rounded-2xl p-4 ring-1 ${risky ? 'bg-amber-50 ring-amber-200' : 'bg-slate-50 ring-slate-200'}`}>
@@ -313,18 +358,22 @@ function WaitingCard({ where, isDark }: { where: StoppedWhere; isDark: boolean }
 }
 
 function GuideView({
-  guide, where, car, powertrain, nearest, onChoose,
+  guide, where, vehicle, car, powertrain, nearest, onChoose,
 }: {
   guide: Guide
   where: StoppedWhere
+  vehicle: Vehicle
   car: string
   powertrain: Powertrain
   nearest: { police: NearPlace[]; hospital: NearPlace[] }
   onChoose: () => void
 }) {
-  const unsafeHere = !canWorkOnCarHere(where)
+  // A bike needs somewhere properly off the road; a car can manage a quiet
+  // side road.
+  const unsafeHere = !canWorkHere(where, vehicle)
   const extra = powertrainWarnings(powertrain, guide.id)
-  const noSteps = guide.id === 'smoke-or-smell'
+  // Both fire guides are advice only. Neither has steps to follow.
+  const noSteps = guide.id === 'smoke-or-smell' || guide.id === 'moto-fire'
 
   return (
     <>
@@ -345,7 +394,11 @@ function GuideView({
       {(unsafeHere || noSteps) && (
         <section className="rounded-2xl bg-flag-red p-4 text-white shadow-sm">
           <h2 className="text-sm font-bold">
-            {noSteps ? 'Do not try to fix this' : 'Not here. This is the wrong place to work on the car'}
+            {noSteps
+              ? 'Do not try to fix this'
+              : vehicle === 'motorcycle'
+                ? 'Not here. Get the bike fully off the road first'
+                : 'Not here. This is the wrong place to work on the car'}
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-white/90">
             {noSteps

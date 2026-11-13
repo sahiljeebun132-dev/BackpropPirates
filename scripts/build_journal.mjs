@@ -170,6 +170,8 @@ const TIMELINE = [
     'The promise the web build could not keep'],
   ['19:05', 'Crash watch moved into an Android foreground service',
     'Until this it only watched while you were looking at it, which is not how anyone carries a phone on a bike'],
+  ['20:25', 'Motorcycle roadside guides added: eight, written separately from the seven for cars',
+    'Half of everyone hurt is on two wheels, and the library answered only for cars'],
 ]
 
 const QA = [
@@ -199,6 +201,8 @@ const QA = [
     'Because Android forbids it to every third-party app, not because we did not try. ACTION_CALL is refused for emergency numbers and redirected to the preloaded dialler; TelecomManager.placeCall accepts an emergency call only from the default or preloaded dialler; and CALL_PRIVILEGED, which would lift the restriction, is closed to third-party apps. No app on the Play Store can auto-dial an ambulance. Our plugin asks the operating system whether a number is an emergency number and refuses rather than throwing a SecurityException mid-crash. Apple’s own Crash Detection, which has the hardware and the OS privileges, still counts down before calling — and still flooded dispatch centres near ski resorts. The countdown is the right design, not a workaround.'],
   ['So what does happen automatically after a crash?',
     'Detection, the alarm and the countdown happen on both builds. In the Android build, when the countdown runs out unanswered, every saved contact is texted a Google Maps link to the rider’s position and the first contact is rung, with nothing touched. That contact is a person who can act: they hear the ambient audio, they already have the location, and they can call 114 themselves. 114 and 999 remain one large button on screen. A rehearsal or a test-mode shake never contacts anybody.'],
+  ['Your user is a motorcycle rider. Does the roadside help actually cover bikes?',
+    'Yes, as its own set rather than car advice with the word changed — eight motorcycle guides against seven for cars. They are genuinely different problems: a plug kit cannot fix a tubed tyre and most spoked wheels have one, a chain that comes off at speed can lock the rear wheel, and losing your lights after dark is the single most dangerous fault on the list, because in darkness with no street lighting 8.2% of casualties here are fatal against 3.7% in daylight. The safety gate is stricter too: a car may be worked on at the side of a quiet road, a bike only somewhere fully off it, because the rider has nothing around them. The flow inherits the travel mode from the planner, so a rider is not asked twice.'],
   ['Does crash watch work with the phone in my pocket?',
     'In the Android app, yes — that was the point of building it. A foreground service holds the accelerometer and a partial wake lock, so detection survives the screen going off and the app being closed; a notification shows the whole time it is running, and it costs extra battery, both of which the app states where you arm it. The wake lock is not optional: a foreground service keeps the process alive but still lets the CPU doze, and sensor callbacks simply stop arriving. In the browser it cannot work that way — a page is throttled when backgrounded and suspended when the screen goes off — so the web build says plainly that it only watches while it is open.'],
   ['What if the phone is locked when it happens?',

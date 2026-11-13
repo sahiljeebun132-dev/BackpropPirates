@@ -100,6 +100,8 @@ export default function App() {
     <AppShell>
       {view === 'help' && from ? (
         <BreakdownFlow
+          // Inherit what they picked on the planner rather than asking twice.
+          defaultVehicle={mode === 'motorcycle' ? 'motorcycle' : 'car'}
           data={appData}
           position={gps.position}
           onUseGps={gps.request}
