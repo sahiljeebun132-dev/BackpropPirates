@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   canWorkOnCarHere, GUIDES, POWERTRAIN_LABEL, powertrainWarnings, waitingAdvice, WHERE_PHRASE,
   WHERE_LABEL, type Guide, type Powertrain, type StoppedWhere,
 } from '../lib/breakdown'
 import { distanceKm } from '../lib/geo'
+import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
 import type { AppData, Place } from '../lib/types'
 
 type Props = {
@@ -27,6 +28,15 @@ export function BreakdownFlow(props: Props) {
   const [powertrain, setPowertrain] = useState<Powertrain>('petrol-diesel')
   const [guide, setGuide] = useState<Guide | null>(null)
   const [injured, setInjured] = useState<boolean | null>(null)
+  const [car, setCar] = useState(() => readSavedCar())
+  const [carQuery, setCarQuery] = useState('')
+  // The list is only wanted once the rider reaches the car question.
+  const cars = useCars(stage === 'car')
+  const suggestions = useMemo(() => searchCars(cars, carQuery), [cars, carQuery])
+
+  useEffect(() => {
+    saveCar(car)
+  }, [car])
 
   const lat = position?.lat ?? fallbackPlace.lat
   const lon = position?.lon ?? fallbackPlace.lon
@@ -136,9 +146,50 @@ export function BreakdownFlow(props: Props) {
       )}
 
       {stage === 'car' && (
-        <Card title="What kind of car?">
-          <p className="text-sm leading-relaxed text-slate-700">
-            Only one thing here changes what is safe to do, so it is the only thing we ask.
+        <Card title="Your car">
+          <label className="block">
+            <span className="text-xs font-medium text-slate-500">
+              Make and model, if you want it remembered
+            </span>
+            <input
+              type="text"
+              value={car || carQuery}
+              onChange={(e) => {
+                setCarQuery(e.target.value)
+                setCar('')
+              }}
+              placeholder="Start typing, for example Vitz"
+              autoComplete="off"
+              className="mt-1 w-full rounded-xl border-0 bg-slate-100 px-3 py-3 text-base text-slate-900 ring-1 ring-slate-200 focus:ring-2 focus:ring-brand"
+            />
+          </label>
+          {!car && suggestions.length > 0 && (
+            <ul className="mt-1.5 overflow-hidden rounded-xl ring-1 ring-slate-200">
+              {suggestions.map((c) => (
+                <li key={c}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCar(c)
+                      setCarQuery(c)
+                    }}
+                    className="w-full bg-white px-3 py-2.5 text-left text-sm text-slate-800 active:bg-slate-100"
+                  >
+                    {c}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+            {cars.length
+              ? `${cars.length.toLocaleString()} models from Wikidata. Japanese imports are mostly there, but a few, the Nissan March and Toyota Aqua among them, are not — so this field takes anything you type.`
+              : 'Type your car. The suggestion list is still loading, and the field works without it.'}
+          </p>
+
+          <h3 className="mt-4 text-sm font-semibold text-slate-900">What does it run on?</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-700">
+            This is the one answer that changes what is safe to do.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {(Object.keys(POWERTRAIN_LABEL) as Powertrain[]).map((p) => (
@@ -197,6 +248,7 @@ export function BreakdownFlow(props: Props) {
         <GuideView
           guide={guide}
           where={where}
+          car={car}
           powertrain={powertrain}
           nearest={nearest}
           onChoose={() => setStage('symptom')}
@@ -238,10 +290,11 @@ function WaitingCard({ where, isDark }: { where: StoppedWhere; isDark: boolean }
 }
 
 function GuideView({
-  guide, where, powertrain, nearest, onChoose,
+  guide, where, car, powertrain, nearest, onChoose,
 }: {
   guide: Guide
   where: StoppedWhere
+  car: string
   powertrain: Powertrain
   nearest: { police: NearPlace[]; hospital: NearPlace[] }
   onChoose: () => void
@@ -256,7 +309,9 @@ function GuideView({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900">{guide.label}</h2>
-            <p className="mt-0.5 text-xs text-slate-600">{guide.blurb}</p>
+            <p className="mt-0.5 text-xs text-slate-600">
+              {car ? `${car} · ${guide.blurb}` : guide.blurb}
+            </p>
           </div>
           <button type="button" onClick={onChoose} className="shrink-0 text-xs font-semibold text-brand-deep underline">
             Change
