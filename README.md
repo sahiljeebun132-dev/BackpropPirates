@@ -3,6 +3,14 @@
 
 **Live app: https://backprop-pirates.vercel.app** (open it on a phone — nothing to install)
 
+**Backup demo video:** `docs/pitch-assets/zetway-demo.mp4` — 93 seconds, captions burnt in, no
+sound needed. Built by [`scripts/build_demo_video.py`](scripts/build_demo_video.py) from real
+screenshots of the deployed app plus the 3D crash render, so it needs nothing live to play:
+
+```bash
+blender --background --factory-startup --python scripts/build_demo_video.py
+```
+
 **3D crash animation:** `docs/pitch-assets/zetway-crash.mp4`, built by
 [`scripts/crash_scene.py`](scripts/crash_scene.py) — a scripted Blender scene, not a hand-modelled
 file, so its timing stays tied to the app's own constants and the whole thing rebuilds from one
