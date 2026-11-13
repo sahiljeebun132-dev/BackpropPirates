@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { AppShell } from './components/AppShell'
+import { AssistantPage } from './components/AssistantPage'
 import { BreakdownFlow } from './components/BreakdownFlow'
 import { CrashWatch } from './components/CrashWatch'
 import { LegalPanel } from './components/LegalPanel'
@@ -26,7 +27,7 @@ import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
-type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash'
+type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash' | 'ask'
 
 export default function App() {
   const state = useAppData()
@@ -163,6 +164,23 @@ export default function App() {
           }}
           onBack={() => setView('plan')}
         />
+      ) : view === 'ask' ? (
+        <AssistantPage
+          data={appData}
+          onBack={() => setView('plan')}
+          onGo={(t) => {
+            // The engine answers with place ids and a view; the app owns the
+            // state, so set the trip first and only then switch screens.
+            if (t.originId) setOrigin(t.originId)
+            if (t.destinationId) setDestination(t.destinationId)
+            // The roadside flow reads its default vehicle from the planner's
+            // mode, so setting that is how "my bike has a puncture" arrives
+            // in the guides as a bike without asking twice.
+            if (t.mode) setMode(t.mode)
+            else if (t.vehicle) setMode(t.vehicle === 'motorcycle' ? 'motorcycle' : 'car')
+            setView(t.view)
+          }}
+        />
       ) : view === 'accidents' ? (
         <>
           <PageHeader title="Accidents & road safety" onBack={() => setView('plan')} />
@@ -211,6 +229,7 @@ export default function App() {
             onClimate={() => setView('climate')}
             onReport={() => setView('result')}
             onRoadside={() => setView('help')}
+            onAsk={() => setView('ask')}
             planner={
               <PlanForm
                 places={appData.places.places}

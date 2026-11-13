@@ -25,6 +25,7 @@ export function HomeDashboard({
   onClimate,
   onReport,
   onRoadside,
+  onAsk,
 }: {
   vigilance: string | null
   planner: ReactNode
@@ -32,6 +33,7 @@ export function HomeDashboard({
   onClimate: () => void
   onReport: () => void
   onRoadside: () => void
+  onAsk: () => void
 }) {
   return (
     <>
@@ -76,6 +78,13 @@ export function HomeDashboard({
         title="Broken down or had a crash?"
         subtitle="Safety check first, then fifteen roadside guides"
         onClick={onRoadside}
+      />
+      <Row
+        accent="green"
+        icon={Icon.book('h-4 w-4')}
+        title="Ask Zetway"
+        subtitle="A question in your own words — works with no signal"
+        onClick={onAsk}
       />
 
     </>
