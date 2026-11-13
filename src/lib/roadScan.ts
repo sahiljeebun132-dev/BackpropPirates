@@ -160,6 +160,22 @@ export function joltNote(j: LoggedJolt): string {
 export type FlushResult = { sent: number; waiting: number; refused: number }
 
 /**
+ * Flushes run one at a time, and one asked for during another runs after it.
+ *
+ * Two overlapping flushes would both read the same queue off the phone and
+ * post every jolt in it twice, which is the one bug this feature cannot
+ * afford: the whole promotion rule counts reports, so a duplicate is a vote
+ * cast twice and a defect "verified" by one rider hitting one hole.
+ */
+let flushes: Promise<unknown> = Promise.resolve()
+
+export function flushLog(): Promise<FlushResult> {
+  const run = flushes.then(sendQueued, sendQueued)
+  flushes = run.catch(() => undefined)
+  return run
+}
+
+/**
  * Send everything the phone is still holding.
  *
  * Failures are sorted into two kinds, because they deserve different
@@ -168,7 +184,7 @@ export type FlushResult = { sent: number; waiting: number; refused: number }
  * Mauritius, say — will be refused identically forever, so it is marked and
  * left alone rather than retried on every screen that opens.
  */
-export async function flushLog(): Promise<FlushResult> {
+async function sendQueued(): Promise<FlushResult> {
   const log = readLog()
   const unsent = log.filter((j) => !j.serverId && !j.refused)
   let sent = 0

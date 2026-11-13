@@ -63,22 +63,28 @@ export function RoadScanner({
     })
   }, [])
 
-  // Everything the service has been holding while the app was closed, plus
-  // whatever arrives while this screen is up.
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined
-    void collectJolts(setLog).then((off) => {
-      unsubscribe = off
-    })
-    return () => unsubscribe?.()
-  }, [])
-
   const send = useCallback(() => {
     void flushLog().then((r) => {
       setFlush(r)
       setLog(readLog())
     })
   }, [])
+
+  // Everything the service has been holding while the app was closed, plus
+  // whatever arrives while this screen is up. Each one is sent as it lands
+  // rather than waiting for the next visit: the phone is most likely to
+  // have a network at the end of the ride, which is also when the app is
+  // most likely to be open.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    void collectJolts((log) => {
+      setLog(log)
+      send()
+    }).then((off) => {
+      unsubscribe = off
+    })
+    return () => unsubscribe?.()
+  }, [send])
 
   // Try once on arrival, and again whenever the network comes back. A ride
   // through the middle of the island is mostly spent with no signal, so the
