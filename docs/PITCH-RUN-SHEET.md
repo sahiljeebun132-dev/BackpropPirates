@@ -69,6 +69,8 @@ This is the strongest 30 seconds you have. **Rehearse it once tonight.**
 3. **Reload the app.** It still loads.
 4. Run a route. **The score still works.**
 5. Point at the banner: *Working now* vs *Waiting for signal*.
+6. **Open _Ask Zetway_ and type "my chain came off", still in airplane mode.** It answers.
+   → *"And the assistant works too, because it is not a chatbot and there is no server to lose. It looks your question up in the same tables."*
 
 Then the line that wins it:
 
@@ -96,6 +98,9 @@ Yes, and the app says so on screen. A segment counts as on your corridor within 
 
 **"What about privacy / is this legal?"**
 We read the **Data Protection Act 2017** and the **Road Traffic Act** rather than guessing. A voice recording is personal data, so the crash recording rests on the vital-interests basis the Act allows: capped at 45 seconds, announced on screen, never uploaded. Hand-held phone use while driving is an offence carrying penalty points, so everything the app asks of a rider happens before they set off or after they've stopped. There's a panel in the app that says all of this — and says we're students, not lawyers.
+
+**"Is the assistant AI? Is it a chatbot?"**
+No, and the screen says so before you ask. There is no model and no network call: it matches your words against the places, guides and tables already on the phone, answers with the real figure, and names the table. That is why it still answers in airplane mode. Ask it the capital of France and it tells you it cannot, and lists the four things it can do. We would rather ship something narrow that cannot be wrong about which road is dangerous than something broad that can.
 
 **"Who would run it?"**
 The people who already publish this data. Handing it over is a repo transfer, not a procurement.

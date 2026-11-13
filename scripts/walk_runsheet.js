@@ -125,6 +125,26 @@
     b.click()
     await sleep(400)
   }
+  // The assistant, which the surprise card now leans on: it has to answer
+  // with no network, so what is checked is that a real question returns a
+  // real guide rather than the refusal.
+  const askRow = B().find((b) => b.textContent.includes('Ask Zetway'))
+  note('8a. Ask Zetway on home', !!askRow, askRow ? 'present' : 'missing')
+  askRow?.click()
+  await sleep(700)
+  const chip = B().find((b) => b.textContent.trim() === 'My tyre is flat')
+  chip?.click()
+  await sleep(900)
+  const answered = /Flat tyre/.test(document.body.innerText)
+  note('8b. assistant answers a real question', answered, answered ? 'returned the flat tyre guide' : 'no answer')
+
+  for (let i = 0; i < 10; i++) {
+    const b = B().find((x) => ['Home', 'Back', 'Change journey'].includes(x.textContent.trim()))
+    if (!b) break
+    b.click()
+    await sleep(400)
+  }
+
   const cw = B().find((b) => b.textContent.includes('Crash watch'))
   note('fallback 1/2: Crash watch line on home', !!cw, cw ? cw.textContent.trim().slice(0, 44) : 'missing')
   cw?.click()
