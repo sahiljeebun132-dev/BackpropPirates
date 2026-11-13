@@ -21,8 +21,6 @@ import { Icon, Notice, Row, Tile } from './ui'
 export function HomeDashboard({
   vigilance,
   planner,
-  crashWatch,
-  footer,
   onAccidents,
   onClimate,
   onReport,
@@ -30,8 +28,6 @@ export function HomeDashboard({
 }: {
   vigilance: string | null
   planner: ReactNode
-  crashWatch: ReactNode
-  footer: ReactNode
   onAccidents: () => void
   onClimate: () => void
   onReport: () => void
@@ -82,8 +78,6 @@ export function HomeDashboard({
         onClick={onRoadside}
       />
 
-      {crashWatch}
-      {footer}
     </>
   )
 }

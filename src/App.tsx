@@ -26,7 +26,7 @@ import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
-type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate'
+type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash'
 
 export default function App() {
   const state = useAppData()
@@ -239,18 +239,34 @@ export default function App() {
                 sameEndpoints={origin === destination}
               />
             }
-            crashWatch={<CrashWatch />}
-            footer={
-              <>
-                {/* Directly under crash watch, because that card has just
-                    promised background detection and this one says which
-                    build actually delivers it. Null inside the APK. */}
-                <InstallApp />
-                <LegalPanel />
-                <SourcesPanel data={appData} />
-              </>
-            }
           />
+        </>
+      )}
+
+      {/* Mounted for the whole session, never torn down by navigation, and
+          shown as a line on home or a page of its own. Hidden elsewhere
+          rather than unmounted, so the sensor listener and the armed state
+          survive a trip through the roadside guides. */}
+      <div className={view === 'plan' || view === 'crash' ? 'contents' : 'hidden'}>
+        <CrashWatch
+          expanded={view === 'crash'}
+          onOpen={() => setView('crash')}
+          onBack={() => setView('plan')}
+        />
+      </div>
+
+      {view === 'plan' && (
+        <>
+          {/* Under crash watch, because that line has just promised
+              background detection and this says which build delivers it.
+              Null inside the APK. */}
+          <InstallApp />
+          {/* The sources panel is on all three screens that actually show a
+              figure — the result, accidents and climate. Home shows none, so
+              "every figure comes from one of these tables" had nothing on
+              screen to attach to, and it sat directly under the legal panel,
+              which names the same publishers. */}
+          <LegalPanel />
         </>
       )}
     </AppShell>

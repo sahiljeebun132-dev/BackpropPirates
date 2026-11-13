@@ -5,6 +5,8 @@ import {
   WHERE_PHRASE, WHERE_LABEL, type Guide, type Powertrain, type StoppedWhere, type Vehicle,
 } from '../lib/breakdown'
 import { distanceKm } from '../lib/geo'
+import { hasVideo, videoSearchUrl } from '../lib/guideVideo'
+import { useOnline } from '../lib/useOnline'
 import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
 import type { AppData, Place } from '../lib/types'
 import { GaragesPanel } from './GaragesPanel'
@@ -369,6 +371,7 @@ function GuideView({
   nearest: { police: NearPlace[]; hospital: NearPlace[] }
   onChoose: () => void
 }) {
+  const online = useOnline()
   // A bike needs somewhere properly off the road; a car can manage a quiet
   // side road.
   const unsafeHere = !canWorkHere(where, vehicle)
@@ -492,6 +495,52 @@ function GuideView({
               </>
             )}
           </section>
+
+          {/* Watching beats reading for a job you have never done, and the
+              steps below cannot show you which way the jack points. This is
+              a link out to YouTube, labelled as one: not our content, not
+              checked by us, and it needs a connection the rest of the page
+              does not. Offered for every guide except the two where the
+              right answer is to get away from the vehicle. */}
+          {hasVideo(guide.id) && (
+            <a
+              href={videoSearchUrl(guide.id) ?? '#'}
+              target="_blank"
+              rel="noreferrer"
+              aria-disabled={!online}
+              onClick={(e) => {
+                if (!online) e.preventDefault()
+              }}
+              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left shadow-sm ring-1 transition ${
+                online
+                  ? 'bg-white text-slate-900 ring-slate-200 active:bg-slate-50'
+                  : 'cursor-not-allowed bg-slate-100 text-slate-500 ring-slate-200'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${
+                  online
+                    ? 'bg-flag-red/10 text-flag-red ring-flag-red/20'
+                    : 'bg-slate-200 text-slate-400 ring-slate-300'
+                }`}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                  <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86A1 1 0 008 5.14z" />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold leading-tight">
+                  Watch someone do this
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
+                  {online
+                    ? 'Opens a YouTube search. Their video, not ours — the written steps below are the ones we stand behind.'
+                    : 'Needs a connection. The written steps below work offline.'}
+                </span>
+              </span>
+            </a>
+          )}
 
           <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <h2 className="text-sm font-semibold text-slate-900">Step by step</h2>

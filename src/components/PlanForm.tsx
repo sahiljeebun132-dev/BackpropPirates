@@ -48,14 +48,21 @@ export function PlanForm(props: Props) {
 
   return (
     <form
-      className="space-y-4"
+      className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (!sameEndpoints) onSubmit()
       }}
     >
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-sm font-semibold text-slate-900">Your journey</h2>
+      {/* One card, not three.
+       *
+       *  Where, how and when were a stacked card each, and on a real phone
+       *  that came to 746px — a quarter of the whole home screen for four
+       *  questions, most of it card padding and three headings saying what
+       *  the controls already say. They are one card now, divided by
+       *  hairlines, and the labels carry the meaning the headings did. */}
+      <section className="rounded-[20px] bg-white/95 p-4 shadow-sm ring-1 ring-slate-200">
+        <h2 className="font-display text-sm font-bold text-slate-900">Your journey</h2>
 
         <div className="mt-3 space-y-3">
           <label className="block">
@@ -103,11 +110,10 @@ export function PlanForm(props: Props) {
             </p>
           )}
         </div>
-      </section>
 
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-sm font-semibold text-slate-900">How are you travelling?</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-4 border-t border-slate-100 pt-3">
+        <span className="text-xs font-medium text-slate-500">How are you travelling?</span>
+        <div className="mt-2 grid grid-cols-2 gap-2">
           {MODES.map((m) => {
             const active = m === mode
             return (
@@ -130,16 +136,15 @@ export function PlanForm(props: Props) {
             )
           })}
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Riders and people on foot are half of everyone hurt on Mauritian roads, so the score
-          weighs them separately.
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+          Scored separately: riders and people on foot are half of everyone hurt here.
         </p>
-      </section>
+        </div>
 
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-sm font-semibold text-slate-900">When are you leaving?</h2>
+        <div className="mt-3 border-t border-slate-100 pt-3">
+        <span className="text-xs font-medium text-slate-500">When are you leaving?</span>
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-2 flex gap-2">
           <button
             type="button"
             aria-pressed={departIsNow}
@@ -173,9 +178,8 @@ export function PlanForm(props: Props) {
           />
           <span className="text-xs leading-relaxed text-slate-600">
             My route has stretches with no street lighting.
-            <span className="block text-slate-500">
-              After dark that is the single biggest factor in the score, and a forecast cannot
-              tell us whether your road is lit.
+            <span className="block text-[11px] text-slate-500">
+              After dark, the biggest single factor in the score.
             </span>
           </span>
         </label>
@@ -207,6 +211,7 @@ export function PlanForm(props: Props) {
             </div>
           </div>
         )}
+        </div>
       </section>
 
       <button

@@ -14,13 +14,40 @@ import {
   explainNoBuzz, vibrationDiagnostics, type Readiness, type VibrationReport,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
+import { Icon, PageHeader } from './ui'
 
 type Phase = 'off' | 'armed' | 'asking' | 'alerting'
 
 const newId = () => Math.random().toString(36).slice(2, 9)
 const toG = (ms2: number) => ms2 / 9.8
 
-export function CrashWatch() {
+/**
+ * Crash watch, on the home screen as a single line and on its own page in
+ * full.
+ *
+ * Measured on a phone, this card was 1207px — 44% of the home screen, more
+ * than a full viewport, for a feature a rider arms once and then does not
+ * touch. Everything in it still exists; the setup half now lives behind a
+ * row, and the row shows the one thing worth knowing at a glance, which is
+ * whether it is armed.
+ *
+ * It is mounted once, outside the view switch, and never unmounts while the
+ * app is open. That was a bug as much as a layout choice: the card used to
+ * render only on the home branch, so opening a roadside guide with the watch
+ * armed tore down the sensor listener and reset the UI to "off" — on the
+ * web build, where there is no foreground service behind it, that silently
+ * stopped the watch at the exact moment a rider was most likely to be using
+ * the other screens.
+ */
+export function CrashWatch({
+  expanded,
+  onOpen,
+  onBack,
+}: {
+  expanded: boolean
+  onOpen: () => void
+  onBack: () => void
+}) {
   const [phase, setPhase] = useState<Phase>('off')
   const [testMode, setTestMode] = useState(false)
   const [contacts, setContacts] = useState<EmergencyContact[]>(() => readContacts())
@@ -299,9 +326,57 @@ export function CrashWatch() {
   }
 
   const threshold = testMode ? TEST_THRESHOLD_MS2 : IMPACT_THRESHOLD_MS2
+  const armed = phase === 'armed'
+
+  // The home screen gets one line. Armed or not is the whole message there,
+  // so it is said twice over — in words and in colour — and the rest of the
+  // card is a tap away.
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`flex w-full items-center gap-3 rounded-full bg-white/95 px-4 py-3 text-left shadow-sm ring-1 transition active:scale-[0.99] ${
+          armed ? 'ring-flag-green/30 active:bg-flag-green/5' : 'ring-slate-200 active:bg-slate-50'
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${
+            armed
+              ? 'bg-flag-green/10 text-flag-green ring-flag-green/20'
+              : 'bg-slate-100 text-slate-500 ring-slate-200'
+          }`}
+        >
+          {Icon.activity('h-4 w-4')}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-sm font-bold leading-tight text-slate-900">
+            Crash watch
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] text-slate-500">
+            {armed
+              ? isNative()
+                ? 'Watching — screen off, app closed'
+                : 'Watching while this screen is open'
+              : 'Off. Detects an impact and calls for help'}
+          </span>
+        </span>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+            armed ? 'bg-flag-green/15 text-flag-green' : 'bg-slate-100 text-slate-500'
+          }`}
+        >
+          {armed ? 'On' : 'Off'}
+        </span>
+      </button>
+    )
+  }
 
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+    <>
+      <PageHeader title="Crash watch" onBack={onBack} />
+      <section className="rounded-[20px] bg-white/95 p-4 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-900">Crash watch</h2>
@@ -451,7 +526,8 @@ export function CrashWatch() {
           ? 'Honest about the limits: watching carries on with the screen off and the app closed, and the texts and the call to your first contact go out on their own. What no app may do is dial 114 or 999 for you — Android keeps emergency numbers for the phone’s own dialler — so that one tap stays yours.'
           : 'Honest about the limits: in a browser this only works while the app is open on screen, because a phone browser suspends a page that is hidden, and no web page may place a call or send a message by itself. The Android app does both, with the screen off.'}
       </p>
-    </section>
+      </section>
+    </>
   )
 }
 
