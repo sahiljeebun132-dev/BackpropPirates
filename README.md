@@ -39,7 +39,7 @@ Why a web app: one link works on every teammate's and judge's phone, and there's
 Everything AI produced was reviewed, run and tested by the team.
 
 ## How to run
-**Live app:** _TODO: link (open on a phone)_
+**Live app:** https://backprop-pirates.vercel.app (open it on a phone)
 
 Run it locally (Node 20+):
 
