@@ -91,13 +91,17 @@ export function AssistantPage({
               {t.result.reply}
             </p>
 
-            {/* The label names the destination rather than saying "Open it".
-                A guide target lands on the roadside flow's safety questions
-                first - where are you, is anyone hurt - and it should, because
-                that gate is what stops the app handing someone repair steps
-                on the hard shoulder of the M1. Promising the guide and
-                delivering a question would read as a bug; saying "roadside
-                help" is simply what happens. */}
+            {/* The label names what the tap actually lands on, and the two
+                cases differ. A guide target reaches the roadside flow's
+                safety questions first - where are you, is anyone hurt - and
+                it should, because that gate is what stops the app handing
+                someone repair steps on the hard shoulder of the M1. But the
+                emergency-number answer lands on the three tel: links, which
+                the flow renders above the triage question, so calling that
+                "safety questions first" would undersell it. Checked on the
+                device rather than inferred: listing only <button> elements
+                hides the call links and makes the screen look like it opens
+                on a question. */}
             {t.result.goTo && onGo && (
               <button
                 type="button"
@@ -106,7 +110,11 @@ export function AssistantPage({
               >
                 {t.result.goTo.view === 'result'
                   ? 'Open the full score'
-                  : 'Open roadside help — safety questions first'}
+                  : t.result.goTo.view === 'plan'
+                    ? 'Open the planner'
+                    : t.result.goTo.guideId
+                      ? 'Open roadside help — safety questions first'
+                      : 'Open the call buttons'}
               </button>
             )}
 

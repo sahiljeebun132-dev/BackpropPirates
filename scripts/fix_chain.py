@@ -286,6 +286,14 @@ class Belt:
         return x, z, dx, dz
 
 
+# The loop as it should end up, used for the two things that have to agree
+# with where the chain finally sits: how many links there are, and where the
+# lower run is checked.
+SEATED = Belt(FRONT_C, R_FRONT, REAR_C, R_REAR)
+N_LINKS = int(round(SEATED.length / PITCH))
+CHECK_X, CHECK_Z = SEATED.at(SEATED.s2 + SEATED.lt / 2)[:2]
+
+
 # --------------------------------------------------------------------- bike
 def build_ground():
     m_line = flat("GroundLine", MACHINE_DIM)
@@ -310,18 +318,20 @@ def build_wheel(name, centre, m_tyre, m_rim):
     """A wheel that can be seen to turn. Spokes are the whole point of it."""
     hub = empty(name)
     hub.location = (centre[0], 0, centre[1])
-    ring(name + "Tyre", r=WHEEL_R, w=0.017, loc=(0, Y_BIKE, 0),
+    ring(name + "Tyre", r=WHEEL_R, w=0.023, loc=(0, Y_BIKE, 0),
          material=m_tyre, parent=hub)
-    ring(name + "Rim", r=WHEEL_R - 0.052, w=0.006, loc=(0, Y_BIKE, 0),
+    ring(name + "Rim", r=WHEEL_R - 0.046, w=0.008, loc=(0, Y_BIKE, 0),
          material=m_rim, parent=hub)
+    # Five fat spokes, not a lacing pattern: a cast wheel, so the thing in
+    # the frame reads as a motorcycle rather than a bicycle.
     for i in range(5):
-        a = i * math.pi / 5
-        r = WHEEL_R - 0.055
+        a = i * 2 * math.pi / 5
+        r0, r1 = 0.030, WHEEL_R - 0.046
         bar("%sSpoke%d" % (name, i),
-            (-math.cos(a) * r, -math.sin(a) * r),
-            (math.cos(a) * r, math.sin(a) * r),
-            0.006, Y_BIKE, m_rim, parent=hub)
-    disc(name + "Hub", r=0.030, loc=(0, Y_BIKE - 0.005, 0),
+            (math.cos(a) * r0, math.sin(a) * r0),
+            (math.cos(a) * r1, math.sin(a) * r1),
+            0.016, Y_BIKE, m_rim, parent=hub)
+    disc(name + "Hub", r=0.036, loc=(0, Y_BIKE - 0.005, 0),
          material=m_tyre, parent=hub)
     return hub
 
@@ -353,19 +363,25 @@ def build_bike():
     m = flat("Machine", MACHINE)
     m_dim = flat("MachineDim", MACHINE_DIM)
 
-    # Swingarm, frame, tank, seat, forks, bars. Six members and it reads as a
-    # motorcycle; any more and the chain stops being the subject.
-    bar("Swingarm", FRONT_C, REAR_C, 0.020, Y_BIKE, m)
-    box("Engine", loc=(-0.62, Y_BIKE, 0.170), scale=(0.40, 0.004, 0.300),
+    # The mass of a motorcycle is the engine and the tank sitting between the
+    # wheels, so those are drawn solid and everything else is the few members
+    # that join them up. Any more detail and the chain stops being the
+    # subject; any less and the thing on screen is a bicycle.
+    head = (-1.180, 0.560)
+    bar("Swingarm", FRONT_C, REAR_C, 0.024, Y_BIKE, m)
+    bar("Shock", (-0.260, 0.010), (-0.360, 0.400), 0.016, Y_BIKE, m_dim)
+    box("Engine", loc=(-0.610, Y_BIKE, 0.190), scale=(0.380, 0.004, 0.340),
         material=m_dim)
-    bar("Spine", (-1.22, 0.520), (-0.30, 0.470), 0.022, Y_BIKE, m)
-    bar("Down", (-1.18, 0.500), (-0.70, 0.150), 0.016, Y_BIKE, m)
-    box("Tank", loc=(-0.95, Y_BIKE - 0.004, 0.600), scale=(0.46, 0.004, 0.150),
+    bar("Spine", head, (-0.600, 0.470), 0.020, Y_BIKE, m)
+    bar("DownTube", (-1.160, 0.520), (-0.800, 0.200), 0.018, Y_BIKE, m)
+    box("Tank", loc=(-0.840, Y_BIKE - 0.004, 0.515), scale=(0.430, 0.004, 0.180),
         material=m)
-    box("Seat", loc=(-0.37, Y_BIKE - 0.004, 0.590), scale=(0.44, 0.004, 0.080),
+    box("Seat", loc=(-0.400, Y_BIKE - 0.004, 0.510), scale=(0.440, 0.004, 0.100),
+        material=m)
+    box("Tail", loc=(-0.230, Y_BIKE - 0.002, 0.430), scale=(0.260, 0.004, 0.070),
         material=m_dim)
-    bar("Fork", FRONT_AXLE, (-1.22, 0.620), 0.018, Y_BIKE, m)
-    bar("Bars", (-1.30, 0.660), (-1.10, 0.700), 0.014, Y_BIKE, m)
+    bar("Fork", FRONT_AXLE, head, 0.020, Y_BIKE, m)
+    bar("Bars", (-1.260, 0.620), (-1.020, 0.665), 0.016, Y_BIKE, m)
     return m, m_dim
 
 
@@ -375,12 +391,12 @@ def build_cluster():
     This is how "engine off, and in neutral" is said without a word of text -
     one light goes out, the other comes on, and the caption names them.
     """
-    box("Cluster", loc=(-1.14, Y_BIKE - 0.008, 0.790), scale=(0.150, 0.004, 0.085),
+    box("Cluster", loc=(-1.080, Y_BIKE - 0.008, 0.730), scale=(0.150, 0.004, 0.080),
         material=flat("ClusterCase", MACHINE_DIM))
     m_ign = flat("IgnLight", CHAIN, strength=1.0)
     m_neu = flat("NeuLight", GREEN, strength=0.08)
-    disc("IgnDot", r=0.022, loc=(-1.176, Y_BIKE - 0.016, 0.790), material=m_ign)
-    disc("NeuDot", r=0.022, loc=(-1.104, Y_BIKE - 0.016, 0.790), material=m_neu)
+    disc("IgnDot", r=0.021, loc=(-1.116, Y_BIKE - 0.016, 0.730), material=m_ign)
+    disc("NeuDot", r=0.021, loc=(-1.044, Y_BIKE - 0.016, 0.730), material=m_neu)
     return m_ign, m_neu
 
 
@@ -511,8 +527,8 @@ def state(f: int):
     k = ease(seg(f, F_PUSH, F_CLOSE))
     k2 = ease(seg(f, F_SLACK_IN, F_SLACK_IN + 34))
     cam_x = mix(mix(-0.70, -0.28, k), -0.30, k2)
-    cam_z = mix(mix(0.25, -0.03, k), -0.075, k2)
-    cam_s = mix(mix(2.50, 1.45, k), 1.28, k2)
+    cam_z = mix(mix(0.20, -0.03, k), -0.075, k2)
+    cam_s = mix(mix(2.30, 1.45, k), 1.28, k2)
 
     return {
         "phi": phi,

@@ -242,10 +242,11 @@ def triangle(name, r, loc, *, material=None, parent=None):
     bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=PLATE, vertices=3)
     o = bpy.context.object
     o.name = name
-    # XYZ Euler composes as Ry @ Rx, so the X quarter turn faces the prism at
-    # the lens and the Y quarter turn then swings its single vertex upward.
-    return put(o, loc=loc, rot=(math.pi / 2, -math.pi / 2, 0),
-               material=material, parent=parent)
+    # No extra spin: Blender starts a circle's vertices at local +Y, which the
+    # same quarter turn about X that faces the prism at the lens carries round
+    # to world +Z. Adding a Y quarter turn, as looked right on paper, rendered
+    # an arrow pointing along the sill instead of up at the jack point.
+    return put(o, loc=loc, rot=(math.pi / 2, 0, 0), material=material, parent=parent)
 
 
 def empty(name, loc=(0, 0, 0), parent=None):
@@ -257,60 +258,68 @@ def empty(name, loc=(0, 0, 0), parent=None):
     return o
 
 
-def _interp(kind):
-    """Set the interpolation new keyframes are born with, and hand back the old.
+def _curves(holder):
+    """Every fcurve on an ID, whichever way this Blender stores them.
 
-    Blender 4.4 made actions slotted and dropped Action.fcurves, so walking
-    the curves afterwards raises AttributeError on this build. The preference
-    is both shorter and indifferent to the version. Same trick, and the same
-    reason, as scripts/crash_scene.py.
+    Blender 4.4 made actions slotted; Action.fcurves survives on 5.2 as a
+    compatibility accessor but is empty for some IDs, so fall through to the
+    layer/strip/channelbag path rather than trusting either one alone.
     """
-    prefs = getattr(bpy.context.preferences, "edit", None)
-    if prefs is None or not hasattr(prefs, "keyframe_new_interpolation_type"):
-        return None
-    previous = prefs.keyframe_new_interpolation_type
-    prefs.keyframe_new_interpolation_type = kind
-    return previous
+    anim = getattr(holder, "animation_data", None)
+    if anim is None or anim.action is None:
+        return ()
+    action = anim.action
+    curves = list(getattr(action, "fcurves", ()) or ())
+    if curves:
+        return curves
+    for layer in getattr(action, "layers", ()):
+        for strip in getattr(layer, "strips", ()):
+            for bag in getattr(strip, "channelbags", ()):
+                curves.extend(bag.fcurves)
+    return curves
 
 
-def _restore(prefs_previous):
-    if prefs_previous is not None:
-        bpy.context.preferences.edit.keyframe_new_interpolation_type = prefs_previous
+def _set_interp(holder, frame, kind):
+    """Force the interpolation of every key this ID has at `frame`.
+
+    The obvious route, preferences.edit.keyframe_new_interpolation_type, is
+    the one scripts/crash_scene.py uses, and on this 5.2 build it does
+    nothing at all: the preference reads back as CONSTANT and the keyframe
+    is still born BEZIER. Checked, not assumed. Every hard cut in this clip
+    depends on it, so the keys are corrected after insertion instead.
+    """
+    if kind == "BEZIER":
+        return
+    for curve in _curves(holder):
+        for point in curve.keyframe_points:
+            if abs(point.co[0] - frame) < 0.5:
+                point.interpolation = kind
 
 
 def key(obj, frame, *, loc=None, rot=None, scale=None, interp="BEZIER"):
-    previous = _interp(interp)
-    try:
-        if loc is not None:
-            obj.location = loc
-            obj.keyframe_insert("location", frame=frame)
-        if rot is not None:
-            obj.rotation_euler = Euler(rot)
-            obj.keyframe_insert("rotation_euler", frame=frame)
-        if scale is not None:
-            obj.scale = scale
-            obj.keyframe_insert("scale", frame=frame)
-    finally:
-        _restore(previous)
+    if loc is not None:
+        obj.location = loc
+        obj.keyframe_insert("location", frame=frame)
+    if rot is not None:
+        obj.rotation_euler = Euler(rot)
+        obj.keyframe_insert("rotation_euler", frame=frame)
+    if scale is not None:
+        obj.scale = scale
+        obj.keyframe_insert("scale", frame=frame)
+    _set_interp(obj, frame, interp)
 
 
 def key_value(owner, path, frame, value, *, interp="BEZIER"):
-    previous = _interp(interp)
-    try:
-        setattr(owner, path, value)
-        owner.keyframe_insert(path, frame=frame)
-    finally:
-        _restore(previous)
+    setattr(owner, path, value)
+    owner.keyframe_insert(path, frame=frame)
+    _set_interp(owner, frame, interp)
 
 
 def key_colour(material, frame, hex_string, *, interp="CONSTANT"):
-    previous = _interp(interp)
-    try:
-        inp = material.node_tree.nodes["Emission"].inputs["Color"]
-        inp.default_value = rgba(hex_string)
-        inp.keyframe_insert("default_value", frame=frame)
-    finally:
-        _restore(previous)
+    inp = material.node_tree.nodes["Emission"].inputs["Color"]
+    inp.default_value = rgba(hex_string)
+    inp.keyframe_insert("default_value", frame=frame)
+    _set_interp(material.node_tree, frame, interp)
 
 
 # ------------------------------------------------------------------ the road
