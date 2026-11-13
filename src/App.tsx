@@ -6,6 +6,7 @@ import { CrashWatch } from './components/CrashWatch'
 import { LegalPanel } from './components/LegalPanel'
 import { OfflineBanner } from './components/OfflineBanner'
 import { FirstRunPermissions } from './components/FirstRunPermissions'
+import { InstallApp } from './components/InstallApp'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
 import { RouteResult } from './components/RouteResult'
@@ -185,6 +186,12 @@ export default function App() {
             sameEndpoints={origin === destination}
           />
           <CrashWatch />
+
+          {/* Directly under crash watch, because that card has just promised
+              background detection and this one says which build actually
+              delivers it. Renders nothing inside the Android app. */}
+          <InstallApp />
+
           <LegalPanel />
 
           <SourcesPanel data={appData} />

@@ -31,7 +31,7 @@
 // Bump to retire old caches. The hashed asset names make a stale bundle
 // impossible, but the data files keep their names across deploys, so a
 // version is the only thing that forces them to refresh.
-const CACHE = 'zetway-v2'
+const CACHE = 'zetway-v3'
 
 const DATA = [
   'cars', 'conditions', 'districts', 'emergency', 'exposure',
@@ -111,12 +111,23 @@ self.addEventListener('activate', (event) => {
 const isLive = (url) =>
   url.pathname.startsWith('/api/') || url.origin !== self.location.origin
 
+/** Big downloads, which are never cached.
+ *
+ *  The handler below is stale-while-revalidate over every same-origin 200,
+ *  which is right for a 300 KB bundle and wrong for a 7.6 MB APK. Cache
+ *  Storage has a quota, and a browser that hits it evicts whole caches
+ *  rather than the newest entry — so one judge downloading the Android
+ *  build could take the offline app shell down with it. These stream from
+ *  the network and are not kept. */
+const isBigDownload = (url) => /\.(?:apk|mp4|webm|zip)$/i.test(url.pathname)
+
 self.addEventListener('fetch', (event) => {
   const { request } = event
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
   if (isLive(url)) return // straight to the network, and allowed to fail
+  if (isBigDownload(url)) return // streamed, never kept: it would evict the shell
 
   // Navigations: try the network so a deploy is picked up, fall back to the
   // cached shell. Without this an offline reload is a browser error page
