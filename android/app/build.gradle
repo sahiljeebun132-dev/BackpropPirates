@@ -52,3 +52,27 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+// The website serves the APK for download, so public/zetway.apk is part of
+// the web build and `cap sync` copies the whole web build into the app's
+// assets. Left alone, each APK ships the previous one inside it: the build
+// that caught this had grown from 10.9 MB to 19.9 MB, carrying a stale copy
+// of itself that nothing would ever read.
+//
+// This lived in an npm script, which worked until a build ran `cap sync`
+// directly and bypassed it. Doing it here means it holds whatever route the
+// assets arrived by, because gradle is the one step that cannot be skipped.
+tasks.register('stripSelfCopy') {
+    doLast {
+        def stale = file("${projectDir}/src/main/assets/public/zetway.apk")
+        if (stale.exists()) {
+            logger.lifecycle("stripSelfCopy: removing ${stale} (${stale.length()} bytes)")
+            stale.delete()
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name == 'preBuild') {
+        task.dependsOn('stripSelfCopy')
+    }
+}
