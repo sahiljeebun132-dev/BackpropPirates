@@ -10,7 +10,9 @@ import { lightBandAt } from './lib/live'
 import { assessRoute } from './lib/risk'
 import type { TimeBand, TravelMode } from './lib/types'
 import { useAppData } from './lib/useAppData'
+import { useGeolocation } from './lib/useGeolocation'
 import { useLive } from './lib/useLive'
+import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
@@ -43,6 +45,16 @@ export default function App() {
   const mid = from && to ? { lat: (from.lat + to.lat) / 2, lon: (from.lon + to.lon) / 2 } : null
   const live = useLive(mid?.lat ?? null, mid?.lon ?? null)
   const liveConditions = live.status === 'ready' ? live.conditions : null
+
+  // Hazard reports are pulled around the middle of the corridor, with a radius
+  // wide enough to cover the whole of it.
+  const corridorKm =
+    from && to
+      ? Math.hypot((from.lat - to.lat) * 110.57, (from.lon - to.lon) * 104.4)
+      : 0
+  const reportRadiusKm = Math.max(8, Math.round(corridorKm / 2 + 3))
+  const reports = useReports(mid?.lat ?? null, mid?.lon ?? null, reportRadiusKm)
+  const gps = useGeolocation()
 
   // Sunrise and sunset decide the light band. Without a forecast we fall back
   // to whatever the rider picked by hand.
@@ -90,6 +102,13 @@ export default function App() {
           live={liveConditions}
           liveFailed={live.status === 'error'}
           departureAdvice={departureAdvice}
+          reports={reports.reports}
+          reportsStatus={reports.status}
+          onReported={reports.refresh}
+          reportAt={gps.position ?? mid ?? { lat: 0, lon: 0 }}
+          usingGps={gps.position !== null}
+          onUseGps={gps.request}
+          reportRadiusKm={reportRadiusKm}
           departAt={departAt}
           onDepartAt={(d) => {
             setDepartAt(d)

@@ -1,12 +1,14 @@
 import type { DepartureAdvice } from '../lib/departure'
 import type { LiveConditions } from '../lib/live'
 import { MODE_LABEL, TIME_BAND_LABEL, type RouteAssessment } from '../lib/risk'
+import type { HazardReport } from '../lib/reports'
 import type { AppData } from '../lib/types'
 import { AdviceList } from './AdviceList'
 import { EmergencyList } from './EmergencyList'
 import { FactorBreakdown } from './FactorBreakdown'
 import { HotspotList } from './HotspotList'
 import { LiveConditionsPanel, LiveUnavailable } from './LiveConditions'
+import { LiveAlertBanner, LiveReports } from './LiveReports'
 import { ScoreDial } from './ScoreDial'
 import { SourcesPanel } from './SourcesPanel'
 
@@ -22,6 +24,13 @@ export function RouteResult({
   departureAdvice,
   departAt,
   onDepartAt,
+  reports,
+  reportsStatus,
+  onReported,
+  reportAt,
+  usingGps,
+  onUseGps,
+  reportRadiusKm,
   onBack,
 }: {
   assessment: RouteAssessment
@@ -31,6 +40,13 @@ export function RouteResult({
   departureAdvice: DepartureAdvice | null
   departAt: Date
   onDepartAt: (d: Date) => void
+  reports: HazardReport[]
+  reportsStatus: 'loading' | 'ready' | 'error'
+  onReported: () => void
+  reportAt: { lat: number; lon: number }
+  usingGps: boolean
+  onUseGps: () => void
+  reportRadiusKm: number
   onBack: () => void
 }) {
   const a = assessment
@@ -61,6 +77,8 @@ export function RouteResult({
         </p>
       </section>
 
+      <LiveAlertBanner reports={reports} />
+
       <ScoreDial assessment={a} />
 
       {live && departureAdvice ? (
@@ -75,6 +93,16 @@ export function RouteResult({
       ) : liveFailed ? (
         <LiveUnavailable band={a.timeBand} onChange={onBack} />
       ) : null}
+
+      <LiveReports
+        reports={reports}
+        status={reportsStatus}
+        reportAt={reportAt}
+        usingGps={usingGps}
+        radiusKm={reportRadiusKm}
+        onReported={onReported}
+        onUseGps={onUseGps}
+      />
 
       <AdviceList advice={a.advice} />
       <FactorBreakdown factors={a.factors} />
