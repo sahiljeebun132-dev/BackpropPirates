@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import { MODE_LABEL, TIME_BAND_LABEL } from '../lib/risk'
 import type { Place, TimeBand, TravelMode } from '../lib/types'
 
@@ -45,6 +47,18 @@ export function PlanForm(props: Props) {
     onOrigin, onDestination, onMode, onDepartAt, onRoadIsLit, onFallbackBand,
     onSubmit, onSwap, sameEndpoints,
   } = props
+
+  // "When" is collapsed by default. Most riders check the trip they are about
+  // to make, so the honest default answer is "now, and I will say if my road
+  // is unlit" — two facts that fit on one line. Opening it costs one tap and
+  // nothing is removed; leaving it open cost 160px on every visit for a
+  // question most people never change.
+  const [whenOpen, setWhenOpen] = useState(false)
+  const whenSummary = `${
+    departIsNow
+      ? 'Leaving now'
+      : departAt.toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  }${roadIsLit ? '' : ' · unlit road'}`
 
   return (
     <form
@@ -142,9 +156,25 @@ export function PlanForm(props: Props) {
         </div>
 
         <div className="mt-3 border-t border-slate-100 pt-3">
-        <span className="text-xs font-medium text-slate-500">When are you leaving?</span>
+        <button
+          type="button"
+          onClick={() => setWhenOpen((o) => !o)}
+          aria-expanded={whenOpen}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-medium text-slate-500">When are you leaving?</span>
+            <span className="mt-0.5 block truncate text-sm font-medium text-slate-900">
+              {whenSummary}
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-brand-deep">
+            {whenOpen ? 'Hide' : 'Change'}
+          </span>
+        </button>
 
-        <div className="mt-2 flex gap-2">
+        {whenOpen && (<>
+        <div className="mt-3 flex gap-2">
           <button
             type="button"
             aria-pressed={departIsNow}
@@ -211,6 +241,7 @@ export function PlanForm(props: Props) {
             </div>
           </div>
         )}
+        </>)}
         </div>
       </section>
 
