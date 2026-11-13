@@ -67,7 +67,11 @@ const pad = (n: number): string => String(n).padStart(2, '0')
  * message and read weeks later by an insurer or the other driver, so it needs
  * to say the same thing whatever locale the handset happens to be set to. */
 const dayOf = (d: Date): string => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-const timeOf = (d: Date): string => `${pad(d.getHours())}:${pad(d.getMinutes())}`
+
+/** Exported so the card can label a thumbnail with the same clock the
+ *  summary quotes. Two formats for one moment invites an argument about
+ *  which is right. */
+export const clockTime = (d: Date): string => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 
 /**
  * The plain-text note the rider copies out: which shots exist, when each was
@@ -75,18 +79,22 @@ const timeOf = (d: Date): string => `${pad(d.getHours())}:${pad(d.getMinutes())}
  *
  * Deliberately says what is missing as well as what was taken. A list that
  * only shows four ticks when two photographs exist is worse than no list.
+ *
+ * The date comes off the first photograph rather than off the clock at the
+ * moment the text is built, so re-reading this an hour later cannot quietly
+ * restamp it.
  */
 export function constatSummary(
   taken: { id: ConstatShotId; at: Date }[],
   position: { lat: number; lon: number } | null,
-  now: Date,
 ): string {
   const labels = new Map(CONSTAT_SHOTS.map((s) => [s.id, s.label]))
-  const lines = [`Constat photographs — ${dayOf(taken[0]?.at ?? now)}`, '']
+  const first = taken[0]?.at
+  const lines = [first ? `Constat photographs — ${dayOf(first)}` : 'Constat photographs', '']
 
   if (taken.length > 0) {
     lines.push('Taken on this phone:')
-    for (const t of taken) lines.push(`- ${timeOf(t.at)}  ${labels.get(t.id) ?? t.id}`)
+    for (const t of taken) lines.push(`- ${clockTime(t.at)}  ${labels.get(t.id) ?? t.id}`)
   } else {
     lines.push('No photographs taken yet.')
   }

@@ -281,6 +281,12 @@ export const Icon = {
       <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.2 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.1 9.9a16 16 0 006 6l1.26-1.26a2 2 0 012.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0122 16.92z" />
     </svg>
   ),
+  road: (c = 'h-6 w-6') => (
+    <svg {...s} className={c}>
+      <path d="M4 21 8 3M20 21l-4-18" />
+      <path d="M12 5v3M12 12v3M12 19v2" />
+    </svg>
+  ),
   book: (c = 'h-6 w-6') => (
     <svg {...s} className={c}>
       <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
@@ -298,4 +304,29 @@ export const Icon = {
       <path d="M20 6L9 17l-5-5" />
     </svg>
   ),
+}
+
+/**
+ * A labelled group of entry points.
+ *
+ * Seven buttons in a flat column is a list to be read; three groups of two
+ * or three is a thing to be scanned. The heading is deliberately a plain
+ * label rather than a card — it costs one line and no border, because the
+ * grouping is the point, not the chrome around it.
+ */
+export function Section({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <section className="space-y-2">
+      <h2 className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        {title}
+      </h2>
+      {children}
+    </section>
+  )
 }

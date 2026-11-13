@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Icon, Notice, Row, Tile } from './ui'
+import { Icon, Notice, Row, Section, Tile } from './ui'
 
 /**
  * The home screen, rebuilt to the supplied design.
@@ -48,44 +48,58 @@ export function HomeDashboard({
         <p className="mt-1.5 text-xs text-slate-500">Tap a tile for what you need now</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5">
-        <Tile
-          accent="red"
-          icon={Icon.shieldAlert()}
-          title="Accidents & road safety"
-          subtitle="Black spots and what others report"
-          onClick={onAccidents}
-        />
-        <Tile
-          accent="amber"
-          icon={Icon.cloudRain()}
-          title="Climate & vigilance"
-          subtitle="Light, rain and the forecast"
-          onClick={onClimate}
-        />
-      </div>
+      {/* Grouped rather than stacked. Seven entry points in one column is a
+          list you read top to bottom; three labelled groups is something you
+          scan and skip. The split is by when you reach for it: planning a
+          trip, something has gone wrong, or it runs by itself. */}
+      <Section title="Check the road">
+        <div className="grid grid-cols-2 gap-3.5">
+          <Tile
+            accent="red"
+            icon={Icon.shieldAlert()}
+            title="Accidents & road safety"
+            subtitle="Black spots and what others report"
+            onClick={onAccidents}
+          />
+          <Tile
+            accent="amber"
+            icon={Icon.cloudRain()}
+            title="Climate & vigilance"
+            subtitle="Light, rain and the forecast"
+            onClick={onClimate}
+          />
+        </div>
+      </Section>
 
-      <Row
-        accent="red"
-        icon={Icon.alertTriangle()}
-        title="Report a hazard"
-        subtitle="Warn other riders about something on the road"
-        onClick={onReport}
-      />
-      <Row
-        accent="blue"
-        icon={Icon.wrench()}
-        title="Broken down or had a crash"
-        subtitle="Safety check first, then fifteen roadside guides"
-        onClick={onRoadside}
-      />
-      <Row
-        accent="green"
-        icon={Icon.book('h-4 w-4')}
-        title="Ask Zetway"
-        subtitle="A question in your own words — works with no signal"
-        onClick={onAsk}
-      />
+      <Section title="If something happens">
+        <Row
+          accent="blue"
+          icon={Icon.wrench()}
+          title="Broken down or had a crash"
+          subtitle="Safety check first, then fifteen roadside guides"
+          onClick={onRoadside}
+        />
+        <Row
+          accent="red"
+          icon={Icon.alertTriangle()}
+          title="Report a hazard"
+          subtitle="Warn other riders about something on the road"
+          onClick={onReport}
+        />
+        <Row
+          accent="green"
+          icon={Icon.book('h-4 w-4')}
+          title="Ask Zetway"
+          subtitle="A question in your own words — works with no signal"
+          onClick={onAsk}
+        />
+      </Section>
+
+      {/* "Running while you ride" is rendered by App, not here. It holds the
+          crash watch line, and that component is mounted once for the whole
+          session so a trip through the roadside guides cannot tear down its
+          sensor listener — which means it cannot live inside a branch that
+          unmounts when the view changes. */}
 
     </>
   )

@@ -52,6 +52,25 @@ export type ImpactEvidence = {
 
 export type NativeImpact = ImpactEvidence & { test: boolean }
 
+/**
+ * One vertical jolt the road scanner logged.
+ *
+ * Every field is measured. The service throws away any jolt it cannot place
+ * with a recent fix, so there is no "position unknown" case to represent
+ * here — a point on a road is either where the phone said it was or it does
+ * not exist.
+ */
+export type NativeJolt = {
+  /** Peak departure of the vertical axis from rest, in g. */
+  peakG: number
+  lat: number
+  lon: number
+  /** Speed at the jolt, m/s, from the location provider. */
+  speed: number
+  /** Milliseconds since the epoch. */
+  at: number
+}
+
 export const NOT_MEASURED = -1
 
 /** Whether an alert would actually reach a rider whose phone is locked in a
@@ -93,6 +112,10 @@ type CrashResponsePlugin = {
   stopWatching(): Promise<SimpleResult>
   isWatching(): Promise<{ running: boolean }>
   consumePendingImpact(): Promise<NativeImpact & { hasImpact: boolean }>
+  setRoadScan(options: { enabled: boolean }): Promise<
+    SimpleResult & { enabled: boolean; watching: boolean }
+  >
+  consumePendingJolts(): Promise<{ jolts: NativeJolt[] }>
   checkReadiness(): Promise<Readiness>
   requestPermissions(): Promise<Record<string, string>>
   openLockScreenSettings(): Promise<SimpleResult>
@@ -102,6 +125,7 @@ type CrashResponsePlugin = {
     event: 'impact' | 'impactEvidence',
     handler: (data: NativeImpact) => void,
   ): Promise<PluginListenerHandle>
+  addListener(event: 'jolt', handler: (data: NativeJolt) => void): Promise<PluginListenerHandle>
 }
 
 const plugin = registerPlugin<CrashResponsePlugin>('CrashResponse')
@@ -297,6 +321,54 @@ export async function consumePendingImpact(): Promise<NativeImpact | null> {
     return hasImpact ? impact : null
   } catch {
     return null
+  }
+}
+
+/**
+ * Turn the road scanner on or off in the service.
+ *
+ * Returns what the service now thinks, including whether it is running at
+ * all: the scanner shares the crash watch's sensor rather than holding a
+ * second one, so switching it on while crash watch is off arms a preference
+ * and logs nothing. The screen says that rather than implying a scan.
+ *
+ * On the web this is simply false. A browser tab cannot watch an
+ * accelerometer with the screen off, so there is no honest passive scanner
+ * to offer there.
+ */
+export async function setRoadScan(
+  enabled: boolean,
+): Promise<{ ok: boolean; enabled: boolean; watching: boolean }> {
+  if (!isNative()) return { ok: false, enabled: false, watching: false }
+  try {
+    const r = await plugin.setRoadScan({ enabled })
+    return { ok: r.ok, enabled: r.enabled, watching: r.watching }
+  } catch {
+    return { ok: false, enabled: false, watching: false }
+  }
+}
+
+/** Jolts logged while no page was running, which on a real ride is most of
+ *  them. Drained once; the service clears its queue as it hands them over. */
+export async function consumePendingJolts(): Promise<NativeJolt[]> {
+  if (!isNative()) return []
+  try {
+    return (await plugin.consumePendingJolts()).jolts ?? []
+  } catch {
+    return []
+  }
+}
+
+/** Jolts arriving while the page is alive. Resolves to an unsubscribe. */
+export async function onNativeJolt(
+  handler: (jolt: NativeJolt) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('jolt', handler)
+    return () => void handle.remove()
+  } catch {
+    return () => {}
   }
 }
 

@@ -32,6 +32,9 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Watches the accelerometer while Zetway is not on screen, and gathers the
  * two signals that say whether the bang was a vehicle or a dropped phone.
@@ -60,6 +63,14 @@ import android.util.Log;
  * is evidence, so a rider looking at the red screen — and whoever they hand
  * the phone to — can see whether the phone spun and whether the vehicle was
  * moving, instead of one number with no context.
+ *
+ * The same accelerometer also feeds the road scanner, which is a smaller and
+ * much quieter job sharing the sensor rather than a second feature competing
+ * for it. A rider cannot tap a screen to report a pothole while steering, so
+ * the phone notes the jolt itself: a vertical kick with the vehicle actually
+ * moving, well below anything that could be a crash, debounced so one hole
+ * produces one point. It never raises anything, never interrupts, and is off
+ * unless the rider switched it on — see setScanning.
  *
  * Two Android facts shape the rest of it:
  *
@@ -101,15 +112,99 @@ public class CrashWatchService extends Service {
      *  hit, so the window reaches back far enough to catch that. */
     private static final long ROTATION_LOOKBACK_MS = 3000;
 
-    /** How long the service keeps measuring after the spike. Covers the spin
-     *  that follows a collision and gives a 1 Hz location provider two or
-     *  three chances to report the speed the vehicle is left at. The alert is
-     *  already on screen throughout: nothing here delays it. */
-    private static final long EVIDENCE_WINDOW_MS = 3000;
+    /** How long the gyroscope keeps raising the peak after the spike. The
+     *  spin of a crash is over in about a second; stretching this further
+     *  would start crediting the impact with the rider picking the phone up
+     *  off the road. */
+    private static final long ROTATION_WINDOW_MS = 3000;
+
+    /**
+     * How long to wait for a location fix dated after the spike, in ms.
+     *
+     * Measured, not guessed. On the Android 15 emulator the app's own
+     * post-impact position request restarts the GNSS engine, and deliveries
+     * to a 1 Hz listener stopped for 4.0 s across the impact: last fix
+     * 02:49:58.827, next 02:50:02.871. A real phone re-acquiring after a
+     * crash is no faster. Ten seconds covers that and still lands well
+     * inside the thirty-second countdown, and it costs the rider nothing —
+     * the alarm, the countdown and every button are live throughout. The
+     * figure appears when it arrives; until then the screen says it is
+     * still measuring rather than showing a number it does not have.
+     */
+    private static final long SPEED_AFTER_WINDOW_MS = 10_000;
 
     /** A fix older than this says nothing useful about the speed at the
      *  moment of the crash, so it is reported as unknown rather than quoted. */
     private static final long FIX_STALE_MS = 20_000;
+
+    // ------------------------------------------------------- road scanner
+
+    /** Vertical kick that counts as hitting something, in m/s².
+     *
+     *  2.2g of deviation from however the phone is currently resting. Riding
+     *  a reasonable surface keeps the vertical axis within a few m/s² of its
+     *  resting value; a wheel dropping into a hole throws the phone far past
+     *  that. Well under the 30 m/s² the crash watch fires at, which is the
+     *  point: these two must never be the same event. */
+    private static final float JOLT_THRESHOLD_MS2 = 2.2f * 9.81f;
+
+    /** How long after a jolt the peak keeps being measured, in ms. A pothole
+     *  is a down-then-up that takes a couple of hundred milliseconds, and the
+     *  sample that happens to cross the bar is rarely the worst one. */
+    private static final long JOLT_PEAK_WINDOW_MS = 250;
+
+    /** Nothing else is logged for this long after a jolt, in ms. One hole has
+     *  to be one report, not thirty: the suspension rings, the rear wheel
+     *  follows the front through the same hole, and at 50 km/h four seconds
+     *  is about 55 metres — roughly the distance within which the web layer
+     *  would group two points as the same defect anyway. */
+    private static final long JOLT_DEBOUNCE_MS = 4000;
+
+    /** Below this speed, in m/s, a jolt is a phone being handled rather than
+     *  a wheel hitting anything: 2.8 m/s is 10 km/h. Pockets, car doors and
+     *  a phone dropped onto a seat all produce a 2g kick, and none of them
+     *  is a hole in a road. */
+    private static final float JOLT_MIN_SPEED_MS = 2.8f;
+
+    /** How old a fix may be before a jolt is thrown away rather than placed,
+     *  in ms. Five seconds at 50 km/h is about 70 metres, which is already
+     *  wider than the 50 m the web layer groups within — so this is the
+     *  weakest number in a single report, and the reason one report is never
+     *  called a defect. A jolt with no fix this fresh is simply dropped: a
+     *  point on a road with a made-up position is worse than no point. */
+    private static final long JOLT_FIX_STALE_MS = 5000;
+
+    /** How many jolts are held for a web view that is not running. A long
+     *  ride with the app closed should not be lost, and it should also not
+     *  grow without limit in a service that may live for hours. Oldest go
+     *  first, because the newest road is the road the rider is still on. */
+    private static final int MAX_PENDING_JOLTS = 120;
+
+    /**
+     * One jolt: where the phone was kicked, and how hard.
+     *
+     * No kind, no severity, no confidence. This is a bang at a place, and
+     * what it means is decided later by how many other bangs landed near it.
+     */
+    public static final class Jolt {
+        /** Peak deviation of the vertical axis, m/s², gravity removed. */
+        public final float peak;
+        public final double lat;
+        public final double lon;
+        /** Speed at the jolt, m/s. Always a real measurement here: without
+         *  one the jolt is discarded rather than reported. */
+        public final float speed;
+        /** Wall-clock time, ms since the epoch, for the report's timestamp. */
+        public final long at;
+
+        Jolt(float peak, double lat, double lon, float speed, long at) {
+            this.peak = peak;
+            this.lat = lat;
+            this.lon = lon;
+            this.speed = speed;
+            this.at = at;
+        }
+    }
 
     /**
      * One impact and everything measured around it.
@@ -151,6 +246,9 @@ public class CrashWatchService extends Service {
         /** The same impact once the post-impact window has closed, carrying
          *  the figures that did not exist yet when the alarm went off. */
         void onEvidence(Impact impact);
+        /** A road jolt. Nothing is raised and nothing waits on this: the web
+         *  layer queues it and sends it when there is a network. */
+        void onJolt(Jolt jolt);
     }
 
     private static volatile ImpactListener listener;
@@ -173,8 +271,52 @@ public class CrashWatchService extends Service {
         return p;
     }
 
+    /**
+     * Jolts detected while no web view was there to take them.
+     *
+     * Unlike an impact, which is one event that must raise one alert, a ride
+     * produces a stream of these and losing them loses the whole point of a
+     * passive scanner. Guarded by its own lock rather than made volatile: the
+     * sensor thread adds and the web layer drains, and a list is not safely
+     * shared by publishing the reference alone.
+     */
+    private static final List<Jolt> pendingJolts = new ArrayList<>();
+
+    public static void queueJolt(Jolt jolt) {
+        synchronized (pendingJolts) {
+            if (pendingJolts.size() >= MAX_PENDING_JOLTS) pendingJolts.remove(0);
+            pendingJolts.add(jolt);
+        }
+    }
+
+    public static List<Jolt> consumePendingJolts() {
+        synchronized (pendingJolts) {
+            List<Jolt> out = new ArrayList<>(pendingJolts);
+            pendingJolts.clear();
+            return out;
+        }
+    }
+
     /** So the UI can show the truth about whether background watching is on. */
     public static volatile boolean running = false;
+
+    /**
+     * Whether the road scanner is on. The rider's switch, and off by default.
+     *
+     * Static because the switch lives on a screen that both outlives this
+     * service and precedes it: a rider turns scanning on, the service starts
+     * later when crash watch is armed, and it has to find the setting already
+     * made. Volatile because the sensor thread reads it on every sample.
+     */
+    private static volatile boolean scanning = false;
+
+    public static void setScanning(boolean on) {
+        scanning = on;
+    }
+
+    public static boolean isScanning() {
+        return scanning;
+    }
 
     private SensorManager sensors;
     private Sensor accelerometer;
@@ -209,12 +351,52 @@ public class CrashWatchService extends Service {
      *  mid-ride and NTP can step the clock. */
     private float lastSpeed = UNKNOWN;
     private long lastSpeedAt = 0;
+    /** Whether that came from the provider or was worked out from two
+     *  positions here. A measured one is not replaced by a derived one. */
+    private boolean lastSpeedMeasured = false;
     private Location lastFix;
 
     /** The impact currently being measured, held while the post-impact window
      *  is open so the late figures can be folded into it. */
     private Impact inFlight;
     private float windowRotation = UNKNOWN;
+    /** True while a later gyroscope reading may still raise that peak. */
+    private boolean rotationWindowOpen = false;
+    /** Speed from the first fix that arrived after the spike. UNKNOWN until
+     *  one does, which on a phone re-acquiring GPS takes several seconds. */
+    private float speedAfter = UNKNOWN;
+    /** When the spike happened, on the same clock Location stamps its fixes
+     *  with, so "after the impact" is decided by the fix's own time rather
+     *  than by when it happened to be delivered. */
+    private long impactAtNanos = 0;
+
+    /**
+     * Where the vertical axis sits when nothing is happening.
+     *
+     * Not 9.81. A phone on a handlebar mount, in a tank bag or face-down on a
+     * passenger seat divides gravity across its three axes differently, and
+     * the scanner has to work in all of them without asking the rider how the
+     * phone is lying. So the resting value is learned and a jolt is measured
+     * as a departure from it. NaN until the first reading arrives.
+     */
+    private float zBaseline = Float.NaN;
+
+    /** How fast the baseline follows the axis. At about 50 readings a second
+     *  this settles in roughly a second: quick enough to follow a phone being
+     *  repositioned mid-ride, far too slow to be dragged up by a bang that is
+     *  over in a tenth of one. */
+    private static final float Z_BASELINE_ALPHA = 0.02f;
+
+    /** The jolt currently being measured. Open for JOLT_PEAK_WINDOW_MS after
+     *  the crossing, because the sample that crosses the bar is rarely the
+     *  worst one in the bump. */
+    private boolean joltOpen = false;
+    private float joltPeak = 0f;
+    private double joltLat = 0;
+    private double joltLon = 0;
+    private float joltSpeed = 0f;
+    private long joltAt = 0;
+    private long lastJoltAt = 0;
 
     private final SensorEventListener sensorListener = new SensorEventListener() {
         @Override
@@ -232,7 +414,13 @@ public class CrashWatchService extends Service {
             if (magnitude >= threshold) {
                 armed = false; // one trigger; the rider decides what happens next
                 onImpact((float) magnitude);
+                return;
             }
+            // Everything under the crash bar is the road rather than a
+            // collision, and that ordering is the guarantee that one event is
+            // never both: a crash returns above, so nothing a crash produces
+            // can also be filed as a pothole.
+            onVertical(z);
         }
 
         @Override
@@ -253,7 +441,7 @@ public class CrashWatchService extends Service {
         gyroHistoryHead = (gyroHistoryHead + 1) % GYRO_HISTORY;
         // While the window after an impact is open, every later reading can
         // still raise the peak: the spin usually outlasts the bang.
-        if (inFlight != null && rate > windowRotation) windowRotation = rate;
+        if (rotationWindowOpen && rate > windowRotation) windowRotation = rate;
     }
 
     private float peakRotationSince(long sinceMs) {
@@ -263,6 +451,87 @@ public class CrashWatchService extends Service {
             if (gyroAt[i] >= sinceMs && gyroRate[i] > peak) peak = gyroRate[i];
         }
         return peak;
+    }
+
+    /**
+     * A vertical kick, measured and placed, or nothing at all.
+     *
+     * Three things have to be true before a bump becomes a point on a map,
+     * and each of them throws away far more readings than it keeps. The
+     * vehicle has to be moving, or this is a phone being handled. There has
+     * to be a recent fix, because a point whose position was guessed is worse
+     * than no point. And nothing may have been logged in the last few
+     * seconds, or one hole fills the map with its own echo.
+     *
+     * Deliberately silent: no notification, no sound, nothing on screen. The
+     * rider is steering. The point is written and the ride carries on.
+     */
+    private void onVertical(float z) {
+        if (Float.isNaN(zBaseline)) {
+            zBaseline = z;
+            return; // the first reading defines rest; it cannot also be a jolt
+        }
+        float deviation = Math.abs(z - zBaseline);
+        zBaseline += Z_BASELINE_ALPHA * (z - zBaseline);
+
+        if (joltOpen) {
+            if (deviation > joltPeak) joltPeak = deviation;
+            return;
+        }
+        if (!scanning || deviation < JOLT_THRESHOLD_MS2) return;
+
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastJoltAt < JOLT_DEBOUNCE_MS) return;
+
+        Location fix = freshFix();
+        float speed = freshSpeed();
+        if (fix == null || speed == UNKNOWN || speed < JOLT_MIN_SPEED_MS) return;
+
+        lastJoltAt = now;
+        joltOpen = true;
+        joltPeak = deviation;
+        joltLat = fix.getLatitude();
+        joltLon = fix.getLongitude();
+        joltSpeed = speed;
+        joltAt = System.currentTimeMillis();
+        main.postDelayed(this::closeJolt, JOLT_PEAK_WINDOW_MS);
+    }
+
+    /** The jolt, once the bump has finished happening. */
+    private void closeJolt() {
+        if (!joltOpen) return;
+        joltOpen = false;
+        Jolt jolt = new Jolt(joltPeak, joltLat, joltLon, joltSpeed, joltAt);
+        Log.i(TAG, "jolt peak=" + jolt.peak + " m/s2"
+            + " (" + (jolt.peak / 9.81f) + " g)"
+            + " at=" + jolt.lat + "," + jolt.lon
+            + " speed=" + jolt.speed + " m/s");
+        ImpactListener l = listener;
+        if (l != null) {
+            l.onJolt(jolt);
+        } else {
+            // No plugin yet: the service was started before any web view
+            // existed, or Android killed the process and restarted us. The
+            // jolt waits rather than being lost.
+            queueJolt(jolt);
+        }
+    }
+
+    /**
+     * The last fix, or null if it is too old to say where a jolt happened.
+     *
+     * Far tighter than the crash watch's twenty seconds, and for a different
+     * reason: a crash wants to know roughly how fast the vehicle was going,
+     * while a pothole has to be placed within the fifty metres the web layer
+     * groups points inside. Five seconds at 50 km/h is already about seventy
+     * metres, which is why the rule needs three separate reports before it
+     * will call anything a defect.
+     */
+    private Location freshFix() {
+        if (lastFix == null) return null;
+        long ageMs =
+            (SystemClock.elapsedRealtimeNanos() - lastFix.getElapsedRealtimeNanos()) / 1_000_000L;
+        return ageMs <= JOLT_FIX_STALE_MS ? lastFix : null;
     }
 
     /**
@@ -292,17 +561,39 @@ public class CrashWatchService extends Service {
         @Override
         public void onLocationChanged(Location fix) {
             float speed = UNKNOWN;
-            if (fix.hasSpeed()) {
+            boolean measured = fix.hasSpeed();
+            if (measured) {
                 speed = fix.getSpeed();
-            } else if (lastFix != null) {
+            } else if (lastFix != null && lastFix.getProvider() != null
+                && lastFix.getProvider().equals(fix.getProvider())) {
+                // Same provider only. Differencing a GPS fix against a
+                // cell-tower one measures the gap between two estimates,
+                // not the vehicle: it can read hundreds of metres in a
+                // second and would put the rider at motorway speed while
+                // they sat still.
                 float seconds = (fix.getElapsedRealtimeNanos()
                     - lastFix.getElapsedRealtimeNanos()) / 1_000_000_000f;
                 if (seconds > 0.1f) speed = lastFix.distanceTo(fix) / seconds;
             }
             lastFix = fix;
-            if (speed >= 0) {
+            if (speed < 0) return;
+
+            // A speed the provider measured always wins. GPS reads it from
+            // Doppler shift, which beats differencing two positions; a
+            // derived figure only stands in while no measured one is fresh.
+            long now = SystemClock.elapsedRealtime();
+            if (measured || !lastSpeedMeasured || now - lastSpeedAt > FIX_STALE_MS) {
                 lastSpeed = speed;
-                lastSpeedAt = SystemClock.elapsedRealtime();
+                lastSpeedAt = now;
+                lastSpeedMeasured = measured;
+            }
+
+            // The first fix after an impact is the one that answers "and
+            // then what": it is kept separately so a later one cannot
+            // overwrite the moment the vehicle came to rest.
+            if (inFlight != null && speedAfter < 0 && fix.getElapsedRealtimeNanos() > impactAtNanos) {
+                speedAfter = speed;
+                closeEvidenceWindowIfReady();
             }
         }
 
@@ -420,10 +711,30 @@ public class CrashWatchService extends Service {
         Impact immediate = new Impact(peak, rotation, speedBefore, UNKNOWN, testMode, false);
         inFlight = immediate;
         windowRotation = rotation;
+        rotationWindowOpen = true;
+        speedAfter = UNKNOWN;
+        impactAtNanos = SystemClock.elapsedRealtimeNanos();
         dispatch(immediate, false);
         raiseAlert(peak);
 
-        main.postDelayed(this::closeEvidenceWindow, EVIDENCE_WINDOW_MS);
+        // Two deadlines, because the two measurements finish at different
+        // times. The spin is done in three seconds; the speed afterwards
+        // waits on a provider that may have nothing to say for several.
+        main.postDelayed(() -> {
+            rotationWindowOpen = false;
+            closeEvidenceWindowIfReady();
+        }, ROTATION_WINDOW_MS);
+        main.postDelayed(() -> {
+            rotationWindowOpen = false;
+            closeEvidenceWindow();
+        }, SPEED_AFTER_WINDOW_MS);
+    }
+
+    /** Close the moment both measurements are in, so the rider sees the
+     *  figures as soon as they exist rather than at a fixed deadline. */
+    private void closeEvidenceWindowIfReady() {
+        if (inFlight == null || rotationWindowOpen || speedAfter < 0) return;
+        closeEvidenceWindow();
     }
 
     /**
@@ -438,8 +749,11 @@ public class CrashWatchService extends Service {
         Impact i = inFlight;
         if (i == null) return;
         inFlight = null;
+        // speedAfter, not whatever speed is current: a fix dated before the
+        // crash describes the way in, and reporting that as the speed the
+        // vehicle came to rest at would be a lie told by arithmetic.
         Impact complete = new Impact(
-            i.peak, windowRotation, i.speedBefore, freshSpeed(), i.test, true);
+            i.peak, windowRotation, i.speedBefore, speedAfter, i.test, true);
         Log.i(TAG, "impact peak=" + complete.peak + " m/s2"
             + " rotation=" + complete.rotation + " rad/s"
             + " speedBefore=" + complete.speedBefore + " m/s"

@@ -361,6 +361,14 @@ public class CrashResponsePlugin extends Plugin {
                 // passed, and the alarm is not waiting on it.
                 notifyListeners("impactEvidence", describe(impact), true);
             }
+
+            @Override
+            public void onJolt(CrashWatchService.Jolt jolt) {
+                // Retained, like an impact, because the page is usually
+                // suspended while someone is riding. A jolt nobody hears
+                // about is a pothole nobody fixes.
+                notifyListeners("jolt", describe(jolt), true);
+            }
         });
     }
 
@@ -381,6 +389,64 @@ public class CrashResponsePlugin extends Plugin {
         data.put("test", impact.test);
         data.put("complete", impact.complete);
         return data;
+    }
+
+    /**
+     * One jolt as the web layer reads it.
+     *
+     * Peak is in g here rather than m/s², because every number the scanner
+     * screen shows a rider is in g and converting in two places is how the
+     * two drift apart. The position is the phone's own fix at the moment of
+     * the bump; there is no such thing as a jolt without one, because the
+     * service discards those rather than guessing where they were.
+     */
+    private static JSObject describe(CrashWatchService.Jolt jolt) {
+        JSObject data = new JSObject();
+        data.put("peakG", jolt.peak / 9.81f);
+        data.put("lat", jolt.lat);
+        data.put("lon", jolt.lon);
+        data.put("speed", jolt.speed);
+        data.put("at", jolt.at);
+        return data;
+    }
+
+    /**
+     * Turn the road scanner on or off.
+     *
+     * Separate from startWatching because the two are different promises.
+     * Crash watch is armed for a ride; scanning is a preference that holds
+     * across rides, and the rider must be able to withdraw it at any moment
+     * — it records where they were, which is personal data, and consent that
+     * cannot be taken back is not consent.
+     */
+    @PluginMethod
+    public void setRoadScan(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        CrashWatchService.setScanning(enabled);
+        JSObject out = result(true, null);
+        out.put("enabled", CrashWatchService.isScanning());
+        // The scanner shares the crash watch's sensor rather than holding a
+        // second one, so it only logs anything while that service is up. The
+        // screen says so instead of implying a scan that is not happening.
+        out.put("watching", CrashWatchService.running);
+        call.resolve(out);
+    }
+
+    /**
+     * Jolts the service logged while no page was running.
+     *
+     * A ride is exactly the time the app is closed, so this is the normal
+     * path rather than the exceptional one. Drained once and cleared, so a
+     * reopened app does not log the same bumps twice.
+     */
+    @PluginMethod
+    public void consumePendingJolts(PluginCall call) {
+        List<CrashWatchService.Jolt> waiting = CrashWatchService.consumePendingJolts();
+        JSArray jolts = new JSArray();
+        for (CrashWatchService.Jolt jolt : waiting) jolts.put(describe(jolt));
+        JSObject out = new JSObject();
+        out.put("jolts", jolts);
+        call.resolve(out);
     }
 
     @PluginMethod

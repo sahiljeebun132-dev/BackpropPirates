@@ -13,9 +13,10 @@ import { LiveConditionsPanel, LiveUnavailable } from './components/LiveCondition
 import { HotspotList } from './components/HotspotList'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
+import { RoadScanner } from './components/RoadScanner'
 import { RouteResult } from './components/RouteResult'
 import { SourcesPanel } from './components/SourcesPanel'
-import { PageHeader } from './components/ui'
+import { PageHeader, Row, Section, Icon } from './components/ui'
 import { planDeparture } from './lib/departure'
 import { lightBandAt } from './lib/live'
 import { assessRoute } from './lib/risk'
@@ -27,7 +28,7 @@ import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
-type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash' | 'ask'
+type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash' | 'ask' | 'scanner'
 
 export default function App() {
   const state = useAppData()
@@ -181,6 +182,14 @@ export default function App() {
             setView(t.view)
           }}
         />
+      ) : view === 'scanner' ? (
+        <RoadScanner
+          reports={reports.reports}
+          reportsStatus={reports.status}
+          position={gps.position}
+          onUseGps={gps.request}
+          onBack={() => setView('plan')}
+        />
       ) : view === 'accidents' ? (
         <>
           <PageHeader title="Accidents & road safety" onBack={() => setView('plan')} />
@@ -267,6 +276,19 @@ export default function App() {
           rather than unmounted, so the sensor listener and the armed state
           survive a trip through the roadside guides. */}
       <div className={view === 'plan' || view === 'crash' ? 'contents' : 'hidden'}>
+        {/* The heading and the scanner row are free to come and go; only
+            CrashWatch has to persist, so only it sits outside the branch. */}
+        {view === 'plan' && (
+          <Section title="Running while you ride">
+            <Row
+              accent="amber"
+              icon={Icon.road('h-4 w-4')}
+              title="Road scanner"
+              subtitle="The phone logs the potholes so you do not have to"
+              onClick={() => setView('scanner')}
+            />
+          </Section>
+        )}
         <CrashWatch
           expanded={view === 'crash'}
           onOpen={() => setView('crash')}

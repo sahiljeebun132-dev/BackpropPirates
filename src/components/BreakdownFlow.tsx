@@ -10,6 +10,7 @@ import { hasVideo, localClip, videoSearchUrl } from '../lib/guideVideo'
 import { useOnline } from '../lib/useOnline'
 import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
 import type { AppData, Place } from '../lib/types'
+import { ConstatPhotos } from './ConstatPhotos'
 import { GaragesPanel } from './GaragesPanel'
 import { SpeakButton } from './SpeakButton'
 
@@ -152,6 +153,14 @@ export function BreakdownFlow(props: Props) {
 
       {where && stage !== 'safety' && stage !== 'where' && (
         <WaitingCard where={where} isDark={isDark} vehicle={vehicle} />
+      )}
+
+      {/* Only past the two triage questions, and under the card that says how
+          to stand safe where you are. Someone still in a live lane has
+          nothing to gain from a camera, and offering one before "is anyone
+          hurt?" would be grotesque. */}
+      {where && stage !== 'safety' && stage !== 'where' && (
+        <ConstatPhotos where={where} position={position} onUseGps={onUseGps} />
       )}
 
       {stage === 'car' && (

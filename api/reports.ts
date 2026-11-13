@@ -26,8 +26,15 @@ const MAX_READ = 80
 const MAX_NOTE = 140
 const DEFAULT_RADIUS_KM = 8
 
-/** Kinds a rider can report. Anything else is rejected. */
-const KINDS = ['crash', 'blocked', 'flood', 'hazard', 'police'] as const
+/** Kinds a rider can report. Anything else is rejected.
+ *
+ *  'pothole' is the one nobody taps: the Android scanner writes it when the
+ *  phone takes a vertical jolt while moving, because a rider cannot report a
+ *  hole in the road while steering over it. It is stored and expired exactly
+ *  like the rest — this route knows nothing about clustering, and the
+ *  promotion from "one jolt" to "road defect" happens in the app from the
+ *  reports this route already returns. */
+const KINDS = ['crash', 'blocked', 'flood', 'hazard', 'police', 'pothole'] as const
 type Kind = (typeof KINDS)[number]
 
 type StoredReport = {

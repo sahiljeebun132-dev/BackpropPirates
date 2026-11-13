@@ -6,8 +6,15 @@
 
 import { API_BASE } from './platform'
 
+/** The kinds a rider picks from a list. */
 export const REPORT_KINDS = ['crash', 'blocked', 'flood', 'hazard', 'police'] as const
-export type ReportKind = (typeof REPORT_KINDS)[number]
+
+/** Every kind the API accepts. 'pothole' is not in the picker above because
+ *  nobody taps it: the Android road scanner writes it from a jolt the phone
+ *  felt. Putting it in the list would offer a rider a button for the one
+ *  thing the app does without them. */
+export const ALL_REPORT_KINDS = [...REPORT_KINDS, 'pothole'] as const
+export type ReportKind = (typeof ALL_REPORT_KINDS)[number]
 
 export type HazardReport = {
   id: string
@@ -26,6 +33,7 @@ export const REPORT_LABEL: Record<ReportKind, string> = {
   flood: 'Flooding',
   hazard: 'Hazard on road',
   police: 'Police check',
+  pothole: 'Pothole jolt',
 }
 
 export const REPORT_DESCRIPTION: Record<ReportKind, string> = {
@@ -34,6 +42,7 @@ export const REPORT_DESCRIPTION: Record<ReportKind, string> = {
   flood: 'Standing water across the road',
   hazard: 'Debris, an animal, a missing cover',
   police: 'A checkpoint or speed check',
+  pothole: 'A jolt a phone logged while moving',
 }
 
 /** Ordered by how much the rider behind needs to know. */
@@ -43,6 +52,10 @@ export const REPORT_SEVERITY: Record<ReportKind, 'critical' | 'warning' | 'info'
   blocked: 'warning',
   hazard: 'warning',
   police: 'info',
+  // One jolt is one phone's bump and nothing more. It becomes something a
+  // rider should act on only once three of them land within fifty metres,
+  // and that is said on the road scanner screen, not in this feed.
+  pothole: 'info',
 }
 
 export async function fetchReports(
