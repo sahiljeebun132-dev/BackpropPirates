@@ -3,8 +3,10 @@ package mu.zetway.app;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
+import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -102,8 +104,32 @@ public class CrashResponsePlugin extends Plugin {
             call.resolve(result(false, "This phone has no vibrator."));
             return;
         }
-        // -1 means play the pattern once rather than looping it.
-        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1));
+        // A three-second buzz is the one a rider in a jacket pocket never
+        // feels, so the alarm asks for a pattern long enough to outlast the
+        // countdown. It is tiled to that length rather than looped: an
+        // infinite waveform depends on something later calling cancel, and a
+        // phone left buzzing because a notification was swiped away instead
+        // of opened is a worse bug than the one being fixed.
+        if (Boolean.TRUE.equals(call.getBoolean("repeat", false))) {
+            pattern = tile(pattern, ALARM_BUZZ_MS);
+        }
+        VibrationEffect effect = VibrationEffect.createWaveform(pattern, -1);
+
+        // Alarm usage, not the default. A bare vibrate() is filed under
+        // USAGE_UNKNOWN, and Do Not Disturb — along with a ringer profile that
+        // has vibration switched off — drops that silently. The alarm still
+        // sounds, so the phone appears to work while never moving, which is
+        // precisely the failure a rider reported from a real handset.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            vibrator.vibrate(effect, new VibrationAttributes.Builder()
+                .setUsage(VibrationAttributes.USAGE_ALARM)
+                .build());
+        } else {
+            vibrator.vibrate(effect, new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+        }
         call.resolve(result(true, null));
     }
 
@@ -112,6 +138,33 @@ public class CrashResponsePlugin extends Plugin {
         Vibrator vibrator = resolveVibrator();
         if (vibrator != null) vibrator.cancel();
         call.resolve(result(true, null));
+    }
+
+    /** How long the alarm buzz runs: the 30-second countdown with a margin. */
+    private static final long ALARM_BUZZ_MS = 35_000L;
+
+    /** Repeat a waveform end to end until it lasts at least totalMs.
+     *
+     *  A waveform alternates off and on starting with off, so tiling has to
+     *  keep the entries paired or the buzz inverts into silence. Patterns here
+     *  always have an even length; an odd one is padded rather than rejected,
+     *  because an alarm is no place to throw. */
+    private static long[] tile(long[] pattern, long totalMs) {
+        long unit = 0;
+        for (long v : pattern) unit += v;
+        if (unit <= 0) return pattern;
+
+        long[] base = pattern;
+        if (base.length % 2 != 0) base = Arrays.copyOf(base, base.length + 1);
+
+        int copies = (int) Math.ceil((double) totalMs / unit);
+        if (copies <= 1) return base;
+
+        long[] out = new long[base.length * copies];
+        for (int i = 0; i < copies; i++) {
+            System.arraycopy(base, 0, out, i * base.length, base.length);
+        }
+        return out;
     }
 
     private Vibrator resolveVibrator() {

@@ -86,7 +86,8 @@ export function CrashWatch() {
     buzz([600, 200, 600, 200, 600])
     // In the Android build this is the one that actually fires: a web view
     // does not reliably expose navigator.vibrate, and iOS never has.
-    void nativeVibrate([0, 600, 250, 600, 250, 1500])
+    // repeat: the buzz runs for the whole countdown, not three seconds.
+    void nativeVibrate([0, 600, 250, 600, 250, 1500], true)
     alarm.current?.start()
     void currentPosition().then(setPosition)
   }, [])
@@ -194,7 +195,7 @@ export function CrashWatch() {
     trigger(null)
   }
 
-  const beginAlerting = useCallback(() => {
+  const beginAlerting = useCallback((callFirstContact = true) => {
     setPhase('alerting')
     setRecordingNow(true)
 
@@ -206,7 +207,7 @@ export function CrashWatch() {
     // rings your mother is a mistake nobody forgives twice.
     if (liveIncident) {
       const { contacts: to, position: at, peak: g } = latest.current
-      void escalate(to, at, g).then(setAutoSteps)
+      void escalate(to, at, g, callFirstContact).then(setAutoSteps)
     }
     void recordAudio(
       (rec) => {
@@ -231,13 +232,36 @@ export function CrashWatch() {
         setLeft(0)
         beginAlerting()
       } else {
-        buzz([250]) // a pulse a second, so it keeps nagging
-        void nativeVibrate([0, 250])
+        // Web only. Each vibrate() call replaces the one before it, so on
+        // Android a pulse every second would cut the long alarm buzz short
+        // after one second — the vibrator dump showed exactly that,
+        // cancelled_superseded at 856ms. Native already has a 35-second
+        // pattern running from the moment of impact, so leave it alone.
+        if (!isNative()) buzz([250]) // a pulse a second, so it keeps nagging
         setLeft(left - 1)
       }
     }, 1000)
     return () => clearTimeout(t)
   }, [phase, left, beginAlerting])
+
+  /** Skip the countdown. Somebody who already knows they are hurt should not
+   *  have to watch thirty seconds run down before anything happens. */
+  const helpNow = () => {
+    setLeft(0)
+    beginAlerting()
+  }
+
+  /** The rider is calling 114 themselves, during the countdown. Silence the
+   *  alarm so they can hear the operator, send the texts anyway because they
+   *  carry the location, and do not ring a contact into the line they are
+   *  about to use. */
+  const callEmergencyNow = () => {
+    alarm.current?.stop()
+    buzz([0])
+    void nativeStopVibration()
+    setLeft(0)
+    beginAlerting(false)
+  }
 
   const imOk = () => {
     inAlert.current = false
@@ -266,6 +290,8 @@ export function CrashWatch() {
         notice={notice}
         autoSteps={autoSteps}
         onImOk={imOk}
+        onHelpNow={helpNow}
+        onCallEmergency={callEmergencyNow}
         onStandDown={standDown}
       />
     )
@@ -418,9 +444,9 @@ export function CrashWatch() {
       )}
 
       <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-500">
-        Honest about the limits: this only works while the app is open on screen, because a phone
-        browser suspends a page that is hidden. And a web page is not allowed to place a call or
-        send a message by itself, so the last tap is always yours.
+        {isNative()
+          ? 'Honest about the limits: watching carries on with the screen off and the app closed, and the texts and the call to your first contact go out on their own. What no app may do is dial 114 or 999 for you — Android keeps emergency numbers for the phone’s own dialler — so that one tap stays yours.'
+          : 'Honest about the limits: in a browser this only works while the app is open on screen, because a phone browser suspends a page that is hidden, and no web page may place a call or send a message by itself. The Android app does both, with the screen off.'}
       </p>
     </section>
   )
@@ -623,9 +649,14 @@ function AlertOverlay(props: {
   notice: string | null
   autoSteps: EscalationStep[]
   onImOk: () => void
+  onHelpNow: () => void
+  onCallEmergency: () => void
   onStandDown: () => void
 }) {
-  const { phase, left, peak, position, contacts, recording, recordingNow, notice, autoSteps, onImOk, onStandDown } = props
+  const {
+    phase, left, peak, position, contacts, recording, recordingNow, notice, autoSteps,
+    onImOk, onHelpNow, onCallEmergency, onStandDown,
+  } = props
   const message = helpMessage(position, peak)
 
   return (
@@ -647,12 +678,31 @@ function AlertOverlay(props: {
             >
               I&rsquo;m OK
             </button>
-            {peak && (
-              <p className="text-center text-xs text-white/70">
-                Measured about {(peak / 9.8).toFixed(1)}g. A knock or a dropped phone can do this
-                too, which is why it asks.
-              </p>
-            )}
+
+            {/* The countdown exists for the rider who cannot answer. It must
+                never stand between a rider who can and an ambulance: anyone
+                conscious enough to read this screen can call on the first
+                second rather than the thirtieth. */}
+            <a
+              href="tel:114"
+              onClick={onCallEmergency}
+              className="block rounded-2xl bg-white px-4 py-5 text-center text-lg font-bold text-flag-red"
+            >
+              Call ambulance 114 now
+            </a>
+            <button
+              type="button"
+              onClick={onHelpNow}
+              className="w-full rounded-xl bg-white/15 px-4 py-3.5 text-base font-semibold text-white ring-1 ring-white/30"
+            >
+              I need help &mdash; don&rsquo;t wait
+            </button>
+            <p className="text-center text-xs leading-relaxed text-white/70">
+              {peak
+                ? `Measured about ${(peak / 9.8).toFixed(1)}g. A knock or a dropped phone can do this too, which is why it asks. `
+                : ''}
+              Either button acts now instead of at zero.
+            </p>
           </>
         ) : (
           <>
@@ -767,9 +817,9 @@ function AlertOverlay(props: {
             </div>
 
             <p className="rounded-xl bg-black/20 p-3 text-xs leading-relaxed text-white/85">
-              Zetway opens the dialler with the number in it, but no web page is allowed to press
-              call, on any phone. The same goes for sending a message. Everything above is prepared
-              and waiting for one tap.
+              {isNative()
+                ? 'Android keeps 114 and 999 for the phone’s own dialler, so those two buttons need your tap. Everything else above already happened on its own.'
+                : 'Zetway opens the dialler with the number in it, but no web page is allowed to press call, on any phone. The same goes for sending a message. Everything above is prepared and waiting for one tap.'}
             </p>
 
             <button

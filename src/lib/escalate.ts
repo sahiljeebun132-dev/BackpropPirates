@@ -48,6 +48,11 @@ export async function escalate(
   contacts: EmergencyContact[],
   known: { lat: number; lon: number } | null,
   peak: number | null,
+  /** False when the rider is already dialling 114 themselves. The texts still
+   *  go out — they carry the location, and a second pair of eyes on the way is
+   *  never wrong — but Zetway must not ring a contact into a line that is
+   *  being used to call an ambulance. */
+  callFirstContact = true,
 ): Promise<EscalationStep[]> {
   const steps: EscalationStep[] = []
 
@@ -97,6 +102,13 @@ export async function escalate(
     // Ring the first contact. Theirs is an ordinary number, which Android does
     // allow an app to dial, so this needs no tap.
     const first = contacts[0]
+    if (!callFirstContact) {
+      steps.push({
+        state: 'manual',
+        text: `Did not ring ${first.name}, so the line stays free for your call.`,
+      })
+      return steps
+    }
     const call = await nativePlaceCall(first.phone)
     if (call.ok) {
       steps.push({ state: 'doing', text: `Calling ${first.name} now.` })

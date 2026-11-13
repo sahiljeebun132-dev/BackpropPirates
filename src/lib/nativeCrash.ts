@@ -56,7 +56,7 @@ export type Readiness = {
 }
 
 type CrashResponsePlugin = {
-  vibrate(options?: { pattern?: number[] }): Promise<SimpleResult>
+  vibrate(options?: { pattern?: number[]; repeat?: boolean }): Promise<SimpleResult>
   stopVibration(): Promise<SimpleResult>
   sendSms(options: { numbers: string[]; message: string }): Promise<SmsResult>
   placeCall(options: { number: string }): Promise<CallResult>
@@ -83,10 +83,13 @@ const unavailable: SimpleResult = { ok: false, message: 'Only in the Android app
 
 /** A long, unmissable buzz. Works on any Android phone with a vibrator,
  *  including the iPhones-excepted case the web build could never serve. */
-export async function nativeVibrate(pattern?: number[]): Promise<SimpleResult> {
+export async function nativeVibrate(
+  pattern?: number[],
+  repeat = false,
+): Promise<SimpleResult> {
   if (!isNative()) return unavailable
   try {
-    return await plugin.vibrate(pattern ? { pattern } : undefined)
+    return await plugin.vibrate({ ...(pattern ? { pattern } : {}), repeat })
   } catch {
     return { ok: false, message: 'The phone refused to vibrate.' }
   }

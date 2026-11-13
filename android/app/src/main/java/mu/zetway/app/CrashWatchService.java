@@ -18,6 +18,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -60,7 +61,7 @@ public class CrashWatchService extends Service {
     public static final String EXTRA_IMPACT_PEAK = "impactPeak";
 
     private static final String CHANNEL_WATCH = "zetway.watch";
-    private static final String CHANNEL_ALERT = "zetway.alert.v2";
+    private static final String CHANNEL_ALERT = "zetway.alert.v3";
     private static final int NOTE_WATCH = 1001;
     private static final int NOTE_ALERT = 1002;
 
@@ -269,8 +270,14 @@ public class CrashWatchService extends Service {
         NotificationChannel alert = new NotificationChannel(
             CHANNEL_ALERT, "Crash alert", NotificationManager.IMPORTANCE_HIGH);
         alert.setDescription("Fires when an impact is detected.");
-        alert.enableVibration(true);
-        alert.setVibrationPattern(new long[] { 0, 600, 250, 600, 250, 1500 });
+        // The channel does NOT vibrate, and that is deliberate. A channel's
+        // own pattern is posted as a separate vibration, and the vibrator
+        // dump showed it superseding our 35-second buzz 800ms in: the phone
+        // shook for three seconds and then went still for the rest of the
+        // countdown. vibrateHard() owns the buzz; the notification owns the
+        // sound and the screen. (The id is versioned because a channel's
+        // settings are frozen the moment it is first created.)
+        alert.enableVibration(false);
         alert.setBypassDnd(true);
         // Shown in full on the lock screen. The default hides the text there.
         alert.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
@@ -299,8 +306,33 @@ public class CrashWatchService extends Service {
                 v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
             }
             if (v != null && v.hasVibrator()) {
-                v.vibrate(VibrationEffect.createWaveform(
-                    new long[] { 0, 600, 250, 600, 250, 1500 }, -1));
+                // Long enough to outlast the countdown, because a buzz that
+                // stops after three seconds is the one a rider in a jacket
+                // pocket never feels. Tiled rather than looped: an infinite
+                // waveform would keep going if the notification were swiped
+                // away instead of opened, and nothing would be left to cancel
+                // it. stopVibration still ends it early on "I'm OK".
+                long[] unit = { 0, 600, 250, 600, 250, 1500 };
+                long[] shape = new long[unit.length * 11]; // 3.2s x 11 = 35.2s
+                for (int i = 0; i < 11; i++) {
+                    System.arraycopy(unit, 0, shape, i * unit.length, unit.length);
+                }
+                VibrationEffect effect = VibrationEffect.createWaveform(shape, -1);
+                // Alarm usage, not the default. Without it Android files the
+                // buzz under USAGE_UNKNOWN, which Do Not Disturb and a ringer
+                // profile with vibration turned off both swallow silently —
+                // the sound plays and nothing moves, which is exactly what we
+                // saw on a real handset.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    v.vibrate(effect, new VibrationAttributes.Builder()
+                        .setUsage(VibrationAttributes.USAGE_ALARM)
+                        .build());
+                } else {
+                    v.vibrate(effect, new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                }
             }
         } catch (Exception ignored) {
             // A missing buzz must never stop the alert being raised.
