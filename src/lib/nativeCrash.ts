@@ -57,6 +57,7 @@ export type Readiness = {
 
 type CrashResponsePlugin = {
   vibrate(options?: { pattern?: number[]; repeat?: boolean }): Promise<SimpleResult>
+  vibrationDiagnostics(): Promise<VibrationReport>
   stopVibration(): Promise<SimpleResult>
   sendSms(options: { numbers: string[]; message: string }): Promise<SmsResult>
   placeCall(options: { number: string }): Promise<CallResult>
@@ -93,6 +94,60 @@ export async function nativeVibrate(
   } catch {
     return { ok: false, message: 'The phone refused to vibrate.' }
   }
+}
+
+/** What the phone says about its own vibrator.
+ *
+ *  "It does not vibrate" has at least six causes and none of them are
+ *  visible from a chat window. Reading them off the device turns a guessing
+ *  game into one sentence naming the setting to change. */
+export type VibrationReport = {
+  ok?: boolean
+  hasVibrator?: boolean
+  hasAmplitudeControl?: boolean
+  ringerMode?: 'silent' | 'vibrate' | 'normal'
+  alarmVolume?: number
+  alarmVolumeMax?: number
+  dndFilter?: 'off' | 'priority' | 'alarms-only' | 'total-silence' | 'unknown'
+  notificationsEnabled?: boolean
+  ringIntensity?: number
+  alarmVibrationIntensity?: number
+  notificationVibrationIntensity?: number
+  sdk?: number
+  manufacturer?: string
+  model?: string
+  usesVibrationAttributes?: boolean
+}
+
+export async function vibrationDiagnostics(): Promise<VibrationReport | null> {
+  if (!isNative()) return null
+  try {
+    return await plugin.vibrationDiagnostics()
+  } catch {
+    return null
+  }
+}
+
+/** The one sentence worth showing: the most likely reason nothing moved.
+ *
+ *  Ordered by how completely each cause overrides the app. An intensity
+ *  slider at zero beats everything, so it is named first; Do Not Disturb and
+ *  silent come next because they are the two people actually have switched
+ *  on; and the bottom of the list is the honest "nothing here explains it". */
+export function explainNoBuzz(r: VibrationReport | null): string | null {
+  if (!r) return null
+  if (r.hasVibrator === false) return 'This phone reports no vibration motor at all.'
+  if (r.alarmVibrationIntensity === 0)
+    return 'Alarm vibration intensity is set to zero in Android settings. Nothing any app does can override that — Settings, Sound and vibration, Vibration intensity.'
+  if (r.notificationVibrationIntensity === 0)
+    return 'Notification vibration intensity is set to zero in Android settings — Settings, Sound and vibration, Vibration intensity.'
+  if (r.dndFilter === 'total-silence')
+    return 'Do Not Disturb is set to total silence, which blocks even alarms. Allow alarms, or turn it off.'
+  if (r.ringerMode === 'silent')
+    return 'The phone is in silent mode. Most makers mute alarm vibration with it; switch to vibrate or normal.'
+  if (r.alarmVolume === 0)
+    return 'Alarm volume is at zero, so the crash alarm will be silent even though it fires.'
+  return null
 }
 
 export async function nativeStopVibration(): Promise<SimpleResult> {

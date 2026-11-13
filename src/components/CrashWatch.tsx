@@ -10,7 +10,8 @@ import { escalate, type EscalationStep } from '../lib/escalate'
 import {
   consumePendingImpact, nativeReadiness, nativeStartWatching, nativeStopVibration,
   nativeStopWatching, nativeVibrate, onNativeImpact, openAppSettings,
-  openLockScreenSettings, requestCrashPermissions, requestUnrestricted, type Readiness,
+  openLockScreenSettings, requestCrashPermissions, requestUnrestricted,
+  explainNoBuzz, vibrationDiagnostics, type Readiness, type VibrationReport,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
 
@@ -425,6 +426,8 @@ export function CrashWatch() {
         Show me what happens in a crash
       </button>
 
+      {isNative() && <BuzzSelfTest />}
+
       <button
         type="button"
         onClick={() => setSetupOpen((o) => !o)}
@@ -658,20 +661,50 @@ function AlertOverlay(props: {
     onImOk, onHelpNow, onCallEmergency, onStandDown,
   } = props
   const message = helpMessage(position, peak)
+  const firstAction = useRef<HTMLButtonElement | null>(null)
+
+  // A screen-reader user was never told any of this was happening. The
+  // overlay covers the whole screen, but it was a bare div: no role, no
+  // announcement, and focus left behind on whatever was underneath, so
+  // someone using TalkBack would have heard nothing and found the buttons
+  // only by sweeping the screen — during a thirty-second countdown, after a
+  // crash. alertdialog announces itself and its label the moment it mounts;
+  // moving focus to the first action makes the way out the next thing the
+  // reader reaches.
+  //
+  // The countdown itself is deliberately not a live region. Announcing a
+  // number every second would talk over the buttons for the whole thirty
+  // seconds, which is worse than not reading it at all.
+  useEffect(() => {
+    firstAction.current?.focus()
+  }, [phase])
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-flag-red px-4 py-[max(1rem,env(safe-area-inset-top))] text-white">
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="zetway-alert-title"
+      aria-describedby="zetway-alert-detail"
+      className="fixed inset-0 z-50 overflow-y-auto bg-flag-red px-4 py-[max(1rem,env(safe-area-inset-top))] text-white"
+    >
       <div className="mx-auto max-w-md space-y-3">
         {phase === 'asking' ? (
           <>
-            <p className="text-center text-sm font-semibold uppercase tracking-wide text-white/80">
+            <p
+              id="zetway-alert-title"
+              className="text-center text-sm font-semibold uppercase tracking-wide text-white/80"
+            >
               Heavy impact detected
             </p>
-            <p className="text-center text-7xl font-bold tabular-nums">{left}</p>
-            <p className="text-center text-base leading-snug">
+            <p className="text-center text-7xl font-bold tabular-nums" aria-hidden="true">
+              {left}
+            </p>
+            <p id="zetway-alert-detail" className="text-center text-base leading-snug">
               Are you alright? If you do not answer, this screen will help you call for help.
+              You have {left} seconds.
             </p>
             <button
+              ref={firstAction}
               type="button"
               onClick={onImOk}
               className="w-full rounded-2xl bg-white px-4 py-5 text-lg font-bold text-flag-red"
@@ -706,7 +739,10 @@ function AlertOverlay(props: {
           </>
         ) : (
           <>
-            <p className="text-center text-sm font-semibold uppercase tracking-wide text-white/80">
+            <p
+              id="zetway-alert-title"
+              className="text-center text-sm font-semibold uppercase tracking-wide text-white/80"
+            >
               No answer. Get help now
             </p>
 
@@ -839,6 +875,78 @@ function AlertOverlay(props: {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Does this phone actually buzz, and if not, which setting is stopping it?
+ *
+ * A rider reported the alarm sounding while the phone stayed still, and
+ * there was no way to tell from the app which of six causes it was: no
+ * motor, an intensity slider at zero, silent mode, Do Not Disturb, alarm
+ * volume down, or simply an older build. Every one of them is readable
+ * from Android and none of them were being read. This buzzes for two
+ * seconds and then says what the system reports, so the answer is on the
+ * screen instead of in a guess.
+ */
+const intensity = (v: number | undefined): string =>
+  v === undefined || v === -1 ? 'not on this phone' : v === 0 ? 'OFF' : String(v)
+
+function BuzzSelfTest() {
+  const [report, setReport] = useState<VibrationReport | null>(null)
+  const [ran, setRan] = useState(false)
+
+  const run = async () => {
+    setRan(true)
+    await nativeVibrate([0, 700, 300, 700])
+    setReport(await vibrationDiagnostics())
+  }
+
+  const reason = explainNoBuzz(report)
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={run}
+        className="w-full rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200 active:bg-slate-100"
+      >
+        Test the buzz
+      </button>
+
+      {ran && report && (
+        <div className="mt-2 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-700 ring-1 ring-slate-200">
+          <p className="font-semibold text-slate-900">Did you feel two buzzes?</p>
+          {reason ? (
+            <p className="mt-1 text-flag-red">{reason}</p>
+          ) : (
+            <p className="mt-1">
+              Nothing in the phone&rsquo;s settings is blocking it. If you felt nothing, the
+              motor or the build is at fault rather than a setting.
+            </p>
+          )}
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5">
+            {[
+              ['Motor', report.hasVibrator ? 'yes' : 'no'],
+              ['Ringer', report.ringerMode ?? '?'],
+              ['Do Not Disturb', report.dndFilter ?? '?'],
+              ['Alarm volume', `${report.alarmVolume ?? '?'}/${report.alarmVolumeMax ?? '?'}`],
+              // -1 is the plugin's "this phone has no such setting", which is
+              // common and normal; printing the raw number reads as a fault.
+              ['Alarm vib.', intensity(report.alarmVibrationIntensity)],
+              ['Notif. vib.', intensity(report.notificationVibrationIntensity)],
+              ['Alarm-priority buzz', report.usesVibrationAttributes ? 'yes' : 'legacy'],
+              ['Phone', `${report.manufacturer ?? ''} ${report.model ?? ''}`.trim() || '?'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-2">
+                <dt className="text-slate-500">{k}</dt>
+                <dd className="font-medium text-slate-800">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
     </div>
   )
 }

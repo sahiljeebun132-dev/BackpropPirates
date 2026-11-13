@@ -635,24 +635,48 @@ export function guidesFor(vehicle: Vehicle): Guide[] {
  *  no free database reliably says whether a given model is a hybrid. */
 export function powertrainWarnings(p: Powertrain, guideId: string): string[] {
   const out: string[] = []
-  if ((p === 'hybrid' || p === 'electric') && guideId === 'wont-start') {
+
+  // Match the motorcycle ids as well as the car ones. Every branch here used
+  // to test a car-only id while the screen above the buttons said "this is
+  // the one answer that changes what is safe to do" — so an electric scooter
+  // got byte-identical guidance to a petrol one, including no warning about
+  // the orange cabling. Electric two-wheelers are the fastest-growing thing
+  // on these roads, and the voltage does not care which it is bolted to.
+  const bike = guideId.startsWith('moto-')
+  const is = (...ids: string[]) => ids.includes(guideId)
+
+  if ((p === 'hybrid' || p === 'electric') && is('wont-start', 'moto-wont-start')) {
     out.push(
-      'Orange cables are high voltage. Never touch them, never cut them and never jump from them. A hybrid usually has a separate small 12 volt battery that can be jumped, but the terminals and the procedure differ by model, so check the manual first.',
+      bike
+        ? 'Orange cables are high voltage. Never touch them, never cut them and never try to jump from them. Many electric bikes also carry a small separate 12 volt battery for the lights, but reaching it means going past the high-voltage side, so check the manual before opening anything.'
+        : 'Orange cables are high voltage. Never touch them, never cut them and never jump from them. A hybrid usually has a separate small 12 volt battery that can be jumped, but the terminals and the procedure differ by model, so check the manual first.',
     )
   }
-  if (p === 'electric' && guideId === 'out-of-fuel') {
-    out.push('An electric car that has run flat needs recovery. It cannot be charged at the roadside from a can.')
-  }
-  if ((p === 'hybrid' || p === 'electric') && guideId === 'smoke-or-smell') {
+
+  if (p === 'electric' && is('out-of-fuel', 'moto-out-of-fuel')) {
     out.push(
-      'A high-voltage battery fire behaves differently from a petrol fire. It can reignite hours later. Tell the fire service it is a hybrid or electric car when you call.',
+      bike
+        ? 'An electric bike that has run flat needs recovery or a charger. There is nothing you can carry in a can that will get it moving.'
+        : 'An electric car that has run flat needs recovery. It cannot be charged at the roadside from a can.',
     )
   }
-  if (p === 'unsure' && guideId === 'wont-start') {
+
+  if ((p === 'hybrid' || p === 'electric') && is('smoke-or-smell', 'moto-fire')) {
     out.push(
-      'If you are not sure whether your car is a hybrid, look for orange cabling under the bonnet or a charging socket. If you see either, do not jump it without the manual.',
+      bike
+        ? 'A high-voltage battery fire behaves differently from a petrol one. It can reignite hours later, so stay well back even once it looks out, and tell the fire service on 115 that it is an electric bike when you call.'
+        : 'A high-voltage battery fire behaves differently from a petrol fire. It can reignite hours later. Tell the fire service it is a hybrid or electric car when you call.',
     )
   }
+
+  if (p === 'unsure' && is('wont-start', 'moto-wont-start')) {
+    out.push(
+      bike
+        ? 'If you are not sure whether your bike is electric, look for a charging socket or orange cabling. If you see either, do not go near the wiring without the manual.'
+        : 'If you are not sure whether your car is a hybrid, look for orange cabling under the bonnet or a charging socket. If you see either, do not jump it without the manual.',
+    )
+  }
+
   return out
 }
 

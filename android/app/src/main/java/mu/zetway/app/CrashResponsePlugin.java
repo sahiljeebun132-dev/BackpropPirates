@@ -3,7 +3,9 @@ package mu.zetway.app;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.app.NotificationManager;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.VibrationAttributes;
@@ -520,6 +522,79 @@ public class CrashResponsePlugin extends Plugin {
     /** This app's own settings page. Needed because a permission refused
      *  twice never prompts again, and because every OEM hides its own
      *  background-killing switches somewhere different underneath it. */
+    /**
+     * Why the phone is not buzzing.
+     *
+     * "It does not vibrate" has at least six causes and they are invisible
+     * from inside the app unless you ask: no vibrator, the motor disabled in
+     * settings, the ringer in silent, Do Not Disturb filtering us out, an
+     * intensity slider at zero, or simply an older build installed. Guessing
+     * between them over a chat costs more time than reading them, so this
+     * reports what the system actually says and lets the screen name the
+     * cause.
+     */
+    @PluginMethod
+    public void vibrationDiagnostics(PluginCall call) {
+        JSObject r = new JSObject();
+        Context ctx = getContext();
+
+        Vibrator v = resolveVibrator();
+        r.put("hasVibrator", v != null && v.hasVibrator());
+        r.put("hasAmplitudeControl", v != null && v.hasAmplitudeControl());
+
+        AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+        if (am != null) {
+            int mode = am.getRingerMode();
+            r.put("ringerMode",
+                mode == AudioManager.RINGER_MODE_SILENT ? "silent"
+                    : mode == AudioManager.RINGER_MODE_VIBRATE ? "vibrate" : "normal");
+            r.put("alarmVolume", am.getStreamVolume(AudioManager.STREAM_ALARM));
+            r.put("alarmVolumeMax", am.getStreamMaxVolume(AudioManager.STREAM_ALARM));
+        }
+
+        NotificationManager nm =
+            (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null) {
+            int filter = nm.getCurrentInterruptionFilter();
+            r.put("dndFilter",
+                filter == NotificationManager.INTERRUPTION_FILTER_ALL ? "off"
+                    : filter == NotificationManager.INTERRUPTION_FILTER_PRIORITY ? "priority"
+                    : filter == NotificationManager.INTERRUPTION_FILTER_ALARMS ? "alarms-only"
+                    : filter == NotificationManager.INTERRUPTION_FILTER_NONE ? "total-silence"
+                    : "unknown");
+            r.put("notificationsEnabled", nm.areNotificationsEnabled());
+        }
+
+        // The system-wide intensity sliders. Zero here beats everything the
+        // app can do, and it is the one cause a user never thinks to check.
+        try {
+            r.put("ringIntensity",
+                Settings.System.getInt(ctx.getContentResolver(), "vibrate_when_ringing", -1));
+        } catch (Exception ignored) {
+            r.put("ringIntensity", -1);
+        }
+        try {
+            r.put("alarmVibrationIntensity",
+                Settings.System.getInt(ctx.getContentResolver(), "alarm_vibration_intensity", -1));
+        } catch (Exception ignored) {
+            r.put("alarmVibrationIntensity", -1);
+        }
+        try {
+            r.put("notificationVibrationIntensity",
+                Settings.System.getInt(
+                    ctx.getContentResolver(), "notification_vibration_intensity", -1));
+        } catch (Exception ignored) {
+            r.put("notificationVibrationIntensity", -1);
+        }
+
+        r.put("sdk", Build.VERSION.SDK_INT);
+        r.put("manufacturer", Build.MANUFACTURER);
+        r.put("model", Build.MODEL);
+        r.put("usesVibrationAttributes", Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU);
+        r.put("ok", true);
+        call.resolve(r);
+    }
+
     @PluginMethod
     public void openAppSettings(PluginCall call) {
         try {
