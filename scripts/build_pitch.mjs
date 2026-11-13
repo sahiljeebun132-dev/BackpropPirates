@@ -253,7 +253,7 @@ pres.addSection({ title: 'The app' })
   s.addText(
     [
       { text: 'A Corridor Safety Score from the official record — tap any factor for its figures and its table.', options: { bullet: true, breakLine: true } },
-      { text: `The ${D.hotspots.hotspots.length} designated accident-prone segments, named by road number, and the nearest of ${nf(D.emergency.places.length)} hospitals and police stations with tap-to-call.`, options: { bullet: true, breakLine: true } },
+      { text: `The ${D.hotspots.hotspots.length} designated accident-prone segments — drawn on your corridor and named by road number — and the nearest of ${nf(D.emergency.places.length)} hospitals and police stations with tap-to-call.`, options: { bullet: true, breakLine: true } },
       { text: 'Live conditions: sunrise, sunset and rain for this corridor, free and keyless from Open-Meteo.', options: { bullet: true, breakLine: true } },
       { text: 'Live hazard reports from other riders, within seconds, on this corridor.', options: { bullet: true } },
     ],
@@ -261,10 +261,19 @@ pres.addSection({ title: 'The app' })
       lineSpacing: 19, paraSpaceAfter: 9 },
   )
 
-  const rw = 3.35
-  s.addImage({ path: 'docs/pitch-assets/reports.png', x: tx, y: 3.6, w: rw, h: rw * (300 / 368),
-    objectName: 'shot-reports',
+  // The corridor map, sized by height to the space under the bullets. It
+  // replaced the hazard-report capture here: both are good, but only one of
+  // them makes the slide's own claim visible, and "14 named black spots on
+  // your route" is that claim.
+  const rh = 2.5
+  const rw = rh * (378 / 446)
+  s.addImage({ path: 'docs/pitch-assets/map.jpg', x: tx, y: 3.6, w: rw, h: rh,
+    objectName: 'shot-map',
     shadow: { type: 'outer', color: '94A3B8', blur: 8, offset: 2, angle: 90, opacity: 0.35 } })
+  s.addText('14 of 48, on this corridor', {
+    isTextBox: true, x: tx, y: 3.6 + rh + 0.04, w: rw, h: 0.26, margin: 0,
+    fontSize: 10, color: C.text2, align: 'center', italic: true,
+  })
 
   const cx = tx + rw + 0.35
   const cw = W - M - cx
@@ -294,6 +303,9 @@ pres.addSection({ title: 'The app' })
 
 ` +
     `Demo path: Grand Baie to Port Louis by motorcycle at 19:00 scores 31. The app says leave at 18:00 instead and it scores 46, because that puts the trip in daylight: 3.7% of casualties in daylight are fatal against 8.2% on an unlit road. Tap the button and watch the score move.
+
+` +
+    `The map is drawn from the real geometry of those 48 segments, which ships with the app. No tiles and no requests — a tiled map would have been the one thing that went blank in airplane mode, on the slide where we claim it does not.
 
 ` +
     `Then report a hazard live from a phone in the room and show it appear on another phone within seconds.

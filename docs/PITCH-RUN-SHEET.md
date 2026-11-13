@@ -41,13 +41,15 @@ Do it on **your phone**, mirrored or held up. Say what you are about to do befor
    → **31 out of 100. Severe.**
 2. **Tap any factor.** It opens to its figures and names the government table.
    → *"Where does 31 come from" is the first question a judge asks. We answer it in the app, not the pitch.*
-3. **Tap "leave at 18:00" if it offers it.** The score moves.
+3. **Scroll to the map.** The route, with fourteen red stretches lying across it.
+   → *"This is the whole idea. Not a district average — the black spots on the road you are about to ride."* Tap one; it names the road.
+4. **Tap "leave at 18:00" if it offers it.** The score moves.
    → *Darkness with no street lighting is 2.2× as likely to end in a death. 8.2% fatal against 3.7%.*
-4. **Broken down or had a crash? → No one is hurt → Fully off the road → Continue.**
+5. **Broken down or had a crash? → No one is hurt → Fully off the road → Continue.**
    → Motorcycle guides, because the planner already knew you were on a bike.
-5. **Chain trouble.** Point at *"Stop and call for help if"* sitting **above** the steps.
+6. **Chain trouble.** Point at *"Stop and call for help if"* sitting **above** the steps.
    → *A chain that comes off at speed can lock the rear wheel.*
-6. **Then the surprise card.** See below.
+7. **Then the surprise card.** See below.
 
 ---
 
