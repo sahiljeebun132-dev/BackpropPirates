@@ -24,6 +24,7 @@
  * meter alone — see startWatching in CrashWatch.tsx.
  */
 
+import { medicalSummary, readMedicalId } from './medicalId'
 import { getFix } from './position'
 
 /** Peak acceleration that counts as an impact, in m/s².
@@ -272,7 +273,12 @@ export function currentPosition(): Promise<{ lat: number; lon: number; accuracy:
 }
 
 /** The message a contact receives. Location first: if they read nothing else,
- *  they need to know where. */
+ *  they need to know where.
+ *
+ *  This is the single place the outgoing text is built — the alert screen and
+ *  the automatic escalation both call it — so it is the single place the
+ *  medical summary is attached.
+ */
 export function helpMessage(
   position: { lat: number; lon: number } | null,
   peak: number | null,
@@ -281,7 +287,18 @@ export function helpMessage(
     ? `https://www.google.com/maps?q=${position.lat.toFixed(5)},${position.lon.toFixed(5)}`
     : 'Location unavailable, I will try to send it separately.'
   const impact = peak ? ` Zetway detected an impact of about ${(peak / 9.8).toFixed(1)}g.` : ''
-  return `I may have had a road accident and did not respond on my phone.${impact} My location: ${where}`
+  const core = `I may have had a road accident and did not respond on my phone.${impact} My location: ${where}`
+
+  // The medical summary goes last, never first. Whoever reads this needs
+  // where before who: a friend is deciding where to drive and a dispatcher is
+  // deciding where to send an ambulance, and both of those decisions come
+  // before anything about blood group or allergies. It is also the part that
+  // can be empty or cut short, and a message must not open with a gap.
+  //
+  // medicalSummary caps itself against the length of the sentence above — see
+  // the budget note in medicalId.ts before changing either wording.
+  const medical = medicalSummary(readMedicalId())
+  return medical ? `${core}\n${medical}` : core
 }
 
 export const smsLink = (phone: string, body: string): string =>

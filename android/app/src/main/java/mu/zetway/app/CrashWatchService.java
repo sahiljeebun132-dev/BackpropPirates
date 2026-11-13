@@ -68,15 +68,77 @@ public class CrashWatchService extends Service {
     public static final String EXTRA_THRESHOLD = "threshold";
     public static final String EXTRA_TEST = "test";
     public static final String EXTRA_IMPACT_PEAK = "impactPeak";
+    public static final String EXTRA_IMPACT_ROTATION = "impactRotation";
+    public static final String EXTRA_SPEED_BEFORE = "speedBefore";
+    public static final String EXTRA_SPEED_AFTER = "speedAfter";
 
+    private static final String TAG = "ZetwayCrashWatch";
     private static final String CHANNEL_WATCH = "zetway.watch";
     private static final String CHANNEL_ALERT = "zetway.alert.v3";
     private static final int NOTE_WATCH = 1001;
     private static final int NOTE_ALERT = 1002;
 
+    /** Nothing measured. Used for every figure the phone could not supply, so
+     *  "we do not know" is never dressed up as a zero the rider might read as
+     *  "you were stopped" or "it did not spin". */
+    public static final float UNKNOWN = -1f;
+
+    /** How far back the gyroscope is searched for the peak that belongs to
+     *  this impact. A car that is struck starts yawing with the contact, but a
+     *  rider usually loses the bike a moment before the phone registers the
+     *  hit, so the window reaches back far enough to catch that. */
+    private static final long ROTATION_LOOKBACK_MS = 3000;
+
+    /** How long the service keeps measuring after the spike. Covers the spin
+     *  that follows a collision and gives a 1 Hz location provider two or
+     *  three chances to report the speed the vehicle is left at. The alert is
+     *  already on screen throughout: nothing here delays it. */
+    private static final long EVIDENCE_WINDOW_MS = 3000;
+
+    /** A fix older than this says nothing useful about the speed at the
+     *  moment of the crash, so it is reported as unknown rather than quoted. */
+    private static final long FIX_STALE_MS = 20_000;
+
+    /**
+     * One impact and everything measured around it.
+     *
+     * The accelerometer alone cannot tell a collision from a phone hitting the
+     * footwell, which is why the countdown exists. These extra figures do not
+     * change that and must never be allowed to: they ride along so the rider,
+     * and whoever they end up talking to, can see what the phone actually
+     * sensed instead of one number with no context.
+     */
+    public static final class Impact {
+        /** Peak acceleration magnitude at the trigger, m/s², gravity included. */
+        public final float peak;
+        /** Peak angular rate around the impact, rad/s. UNKNOWN with no gyroscope. */
+        public final float rotation;
+        /** Speed from the last fix before the spike, m/s. UNKNOWN if none. */
+        public final float speedBefore;
+        /** Speed once the dust settled, m/s. UNKNOWN until the window closes. */
+        public final float speedAfter;
+        public final boolean test;
+        /** False while the post-impact window is still open. */
+        public final boolean complete;
+
+        Impact(float peak, float rotation, float speedBefore, float speedAfter,
+               boolean test, boolean complete) {
+            this.peak = peak;
+            this.rotation = rotation;
+            this.speedBefore = speedBefore;
+            this.speedAfter = speedAfter;
+            this.test = test;
+            this.complete = complete;
+        }
+    }
+
     /** Set by the plugin while a web view is alive to receive the news. */
     public interface ImpactListener {
-        void onImpact(float peak, boolean test);
+        /** The alert. Sent the instant the accelerometer crosses the bar. */
+        void onImpact(Impact impact);
+        /** The same impact once the post-impact window has closed, carrying
+         *  the figures that did not exist yet when the alarm went off. */
+        void onEvidence(Impact impact);
     }
 
     private static volatile ImpactListener listener;
@@ -85,25 +147,18 @@ public class CrashWatchService extends Service {
      * An impact that has not reached the web layer yet, because the web view
      * was not running when it happened. The plugin collects it once the page
      * is up, so a crash detected with the app closed still raises the alert
-     * rather than vanishing. -1 means nothing pending.
+     * rather than vanishing. null means nothing pending.
      */
-    private static volatile float pendingPeak = -1f;
-    /** Whether that pending impact came from a rehearsal threshold. Carried
-     *  separately because the service outlives the page that knew it. */
-    private static volatile boolean pendingTest = false;
+    private static volatile Impact pending;
 
     public static void setListener(ImpactListener l) {
         listener = l;
     }
 
-    public static float consumePending() {
-        float p = pendingPeak;
-        pendingPeak = -1f;
+    public static Impact consumePending() {
+        Impact p = pending;
+        pending = null;
         return p;
-    }
-
-    public static boolean lastPendingWasTest() {
-        return pendingTest;
     }
 
     /** So the UI can show the truth about whether background watching is on. */
