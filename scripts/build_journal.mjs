@@ -122,6 +122,9 @@ const DATASETS = [
     'The junction advice'],
   ['Number of casualty accidents by type of road, severity and collision type', `3 road types, ${D.conditions.roads.year}`,
     'Motorway warning and the pedestrian-collision advice'],
+  ['Number of casualty accidents by severity of accident and weather condition',
+    `4 conditions, ${D.conditions.weather.years.join('–')} pooled`,
+    'The wet-road advice. Pooled on purpose: one year leaves too few fatal cases in the wet'],
   ['Locations of Hospitals, Clinics, Medi-Clinics, Area Health Centres and Community Health Centres',
     `${D.emergency.counts.hospital + D.emergency.counts.clinic} facilities with coordinates`,
     'Nearest medical help along the corridor, and the coordinates for every town in the planner'],
@@ -281,7 +284,7 @@ const doc = new Document({
         'The government already publishes a facilities map. Ours answers a different question: not "where is the nearest hospital" but "how dangerous is this journey, for me, right now, and what should I do about it".'),
 
       H1('The data'),
-      P(`Eleven official tables, all from data.govmu.org, all CC-BY-SA 4.0, published by the Mauritius Digital Promotion Agency and Statistics Mauritius. Nine of them power something on screen.`),
+      P(`Twelve official tables from data.govmu.org, all CC-BY-SA 4.0, published by the Mauritius Digital Promotion Agency and Statistics Mauritius. Ten of them power something on screen, joined by two live feeds: the Open-Meteo forecast and reports from riders using the app.`),
       makeTable(
         ['Dataset', 'What it contains', 'What it powers in the app'],
         DATASETS, [34, 26, 40],

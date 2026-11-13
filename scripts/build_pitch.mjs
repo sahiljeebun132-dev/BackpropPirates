@@ -216,44 +216,70 @@ pres.addSection({ title: 'The problem' })
 pres.addSection({ title: 'The app' })
 {
   const s = pres.addSlide({ masterName: 'LIGHT', sectionTitle: 'The app' })
-  s.addText('Pick the journey, get the risk and the fix', { placeholder: 'title' })
+  s.addText('One screen, three live answers', { placeholder: 'title' })
 
+  // The whole product in one capture: a rider report, the score, and the
+  // conditions panel telling them to leave an hour earlier.
   const shotH = 4.55
-  const shotW = shotH * (396 / 854)
-  s.addImage({ path: 'docs/pitch-assets/planner.png', x: M, y: 1.45, w: shotW, h: shotH, objectName: 'shot-planner',
-    rounding: false, shadow: { type: 'outer', color: '94A3B8', blur: 10, offset: 2, angle: 90, opacity: 0.4 } })
-  s.addImage({ path: 'docs/pitch-assets/score.png', x: M + shotW + 0.3, y: 1.45, w: shotW, h: shotH, objectName: 'shot-score',
-    rounding: false, shadow: { type: 'outer', color: '94A3B8', blur: 10, offset: 2, angle: 90, opacity: 0.4 } })
+  const shotW = shotH * (396 / 800)
+  s.addImage({ path: 'docs/pitch-assets/live.png', x: M, y: 1.45, w: shotW, h: shotH,
+    objectName: 'shot-live',
+    shadow: { type: 'outer', color: '94A3B8', blur: 10, offset: 2, angle: 90, opacity: 0.4 } })
 
-  const tx = M + 2 * shotW + 0.95
+  const tx = M + shotW + 0.5
   const tw = W - M - tx
-  s.addText('One feature, working end to end', {
-    isTextBox: true, x: tx, y: 1.5, w: tw, h: 0.35, margin: 0, fontSize: 15, bold: true, color: C.accent1,
-  })
+
   s.addText(
     [
-      { text: 'A Corridor Safety Score out of 100. Tap any factor and it shows its figures and names the table they came from.', options: { bullet: true, breakLine: true } },
-      { text: `Which of the island\u2019s ${D.hotspots.hotspots.length} officially designated accident-prone segments your route passes, by road number.`, options: { bullet: true, breakLine: true } },
-      { text: 'Advice written for how you travel, each line citing its source.', options: { bullet: true, breakLine: true } },
-      { text: `The nearest of ${nf(D.emergency.places.length)} hospitals, health centres and police stations along the way, with tap-to-call, plus 114 and 999.`, options: { bullet: true } },
+      { text: 'A Corridor Safety Score from the official record — tap any factor for its figures and its table.', options: { bullet: true, breakLine: true } },
+      { text: `The ${D.hotspots.hotspots.length} designated accident-prone segments, named by road number, and the nearest of ${nf(D.emergency.places.length)} hospitals and police stations with tap-to-call.`, options: { bullet: true, breakLine: true } },
+      { text: 'Live conditions: sunrise, sunset and rain for this corridor, free and keyless from Open-Meteo.', options: { bullet: true, breakLine: true } },
+      { text: 'Live hazard reports from other riders, within seconds, on this corridor.', options: { bullet: true } },
     ],
-    { isTextBox: true, x: tx, y: 1.95, w: tw, h: 2.9, margin: 0, fontSize: 13, color: C.text1,
-      lineSpacing: 19, paraSpaceAfter: 10 },
+    { isTextBox: true, x: tx, y: 1.5, w: tw, h: 1.95, margin: 0, fontSize: 13, color: C.text1,
+      lineSpacing: 19, paraSpaceAfter: 9 },
   )
 
-  card(s, { x: tx, y: 5.05, w: tw, h: 0.95, fill: 'ECFDF5', name: 'demo-note' })
+  const rw = 3.35
+  s.addImage({ path: 'docs/pitch-assets/reports.png', x: tx, y: 3.6, w: rw, h: rw * (300 / 368),
+    objectName: 'shot-reports',
+    shadow: { type: 'outer', color: '94A3B8', blur: 8, offset: 2, angle: 90, opacity: 0.35 } })
+
+  const cx = tx + rw + 0.35
+  const cw = W - M - cx
+  s.addShape(pres.ShapeType.roundRect, {
+    x: cx, y: 3.6, w: cw, h: 2.5, rectRadius: 0.1,
+    fill: { color: C.text1 }, line: { color: C.text1 }, objectName: 'satellite-callout',
+  })
+  s.addText('We were asked for satellite crash detection', {
+    isTextBox: true, x: cx + 0.28, y: 3.8, w: cw - 0.56, h: 0.32, margin: 0,
+    fontSize: 13, bold: true, color: C.accent6,
+  })
   s.addText(
-    [
-      { text: 'Live demo  ', options: { bold: true, color: C.accent1 } },
-      { text: 'Grand Baie to Port Louis, by motorcycle, after dark: 31 / 100. The same trip by car in daylight: 51.' },
-    ],
-    { isTextBox: true, x: tx + 0.22, y: 5.17, w: tw - 0.44, h: 0.72, margin: 0, fontSize: 11.5, color: '334155', lineSpacing: 16 },
+    'Seeing something car-sized needs sub-metre resolution, so low orbit and one pass a day. The satellites that watch continuously are weather satellites at 500 m a pixel, where a car does not exist. Mauritius is cloudy too.',
+    { isTextBox: true, x: cx + 0.28, y: 4.16, w: cw - 0.56, h: 1.2, margin: 0, fontSize: 11.5,
+      color: 'CBD5E1', lineSpacing: 16 },
+  )
+  s.addText(
+    'So we used the remote-sensed data that does arrive hourly and free, and the riders already on the road.',
+    { isTextBox: true, x: cx + 0.28, y: 5.42, w: cw - 0.56, h: 0.5, margin: 0, fontSize: 11.5,
+      color: C.accent6, lineSpacing: 16 },
   )
 
   s.addNotes(
-    `This is the live demo. Open it on a phone: backprop-pirates.vercel.app\n\n` +
-    `Demo path: Grand Baie to Port Louis, motorcycle, after dark unlit, gives 31/100 Severe. Then switch the mode to car and the time to daylight and it moves to 51. Then try Bon Accueil to Centre de Flacq, car, daylight: 80, Lower risk. The score genuinely discriminates.\n\n` +
-    `It is a mobile web app, not an APK, so one link works on every phone in the room and there was no build that could fail before the demo. The organisers confirmed web apps count equally.`,
+    `This is the live demo. backprop-pirates.vercel.app, open it on a phone.
+
+` +
+    `Demo path: Grand Baie to Port Louis by motorcycle at 19:00 scores 31. The app says leave at 18:00 instead and it scores 46, because that puts the trip in daylight: 3.7% of casualties in daylight are fatal against 8.2% on an unlit road. Tap the button and watch the score move.
+
+` +
+    `Then report a hazard live from a phone in the room and show it appear on another phone within seconds.
+
+` +
+    `On satellite, if asked: we evaluated it and rejected it on evidence, not effort. Resolution and revisit rate are a tradeoff you cannot escape, and Mauritius is cloudy. Weather models ingest satellite observations, so what we use is still remote-sensed, it just arrives as numbers.
+
+` +
+    `Reports never move the score. The score cites government tables over years; an unverified report from a stranger is a different kind of claim, so it sits above the score instead of inside it.`,
   )
 }
 
@@ -263,7 +289,7 @@ pres.addSection({ title: 'The app' })
 pres.addSection({ title: 'The data' })
 {
   const s = pres.addSlide({ masterName: 'LIGHT', sectionTitle: 'The data' })
-  s.addText('Nine official tables, one of them mappable', { placeholder: 'title' })
+  s.addText('Ten official tables, one of them mappable', { placeholder: 'title' })
 
   // The find.
   card(s, { x: M, y: 1.45, w: 6.35, h: 2.5, fill: '0F172A', name: 'find-card' })
@@ -297,10 +323,11 @@ pres.addSection({ title: 'The data' })
       { text: 'Casualties by police district, 2013\u20132024 — district volume, and the split between people on foot, riders and vehicle occupants', options: { bullet: true, breakLine: true } },
       { text: 'Casualties by light condition — the time-of-day factor', options: { bullet: true, breakLine: true } },
       { text: 'Accidents by junction and road type — the junction and motorway advice', options: { bullet: true, breakLine: true } },
+      { text: `Accidents by weather, pooled ${D.conditions.weather.years.join('–')} — the wet-road advice. Rain is 1.26 times as fatal, too small to score, so the app says it instead`, options: { bullet: true, breakLine: true } },
       { text: `${D.emergency.counts.hospital + D.emergency.counts.clinic} health facilities and ${D.emergency.counts.police} police stations with coordinates — the help panel, and every town coordinate in the planner`, options: { bullet: true, breakLine: true } },
       { text: 'Vehicles registered by type — the exposure denominator, so we can say riders are hurt 1.28 times as often per registered vehicle', options: { bullet: true } },
     ],
-    { isTextBox: true, x: rx, y: 1.9, w: rw, h: 3.0, margin: 0, fontSize: 12, color: C.text1, lineSpacing: 17, paraSpaceAfter: 8 },
+    { isTextBox: true, x: rx, y: 1.9, w: rw, h: 3.9, margin: 0, fontSize: 11.5, color: C.text1, lineSpacing: 16, paraSpaceAfter: 7 },
   )
 
   card(s, { x: M, y: 4.2, w: 6.35, h: 1.5, fill: 'ECFDF5', name: 'pipeline-card' })
@@ -312,7 +339,7 @@ pres.addSection({ title: 'The data' })
     { isTextBox: true, x: M + 0.35, y: 4.72, w: 5.65, h: 0.85, margin: 0, fontSize: 12, color: '334155', lineSpacing: 17 },
   )
 
-  s.addText('All tables: Open Data Mauritius (MDPA) and Statistics Mauritius, CC-BY-SA 4.0, via data.govmu.org.', {
+  s.addText('Tables: Open Data Mauritius (MDPA) and Statistics Mauritius, CC-BY-SA 4.0, via data.govmu.org. Live: Open-Meteo forecast, and reports from riders using the app.', {
     isTextBox: true, x: M, y: 5.95, w: W - 2 * M, h: 0.3, margin: 0, fontSize: 10, color: C.accent5, italic: true,
   })
 
@@ -388,7 +415,7 @@ pres.addSection({ title: 'Impact' })
   const cw = (W - 2 * M - 0.6) / 3
   const cols = [
     ['Runs on nothing', [
-      'Static JSON on a free tier. No backend, no API keys, no database.',
+      'Static JSON and one small function on a free tier. The weather feed needs no key at all.',
       'A data refresh is two scripts and a push.',
     ]],
     ['Reaches people now', [
@@ -434,7 +461,7 @@ pres.addSection({ title: 'Impact' })
     isTextBox: true, x: M, y: 5.25, w: 1.2, h: 0.3, margin: 0, fontSize: 13, bold: true, color: C.accent6,
   })
   s.addText(
-    'Real road routing instead of straight lines  ·  the Metro Express corridor  ·  crowd hazard reports  ·  offline caching for where the signal drops',
+    'Real road routing instead of straight lines  ·  the Metro Express corridor  ·  photos on reports  ·  offline caching for where the signal drops',
     { isTextBox: true, x: M, y: 5.58, w: W - 2 * M, h: 0.5, margin: 0, fontSize: 13, color: 'CBD5E1' },
   )
 
