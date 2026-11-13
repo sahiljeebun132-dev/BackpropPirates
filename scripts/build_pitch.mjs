@@ -26,6 +26,38 @@ const require = createRequire(import.meta.url)
 const pptxgen = require('pptxgenjs')
 const { applyTheme } = require('C:/Users/sahil/AppData/Local/Claude-Data/claude_pzs8sxrjxfjjc/local-agent-mode-sessions/skills-plugin/1a751674-6b34-42a6-a419-ae28cf8cd6ce/906e34c4-6be4-4981-881e-82c4c796f8fa/skills/pptx/scripts/apply_theme.js')
 
+/** A PNG or JPEG's real pixel size, read from the file.
+ *
+ *  The aspect ratios on this deck's screenshots used to be typed in by hand
+ *  next to each addImage. Replace a screenshot with one of a different shape
+ *  and pptxgenjs stretches it to the old ratio without complaining, so the
+ *  slide quietly shows a squashed phone. Reading the header costs nothing and
+ *  removes the whole class of mistake.
+ */
+function imageSize(file) {
+  const b = readFileSync(file)
+  if (b[0] === 0x89 && b[1] === 0x50) {
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) }
+  }
+  // JPEG: walk the segments to the first start-of-frame.
+  let i = 2
+  while (i < b.length) {
+    if (b[i] !== 0xff) { i++; continue }
+    const marker = b[i + 1]
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) }
+    }
+    i += 2 + b.readUInt16BE(i + 2)
+  }
+  throw new Error(`cannot read dimensions of ${file}`)
+}
+
+/** Fit an image to a height, keeping its real proportions. */
+const byHeight = (file, h) => {
+  const { w, h: ih } = imageSize(file)
+  return { w: h * (w / ih), h }
+}
+
 const load = (n) => JSON.parse(readFileSync(`public/data/${n}.json`, 'utf8'))
 const D = {
   hotspots: load('hotspots'), districts: load('districts'), conditions: load('conditions'),
@@ -242,7 +274,7 @@ pres.addSection({ title: 'The app' })
   // The whole product in one capture: a rider report, the score, and the
   // conditions panel telling them to leave an hour earlier.
   const shotH = 4.55
-  const shotW = shotH * (396 / 800)
+  const shotW = byHeight('docs/pitch-assets/live.png', shotH).w
   s.addImage({ path: 'docs/pitch-assets/live.png', x: M, y: 1.45, w: shotW, h: shotH,
     objectName: 'shot-live',
     shadow: { type: 'outer', color: '94A3B8', blur: 10, offset: 2, angle: 90, opacity: 0.4 } })
@@ -266,7 +298,7 @@ pres.addSection({ title: 'The app' })
   // them makes the slide's own claim visible, and "14 named black spots on
   // your route" is that claim.
   const rh = 2.5
-  const rw = rh * (378 / 446)
+  const rw = byHeight('docs/pitch-assets/map.jpg', rh).w
   s.addImage({ path: 'docs/pitch-assets/map.jpg', x: tx, y: 3.6, w: rw, h: rh,
     objectName: 'shot-map',
     shadow: { type: 'outer', color: '94A3B8', blur: 8, offset: 2, angle: 90, opacity: 0.35 } })
@@ -396,7 +428,7 @@ pres.addSection({ title: 'How it works' })
   s.addText('Every number traces to a government table', { placeholder: 'title' })
 
   const shotH = 4.3
-  const shotW = shotH * (368 / 604)
+  const shotW = byHeight('docs/pitch-assets/breakdown.png', shotH).w
   s.addImage({ path: 'docs/pitch-assets/breakdown.png', x: M, y: 1.45, w: shotW, h: shotH, objectName: 'shot-breakdown',
     shadow: { type: 'outer', color: '94A3B8', blur: 10, offset: 2, angle: 90, opacity: 0.4 } })
 
