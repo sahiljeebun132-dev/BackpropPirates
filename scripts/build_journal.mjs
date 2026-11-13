@@ -152,6 +152,22 @@ const TIMELINE = [
     'The first model rated 70% of routes Severe'],
   ['15:50', 'README, decision log and this journal written', 'All three are judged deliverables'],
   ['16:00', 'Named the app Zetway', '"Zet" from trajet, the journey — which is what the app scores'],
+  ['15:25', 'Rejected live satellite crash detection after costing it out',
+    'No constellation gives both sub-metre resolution and continuous cover; saying so is better than faking it'],
+  ['15:30', 'Live conditions from Open-Meteo: sunrise, sunset and rain over the trip',
+    'Remote-sensed data that actually arrives hourly, and free without a key'],
+  ['16:00', 'Crowd hazard reports, on a private Vercel Blob store',
+    'People on the road are the sensor a satellite cannot be'],
+  ['16:45', 'Roadside help: seven breakdown guides, safety check first',
+    'Half of a journey going wrong is not a crash'],
+  ['17:10', 'Garages, tyre shops and filling stations from OpenStreetMap, with numbers to call',
+    'Mauritius publishes no register of mechanics; community data, labelled as such'],
+  ['17:30', 'Crash watch: impact detection, 30-second countdown, alarm, audio recording',
+    'The motion sensor is already in every phone'],
+  ['17:55', 'Android APK added via Capacitor, from the same codebase',
+    'The web app stays the demo; the APK unlocks what a browser forbids'],
+  ['18:10', 'Automatic SMS to every contact and an automatic call to the first, in the Android build',
+    'The promise the web build could not keep'],
 ]
 
 const QA = [
@@ -175,8 +191,16 @@ const QA = [
     'The casualty table uses 7 police districts; the facilities table uses 9 administrative ones. We wrote a mapping, documented it in the code and published it inside places.json. Where a town could fall either side of the Plaines Wilhems split we resolve it by town name. It is our assumption, and we label it as one.'],
   ['Why are the condition tables from 2018 when the district data is 2024?',
     'That is the latest year the publisher has released for those tables. Every figure in the app carries its year so nobody is misled.'],
+  ['Is Zetway a web app or an Android app?',
+    'Both, from one codebase. The web app is what we demo: it opens from a link on any phone and no build step can fail before the pitch. The Android APK is the same compiled React app wrapped with Capacitor, and it exists for the three things a browser is deliberately barred from doing after a crash — vibrating reliably, sending a text without a tap, and placing a call without a tap. There is no second UI to keep in step.'],
+  ['Why can the app not dial 114 automatically?',
+    'Because Android forbids it to every third-party app, not because we did not try. ACTION_CALL is refused for emergency numbers and redirected to the preloaded dialler; TelecomManager.placeCall accepts an emergency call only from the default or preloaded dialler; and CALL_PRIVILEGED, which would lift the restriction, is closed to third-party apps. No app on the Play Store can auto-dial an ambulance. Our plugin asks the operating system whether a number is an emergency number and refuses rather than throwing a SecurityException mid-crash. Apple’s own Crash Detection, which has the hardware and the OS privileges, still counts down before calling — and still flooded dispatch centres near ski resorts. The countdown is the right design, not a workaround.'],
+  ['So what does happen automatically after a crash?',
+    'Detection, the alarm and the countdown happen on both builds. In the Android build, when the countdown runs out unanswered, every saved contact is texted a Google Maps link to the rider’s position and the first contact is rung, with nothing touched. That contact is a person who can act: they hear the ambient audio, they already have the location, and they can call 114 themselves. 114 and 999 remain one large button on screen. A rehearsal or a test-mode shake never contacts anybody.'],
+  ['Do the crowd reports change the score?',
+    'No, deliberately. The score measures recorded exposure over years and cites government tables. An unverified report from a stranger is a different kind of claim. Folding it in quietly would undermine the one thing that makes the score defensible. Reports appear above the score, timestamped, and expire after four hours.'],
   ['What would you do with another day?',
-    'Real road routing instead of straight lines; the Metro Express corridor; a crowd report so commuters can flag a hazard; and offline caching so the app works where signal drops.'],
+    'Real road routing instead of straight lines; the Metro Express corridor; and an Android foreground service so crash watch keeps running with the screen off and the phone in a pocket, which is the honest limitation of the current build.'],
 ]
 
 const doc = new Document({

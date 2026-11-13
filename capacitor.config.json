@@ -1,0 +1,16 @@
+{
+  "appId": "mu.zetway.app",
+  "appName": "Zetway",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Geolocation": {
+      "permissions": ["location"]
+    }
+  }
+}

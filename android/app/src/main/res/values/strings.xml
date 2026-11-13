@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Zetway</string>
+    <string name="title_activity_main">Zetway</string>
+    <string name="package_name">mu.zetway.app</string>
+    <string name="custom_url_scheme">mu.zetway.app</string>
+</resources>

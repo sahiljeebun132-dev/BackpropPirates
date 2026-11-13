@@ -4,6 +4,8 @@
  * before any feed does, and the rider behind them is the person who needs it.
  */
 
+import { API_BASE } from './platform'
+
 export const REPORT_KINDS = ['crash', 'blocked', 'flood', 'hazard', 'police'] as const
 export type ReportKind = (typeof REPORT_KINDS)[number]
 
@@ -50,7 +52,7 @@ export async function fetchReports(
   signal?: AbortSignal,
 ): Promise<HazardReport[]> {
   const qs = new URLSearchParams({ lat: String(lat), lon: String(lon), km: String(radiusKm) })
-  const res = await fetch(`/api/reports?${qs}`, { signal })
+  const res = await fetch(`${API_BASE}/api/reports?${qs}`, { signal })
   if (!res.ok) throw new Error(`reports ${res.status}`)
   const body = (await res.json()) as { reports: HazardReport[] }
   return body.reports ?? []
@@ -62,7 +64,7 @@ export async function submitReport(input: {
   lon: number
   note: string
 }): Promise<HazardReport> {
-  const res = await fetch('/api/reports', {
+  const res = await fetch(`${API_BASE}/api/reports`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),

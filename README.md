@@ -1,7 +1,11 @@
 # Zetway
 ### Vigilance en route
 
-**Live app: https://backprop-pirates.vercel.app** (open it on a phone)
+**Live app: https://backprop-pirates.vercel.app** (open it on a phone — nothing to install)
+
+**Android app:** [latest APK](https://github.com/sahiljeebun132-dev/BackpropPirates/releases/latest/download/app-debug.apk),
+rebuilt by CI from every commit. It is the same app, plus the three things a browser forbids —
+see [Two builds](#two-builds).
 
 Team BackpropPirates · Life Powered by Tech, 13–14 November 2026
 IET Society × Middlesex University Mauritius · **Theme 2: Powered to Move**
@@ -137,9 +141,35 @@ scores 80, the northern corridor by motorcycle at night scores 31.
 
 Vite 8, React 19, TypeScript, Tailwind 4, deployed on Vercel.
 
-A mobile-first web app rather than an APK: one link opens on every phone in the room, and there is
-no build step that can fail an hour before the demo. The organisers confirmed a web app counts
-equally.
+Plus Capacitor 7 for the Android build, which wraps the same compiled React app — there is no
+second codebase and no duplicated UI.
+
+The web app came first and is still the one we demo from: one link opens on every phone in the
+room, and no build step can fail an hour before the pitch. The organisers confirmed a web app
+counts equally. The APK is additive.
+
+### Two builds
+
+Everything Zetway does, both builds do identically — except the moments after a crash, where the
+browser is deliberately barred and the app is not.
+
+| After a detected impact | Web | Android app |
+|---|---|---|
+| Detect, alarm, 30-second countdown | yes | yes |
+| Vibrate | only where the browser allows it, never on iOS | yes |
+| Text every emergency contact with your location | one tap each | **automatic, no tap** |
+| Call your first contact | one tap | **automatic, no tap** |
+| Call 114 / 999 | one tap | one tap |
+| Works with no signal | no | yes, the data ships inside the APK |
+
+That last row of "one tap" is not an oversight. **Android refuses `ACTION_CALL` for emergency
+numbers from any third-party app**, redirects it to the preloaded dialler, and `TelecomManager`
+accepts an emergency call only from the default dialler; `CALL_PRIVILEGED` would lift the
+restriction and is closed to third-party apps. No app on the Play Store can auto-dial an
+ambulance. `CrashResponsePlugin` asks the operating system whether a number is an emergency
+number and refuses rather than throwing mid-crash, so the automatic call goes to the first saved
+contact — a person who can act, who already has the location by text, and who can ring 114
+themselves.
 
 | Path | Responsibility |
 |---|---|
@@ -155,6 +185,11 @@ equally.
 | `src/lib/reports.ts` | Client for the reports API |
 | `src/lib/useAppData.ts` | Loads the data files once |
 | `src/components/` | One component per panel |
+| `src/lib/platform.ts` | Which build is running, and where the API lives for it |
+| `src/lib/nativeCrash.ts` | Typed bridge to the native plugin; resolves to "could not" on the web |
+| `src/lib/escalate.ts` | What happens automatically after an unanswered countdown |
+| `android/.../CrashResponsePlugin.java` | The native half: vibration, automatic SMS, automatic call |
+| `.github/workflows/android.yml` | Builds and republishes the APK on every push |
 
 Scoring is separated from the UI and the data layer is a single hook, so a surprise constraint
 lands in one place rather than across the app.
@@ -180,6 +215,20 @@ npm run dev      # http://localhost:5173 — add --host to open it on a phone on
 npm run build    # type-check and production build
 npm run lint
 ```
+
+### Building the Android app
+
+Needs JDK 17 and the Android SDK (platform 35, build-tools 35.0.0); `ANDROID_HOME` must point at
+the SDK, or `android/local.properties` must set `sdk.dir`.
+
+```bash
+npm run cap:sync                      # build the web app and copy it into the Android project
+cd android && ./gradlew assembleDebug  # gradlew.bat on Windows
+# -> android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`npm run android:icons` regenerates the launcher icons from `assets/`. CI builds the same APK on
+every push, so a working laptop is never the only way to get one.
 
 The official data is static JSON in `public/data`, and the weather forecast needs no key.
 

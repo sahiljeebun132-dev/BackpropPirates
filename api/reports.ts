@@ -46,6 +46,23 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): num
   return Math.hypot((aLat - bLat) * KM_PER_DEG_LAT, (aLon - bLon) * KM_PER_DEG_LON)
 }
 
+/** The Android build is served from the APK, so its page origin is
+ *  `https://localhost` and every call to this function is cross-origin. The
+ *  web build shares an origin with it and needs none of this.
+ *
+ *  `*` is the honest value rather than a lax one. There are no cookies and no
+ *  credentials here, so a narrower origin list would protect nothing: CORS
+ *  only constrains browsers, and anything that is not a browser can call this
+ *  function regardless. What actually guards the store is the validation
+ *  below — the kind must be known, the point must be inside Mauritius, the
+ *  note is truncated, and reports expire. */
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'content-type',
+  'access-control-max-age': '86400',
+}
+
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
     status,
@@ -53,8 +70,14 @@ const json = (body: unknown, status = 200): Response =>
       'content-type': 'application/json',
       // Reports are the one thing that must never be served stale.
       'cache-control': 'no-store',
+      ...CORS,
     },
   })
+
+/** Preflight. A POST carrying JSON always triggers one. */
+export function OPTIONS(): Response {
+  return new Response(null, { status: 204, headers: CORS })
+}
 
 /** Mauritius plus its lagoon, generously. Keeps junk out of the store. */
 function inMauritius(lat: number, lon: number): boolean {

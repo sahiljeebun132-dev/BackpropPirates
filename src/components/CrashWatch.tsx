@@ -6,6 +6,9 @@ import {
   smsLink, TEST_THRESHOLD_MS2, watchForImpact, whatsappLink, writeContacts,
   type EmergencyContact, type Recording,
 } from '../lib/crashWatch'
+import { escalate, type EscalationStep } from '../lib/escalate'
+import { nativeStopVibration, nativeVibrate } from '../lib/nativeCrash'
+import { isNative } from '../lib/platform'
 
 type Phase = 'off' | 'armed' | 'asking' | 'alerting'
 
@@ -31,14 +34,23 @@ export function CrashWatch() {
   /** True only when the sensor fired for real, at the real threshold. A
    *  rehearsal and a test-mode shake must never reach for the dialler. */
   const [liveIncident, setLiveIncident] = useState(false)
-  const [dialled, setDialled] = useState(false)
+  const [autoSteps, setAutoSteps] = useState<EscalationStep[]>([])
 
   const stopWatch = useRef<(() => void) | null>(null)
   const wakeLock = useRef<{ release: () => void } | null>(null)
   const stopRecording = useRef<(() => void) | null>(null)
   const alarm = useRef<ReturnType<typeof createAlarm>>(null)
+  /** Read by beginAlerting. Held in a ref so that a location fix arriving
+   *  mid-countdown does not change that callback's identity, which would
+   *  restart the one-second timer and stretch the countdown. */
+  const latest = useRef({ contacts, position, peak })
 
-  const vibrates = canVibrate()
+  useEffect(() => {
+    latest.current = { contacts, position, peak }
+  }, [contacts, position, peak])
+
+  // The Android build always has a vibrator to reach for.
+  const vibrates = isNative() || canVibrate()
 
   const onReading = useCallback((magnitude: number) => {
     setSensorSeen(true)
@@ -48,13 +60,16 @@ export function CrashWatch() {
 
   const trigger = useCallback((g: number | null, live = false) => {
     setLiveIncident(live)
-    setDialled(false)
+    setAutoSteps([])
     setPeak(g)
     setLeft(COUNTDOWN_SECONDS)
     setPhase('asking')
     // Both at once: vibration reaches a phone in a pocket, sound reaches an
     // iPhone, which cannot vibrate from a web page at all.
     buzz([600, 200, 600, 200, 600])
+    // In the Android build this is the one that actually fires: a web view
+    // does not reliably expose navigator.vibrate, and iOS never has.
+    void nativeVibrate([0, 600, 250, 600, 250, 1500])
     alarm.current?.start()
     void currentPosition().then(setPosition)
   }, [])
@@ -122,18 +137,15 @@ export function CrashWatch() {
     setPhase('alerting')
     setRecordingNow(true)
 
-    // As close to an automatic call as a browser allows. Navigating to a tel:
-    // URL hands the number to the phone's dialler; the handset still asks the
-    // person to confirm, and nothing on the web can press that for them.
-    // Skipped entirely for a rehearsal or a test-mode shake, because a false
-    // call to 114 occupies an ambulance line somebody else needs.
+    // Everything that can happen without the rider touching anything happens
+    // here. In the Android build that is a text to every contact and a call to
+    // the first of them; in a browser it is nothing at all, and the screen says
+    // so rather than letting someone believe help is already on its way.
+    // Skipped entirely for a rehearsal or a test-mode shake: a false alarm that
+    // rings your mother is a mistake nobody forgives twice.
     if (liveIncident) {
-      try {
-        window.location.href = 'tel:114'
-        setDialled(true)
-      } catch {
-        setDialled(false)
-      }
+      const { contacts: to, position: at, peak: g } = latest.current
+      void escalate(to, at, g).then(setAutoSteps)
     }
     void recordAudio(
       (rec) => {
@@ -159,6 +171,7 @@ export function CrashWatch() {
         beginAlerting()
       } else {
         buzz([250]) // a pulse a second, so it keeps nagging
+        void nativeVibrate([0, 250])
         setLeft(left - 1)
       }
     }, 1000)
@@ -170,6 +183,7 @@ export function CrashWatch() {
     stopRecording.current?.()
     stopRecording.current = null
     buzz([0])
+    void nativeStopVibration()
     setPhase('armed')
     setPeak(null)
     setRecording(null)
@@ -188,7 +202,7 @@ export function CrashWatch() {
         recording={recording}
         recordingNow={recordingNow}
         notice={notice}
-        dialled={dialled}
+        autoSteps={autoSteps}
         onImOk={imOk}
         onStandDown={standDown}
       />
@@ -205,7 +219,9 @@ export function CrashWatch() {
           <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
             {phase === 'armed'
               ? 'Watching for an impact. Keep this screen open and the phone mounted.'
-              : 'Watches the phone’s motion sensor while you ride. On a heavy impact it sounds an alarm, and if you do not answer it puts calling for help one tap away.'}
+              : isNative()
+                ? 'Watches the phone’s motion sensor while you ride. On a heavy impact it sounds an alarm, and if you do not answer within 30 seconds it texts your contacts your location and rings the first one, without you touching anything.'
+                : 'Watches the phone’s motion sensor while you ride. On a heavy impact it sounds an alarm, and if you do not answer it puts calling for help one tap away.'}
           </p>
         </div>
         <span
@@ -271,6 +287,14 @@ export function CrashWatch() {
       {testMode && phase === 'armed' && (
         <p className="mt-2 rounded-xl bg-flag-red/10 p-2.5 text-xs font-semibold text-flag-red ring-1 ring-flag-red/30">
           Test mode is on. A bump could set this off.
+        </p>
+      )}
+
+      {isNative() && phase !== 'armed' && (
+        <p className="mt-2 rounded-xl bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
+          After a real impact and an unanswered countdown, Zetway texts everyone below and rings
+          the first of them by itself. 114 and 999 stay one tap: Android does not let any app dial
+          an emergency number on its own. A rehearsal or a test-mode shake never contacts anyone.
         </p>
       )}
 
@@ -412,11 +436,11 @@ function AlertOverlay(props: {
   recording: Recording | null
   recordingNow: boolean
   notice: string | null
-  dialled: boolean
+  autoSteps: EscalationStep[]
   onImOk: () => void
   onStandDown: () => void
 }) {
-  const { phase, left, peak, position, contacts, recording, recordingNow, notice, dialled, onImOk, onStandDown } = props
+  const { phase, left, peak, position, contacts, recording, recordingNow, notice, autoSteps, onImOk, onStandDown } = props
   const message = helpMessage(position, peak)
 
   return (
@@ -451,11 +475,23 @@ function AlertOverlay(props: {
               No answer. Get help now
             </p>
 
-            {dialled && (
-              <p className="rounded-xl bg-white/15 p-3 text-sm leading-relaxed ring-1 ring-white/30">
-                The dialler has been opened with 114 already entered. Press the green button to
-                connect. If nothing opened, use the button below.
-              </p>
+            {autoSteps.length > 0 && (
+              <ul className="space-y-2 rounded-xl bg-white/15 p-3 ring-1 ring-white/30">
+                {autoSteps.map((step) => (
+                  <li key={step.text} className="flex gap-2 text-sm leading-relaxed">
+                    <span aria-hidden="true" className="shrink-0 font-bold">
+                      {step.state === 'done'
+                        ? '✓'
+                        : step.state === 'doing'
+                          ? '•'
+                          : step.state === 'failed'
+                            ? '!'
+                            : '→'}
+                    </span>
+                    <span>{step.text}</span>
+                  </li>
+                ))}
+              </ul>
             )}
             <a
               href="tel:114"

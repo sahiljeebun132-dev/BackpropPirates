@@ -17,6 +17,8 @@
  * not being watched. That limit is stated where the feature is armed.
  */
 
+import { getFix } from './position'
+
 /** Peak acceleration that counts as an impact, in m/s².
  *
  * Still, a phone reads about 9.8 (gravity alone). Ordinary driving, including
@@ -254,16 +256,12 @@ export async function recordAudio(
   return () => stop()
 }
 
-/** A single fix, taken the moment an impact is detected. */
+/** A single fix, taken the moment an impact is detected.
+ *
+ *  Delegated so the Android build uses the native location API, which asks for
+ *  the permission properly and fails fast where a web view would hang. */
 export function currentPosition(): Promise<{ lat: number; lon: number; accuracy: number } | null> {
-  return new Promise((resolve) => {
-    if (!('geolocation' in navigator)) return resolve(null)
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
-    )
-  })
+  return getFix({ timeoutMs: 10_000, maxAgeMs: 30_000 })
 }
 
 /** The message a contact receives. Location first: if they read nothing else,

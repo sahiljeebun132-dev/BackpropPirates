@@ -1,0 +1,83 @@
+# Builds the Android APK on every push and republishes it at a fixed address.
+#
+# The laptop builds this too, and faster. This exists because a hackathon demo
+# should not depend on one machine: if that laptop is wiped, asleep, or simply
+# not in the room, the same APK is still a download away, built from the same
+# commit the judges can read.
+#
+# The download never changes address:
+#   https://github.com/sahiljeebun132-dev/BackpropPirates/releases/latest/download/app-debug.apk
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    # Documentation changes cannot alter the APK, and the checkpoint commits
+    # touch docs often.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+# Needed to publish the release the APK is attached to.
+permissions:
+  contents: write
+
+concurrency:
+  # A newer commit makes an in-flight build pointless.
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Capacitor 7's Gradle plugins request a Java 21 toolchain; 17 fails
+          # at configuration time with "no locally installed toolchains match".
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the web app and copy it into the Android project
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Assemble the debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug --no-daemon --console=plain
+
+      # Kept as a build artifact as well as a release, because an artifact is
+      # retained per-run and makes it possible to tell two builds apart.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zetway-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish it at the fixed download address
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Replacing the release is what keeps the address stable. The tag is
+          # deleted with it so the new one points at the current commit.
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            --title "Zetway — latest Android build" \
+            --notes "Debug APK built from ${{ github.sha }} on $(date -u '+%Y-%m-%d %H:%M UTC'). Unsigned debug build: Android will warn before installing it." \
+            --prerelease

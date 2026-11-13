@@ -1,0 +1,22 @@
+# Keep line endings deterministic whatever each teammate's git is configured to
+# do. Normalise text to LF in the repository; Windows checkouts still get CRLF
+# where it matters.
+* text=auto
+
+# These run on a Linux CI runner. With CRLF the shebang reads as
+# "/bin/sh\r" and the build dies with "bad interpreter".
+gradlew   text eol=lf
+*.sh      text eol=lf
+
+# And these are only ever run by cmd.exe.
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# Never touch binaries.
+*.jar   binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.docx  binary
+*.pptx  binary
+*.apk   binary

@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react'
 
+import { getFix } from './position'
+
 type Position = { lat: number; lon: number }
 
 /** The rider's own position, asked for only when they tap to use it.
@@ -17,15 +19,10 @@ export function useGeolocation(): {
   const [denied, setDenied] = useState(false)
 
   const request = useCallback(() => {
-    if (!('geolocation' in navigator)) {
-      setDenied(true)
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (p) => setPosition({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      () => setDenied(true),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
-    )
+    void getFix({ timeoutMs: 8_000, maxAgeMs: 60_000 }).then((fix) => {
+      if (fix) setPosition({ lat: fix.lat, lon: fix.lon })
+      else setDenied(true)
+    })
   }, [])
 
   return { position, request, denied }
