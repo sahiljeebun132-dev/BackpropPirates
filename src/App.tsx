@@ -137,7 +137,7 @@ export default function App() {
         <>
           {/* Before anything else: if there is no signal, say so and say what
               still works, rather than letting the rider find out by tapping. */}
-          <OfflineBanner />
+          <OfflineBanner liveFailed={live.status === 'error'} />
 
           {/* First launch only, and before anything else on the screen: the
               permissions it asks for are useless if they are first requested

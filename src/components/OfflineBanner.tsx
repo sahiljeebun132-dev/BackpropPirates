@@ -15,10 +15,20 @@ import { useOnline } from '../lib/useOnline'
  * device from files that ship with the app; only fetching them needed the
  * network. The forecast and the hazard reports genuinely cannot be known
  * offline, and are not guessed.
+ *
+ * It does not trust `navigator.onLine` alone. That flag reports whether the
+ * device has a network interface, not whether anything is reachable through
+ * it, and on an Android 15 emulator with airplane mode switched on it was
+ * still returning true while every fetch failed — the banner never appeared.
+ * The venue-wifi case is the same shape and far more likely: associated,
+ * one bar, carrying nothing. So a live request that actually failed counts
+ * as evidence too, and the headline says which of the two we are going on,
+ * because "no internet" would be a guess when the flag still claims a
+ * connection.
  */
-export function OfflineBanner() {
+export function OfflineBanner({ liveFailed = false }: { liveFailed?: boolean }) {
   const online = useOnline()
-  if (online) return null
+  if (online && !liveFailed) return null
 
   return (
     <section
@@ -27,7 +37,11 @@ export function OfflineBanner() {
     >
       <div className="flex items-center gap-2">
         <span aria-hidden="true" className="text-base">&#9888;</span>
-        <h2 className="text-sm font-semibold">No internet. Most of Zetway still works.</h2>
+        <h2 className="text-sm font-semibold">
+          {online
+            ? 'Live data is not reaching this phone. Most of Zetway still works.'
+            : 'No internet. Most of Zetway still works.'}
+        </h2>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
