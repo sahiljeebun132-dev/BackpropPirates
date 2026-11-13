@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { BreakdownFlow } from './components/BreakdownFlow'
 import { CrashWatch } from './components/CrashWatch'
+import { LegalPanel } from './components/LegalPanel'
 import { FirstRunPermissions } from './components/FirstRunPermissions'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
@@ -179,6 +180,8 @@ export default function App() {
             sameEndpoints={origin === destination}
           />
           <CrashWatch />
+          <LegalPanel />
+
           <SourcesPanel data={appData} />
         </>
       )}

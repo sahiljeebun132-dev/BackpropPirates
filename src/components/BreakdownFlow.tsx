@@ -8,6 +8,7 @@ import { distanceKm } from '../lib/geo'
 import { readSavedCar, saveCar, searchCars, useCars } from '../lib/useCars'
 import type { AppData, Place } from '../lib/types'
 import { GaragesPanel } from './GaragesPanel'
+import { SpeakButton } from './SpeakButton'
 
 type Props = {
   data: AppData
@@ -375,6 +376,23 @@ function GuideView({
   // Both fire guides are advice only. Neither has steps to follow.
   const noSteps = guide.id === 'smoke-or-smell' || guide.id === 'moto-fire'
 
+  // Read in the order someone needs it: when to stop, what to do first,
+  // then the steps with their cautions attached rather than trailing after.
+  const spoken = [
+    guide.label,
+    ...(unsafeHere
+      ? ['Stop. This is the wrong place to work on it. Call for help and wait somewhere safe.']
+      : []),
+    ...(guide.stopAndCall.length ? ['Stop and call for help if:'] : []),
+    ...guide.stopAndCall,
+    ...(noSteps || unsafeHere ? [] : ['Before you start.']),
+    ...(noSteps || unsafeHere ? [] : guide.before),
+    ...(noSteps || unsafeHere ? [] : guide.steps.flatMap((st, i) => [
+      `Step ${i + 1}. ${st.text}`,
+      ...(st.caution ? [`Careful. ${st.caution}`] : []),
+    ])),
+  ]
+
   return (
     <>
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -389,6 +407,10 @@ function GuideView({
             Change
           </button>
         </div>
+        {/* Hands busy, dark, or you simply cannot read a small screen at the
+            roadside. The steps are no use if you have to keep picking the
+            phone up to see the next one. */}
+        <SpeakButton lines={spoken} label="Read this aloud" className="mt-3" />
       </section>
 
       {(unsafeHere || noSteps) && (

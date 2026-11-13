@@ -1,4 +1,5 @@
 import type { DepartureAdvice } from '../lib/departure'
+import { AVERAGE_SPEED_KMH } from '../lib/departure'
 import type { LiveConditions } from '../lib/live'
 import { MODE_LABEL, TIME_BAND_LABEL, type RouteAssessment } from '../lib/risk'
 import type { HazardReport } from '../lib/reports'
@@ -7,6 +8,7 @@ import { AdviceList } from './AdviceList'
 import { EmergencyList } from './EmergencyList'
 import { FactorBreakdown } from './FactorBreakdown'
 import { HotspotList } from './HotspotList'
+import { HazardAlerts } from './HazardAlerts'
 import { LiveConditionsPanel, LiveUnavailable } from './LiveConditions'
 import { LiveAlertBanner, LiveReports } from './LiveReports'
 import { ScoreDial } from './ScoreDial'
@@ -78,6 +80,18 @@ export function RouteResult({
       </section>
 
       <LiveAlertBanner reports={reports} />
+
+      {/* Above the score deliberately. The score is years of recorded
+          exposure; this is weather coming through while you are out in it,
+          and the right answer to it is often not to go. */}
+      {live && (
+        <HazardAlerts
+          live={live}
+          departAt={departAt}
+          tripMinutes={Math.round((a.directDistanceKm / AVERAGE_SPEED_KMH) * 60)}
+          mode={a.mode}
+        />
+      )}
 
       <ScoreDial assessment={a} />
 

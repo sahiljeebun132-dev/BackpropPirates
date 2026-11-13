@@ -32,6 +32,9 @@ export type HourlyPoint = {
   time: Date
   precipitationMm: number
   visibilityM: number | null
+  /** Gusts, not mean wind. A rider is knocked sideways by the gust, and on
+   *  an exposed coast road the difference between the two is large. */
+  windGustKmh: number | null
 }
 
 export type LiveConditions = {
@@ -66,7 +69,7 @@ export function fetchLiveConditions(lat: number, lon: number): Promise<LiveCondi
 
   const url =
     `${ENDPOINT}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
-    '&hourly=precipitation,visibility' +
+    '&hourly=precipitation,visibility,wind_gusts_10m' +
     '&daily=sunrise,sunset' +
     '&forecast_days=2&timezone=Indian%2FMauritius'
 
@@ -96,6 +99,7 @@ export function fetchLiveConditions(lat: number, lon: number): Promise<LiveCondi
         time: parseLocal(t),
         precipitationMm: j.hourly.precipitation?.[i] ?? 0,
         visibilityM: j.hourly.visibility?.[i] ?? null,
+        windGustKmh: j.hourly.wind_gusts_10m?.[i] ?? null,
       }))
       return { latitude: lat, longitude: lon, fetchedAt: new Date(), sun, hourly }
     })
@@ -148,16 +152,28 @@ export function rainAt(conditions: LiveConditions, when: Date): HourlyPoint | nu
 }
 
 /** Rain over the whole trip, not just the hour it starts in. */
+/** The forecast hours a trip actually overlaps.
+ *
+ *  Extracted so the hazard panel and the rain summary cannot drift apart
+ *  about which hours "the trip" means. */
+export function hoursOverTrip(
+  conditions: LiveConditions,
+  start: Date,
+  durationMinutes: number,
+): HourlyPoint[] {
+  const from = start.getTime()
+  const to = from + durationMinutes * 60_000
+  return conditions.hourly.filter(
+    (h) => h.time.getTime() + 3_600_000 > from && h.time.getTime() < to,
+  )
+}
+
 export function rainOverTrip(
   conditions: LiveConditions,
   start: Date,
   durationMinutes: number,
 ): { totalMm: number; peakMm: number; hours: number } {
-  const from = start.getTime()
-  const to = from + durationMinutes * 60_000
-  const span = conditions.hourly.filter(
-    (h) => h.time.getTime() + 3_600_000 > from && h.time.getTime() < to,
-  )
+  const span = hoursOverTrip(conditions, start, durationMinutes)
   return {
     totalMm: span.reduce((s, h) => s + h.precipitationMm, 0),
     peakMm: span.reduce((s, h) => Math.max(s, h.precipitationMm), 0),
