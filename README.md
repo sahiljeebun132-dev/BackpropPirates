@@ -3,6 +3,10 @@
 
 **Live app: https://backprop-pirates.vercel.app** (open it on a phone — nothing to install)
 
+**Crash walkthrough for the pitch:** [backprop-pirates.vercel.app/crash-demo.html](https://backprop-pirates.vercel.app/crash-demo.html)
+— a self-contained page that plays the whole sequence, from the sensor reading to the text arriving.
+It has no external dependencies, so it runs from a laptop with the network off.
+
 **Android app:** [latest APK](https://github.com/sahiljeebun132-dev/BackpropPirates/releases/download/latest/app-debug.apk),
 rebuilt by CI from every commit. It is the same app, plus the three things a browser forbids —
 see [Two builds](#two-builds).

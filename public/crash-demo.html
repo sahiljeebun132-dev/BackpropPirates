@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Zetway — what happens in a crash</title>
+<!--
+  A presenter's prop, not a product screen.
+
+  Everything on it is driven by the constants the app actually ships:
+  IMPACT_THRESHOLD_MS2 = 30 (3.1g), COUNTDOWN_SECONDS = 30, and the 5.3g
+  reading from the synthetic impact we tested against production. Nothing
+  here is a number invented to look good, and the one thing the app cannot
+  do — dial 114 by itself — is shown as a button the rider still has to
+  press, because pretending otherwise on a projector would be a lie a judge
+  could catch by opening the app.
+
+  Deliberately self-contained: no fonts, scripts or styles from anywhere.
+  Hackathon wifi fails, and this has to run from a laptop with the network
+  off.
+
+  Keys:  space / click  play or pause     R  replay     S  real time
+-->
+<style>
+  :root {
+    --ink: #15181f;
+    --ink-soft: #1e2430;
+    --brand: #189edb;
+    --brand-deep: #0e6fa3;
+    --red: #d83030;
+    --yellow: #f0c000;
+    --green: #007848;
+    --line: rgba(255, 255, 255, 0.14);
+    --dim: rgba(255, 255, 255, 0.58);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--ink);
+    color: #fff;
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 16px 28px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+  }
+  .mark { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .mark span { color: var(--brand); }
+  .tag { font-size: 12px; color: var(--dim); letter-spacing: 0.14em; text-transform: uppercase; }
+  .hint { margin-left: auto; font-size: 11px; color: var(--dim); }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 20px;
+    margin-top: 18px;
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .scene { position: relative; aspect-ratio: 16 / 10; }
+  .scene svg { display: block; width: 100%; height: 100%; }
+
+  /* The caption that tells the room what it is looking at. */
+  .caption {
+    position: absolute;
+    left: 14px; right: 14px; bottom: 14px;
+    background: rgba(10, 12, 16, 0.84);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 13px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .caption b { color: var(--brand); font-weight: 700; }
+  .caption .sub { display: block; margin-top: 3px; font-size: 11.5px; color: var(--dim); }
+
+  /* ---- phone ---- */
+  .phone-col { display: flex; flex-direction: column; gap: 14px; }
+  .phone {
+    position: relative;
+    width: 100%;
+    max-width: 290px;
+    margin: 16px auto;
+    aspect-ratio: 9 / 18.5;
+    background: #000;
+    border-radius: 30px;
+    padding: 9px;
+    box-shadow: 0 0 0 2px #2b3240, 0 18px 40px rgba(0, 0, 0, 0.55);
+    transition: transform 0.08s linear;
+  }
+  .phone.buzz { animation: buzz 0.42s linear infinite; }
+  @keyframes buzz {
+    0%,100% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(-2.5px, 1.5px) rotate(-0.7deg); }
+    75% { transform: translate(2.5px, -1.5px) rotate(0.7deg); }
+  }
+  .screen {
+    width: 100%; height: 100%;
+    background: #f1f5f9;
+    border-radius: 22px;
+    overflow: hidden;
+    color: #0f172a;
+    display: flex; flex-direction: column;
+  }
+  .bar {
+    background: var(--ink); color: #fff;
+    padding: 9px 12px 7px;
+    font-size: 11px; font-weight: 800; letter-spacing: -0.01em;
+  }
+  .bar span { color: var(--brand); }
+  .body { flex: 1; padding: 11px; overflow: hidden; }
+
+  .card {
+    background: #fff; border-radius: 13px; padding: 11px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
+  }
+  .card h3 { margin: 0; font-size: 12px; }
+  .card p { margin: 5px 0 0; font-size: 10.5px; line-height: 1.5; color: #475569; }
+
+  .meter { margin-top: 9px; }
+  .meter .row { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
+  .meter .track { height: 7px; background: #e2e8f0; border-radius: 99px; margin-top: 4px; overflow: hidden; }
+  .meter .fill { height: 100%; width: 0%; background: var(--green); border-radius: 99px; transition: width 0.1s linear; }
+  .meter .fill.hot { background: var(--red); }
+
+  /* the red alert takeover */
+  .alert { position: absolute; inset: 9px; border-radius: 22px; background: var(--red); color: #fff;
+           padding: 16px 13px; display: none; flex-direction: column; }
+  .alert.on { display: flex; }
+  .alert .kicker { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; text-align: center; }
+  .count { font-size: 62px; font-weight: 800; text-align: center; line-height: 1; margin: 7px 0 2px; font-variant-numeric: tabular-nums; }
+  .alert .ask { text-align: center; font-size: 11.5px; line-height: 1.45; }
+  .okbtn { margin-top: 11px; background: #fff; color: var(--red); border: 0; border-radius: 14px;
+           padding: 13px; font-size: 14px; font-weight: 800; width: 100%; }
+  .steps { margin-top: 11px; display: flex; flex-direction: column; gap: 6px; }
+  .step { display: flex; gap: 7px; font-size: 10.5px; line-height: 1.45;
+          background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+          border-radius: 10px; padding: 7px 9px; opacity: 0; transform: translateY(5px);
+          transition: opacity 0.3s ease, transform 0.3s ease; }
+  .step.on { opacity: 1; transform: none; }
+  .step .tick { font-weight: 800; }
+  .callbtn { margin-top: auto; background: #fff; color: var(--red); border-radius: 14px;
+             padding: 13px; font-size: 14px; font-weight: 800; text-align: center; }
+  .callbtn.flash { animation: flash 0.9s ease-in-out infinite; }
+  @keyframes flash { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.9); } 50% { box-shadow: 0 0 0 7px rgba(255,255,255,0); } }
+
+  /* ---- contact's phone ---- */
+  .recv {
+    background: var(--ink-soft); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.45s ease, transform 0.45s ease;
+  }
+  .recv.on { opacity: 1; transform: none; }
+  .recv .who { font-size: 11px; color: var(--dim); }
+  .recv .msg { margin-top: 7px; background: #e9f6ec; color: #14321f; border-radius: 11px;
+               padding: 9px 11px; font-size: 11.5px; line-height: 1.5; }
+  .recv .msg a { color: var(--brand-deep); word-break: break-all; }
+
+  /* ---- controls + timeline ---- */
+  .controls { display: flex; gap: 9px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+  button.ctl {
+    background: var(--brand-deep); color: #fff; border: 0; border-radius: 11px;
+    padding: 10px 17px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  button.ctl.ghost { background: transparent; border: 1px solid var(--line); color: #fff; }
+  button.ctl:active { transform: translateY(1px); }
+  .speed { font-size: 11.5px; color: var(--dim); margin-left: 4px; }
+
+  .track-steps { display: flex; gap: 0; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .ts { flex: 1; font-size: 11px; color: var(--dim); padding-right: 10px; border-left: 2px solid var(--line); padding-left: 9px; transition: color 0.3s, border-color 0.3s; }
+  .ts.on { color: #fff; border-left-color: var(--brand); }
+  .ts.done { border-left-color: var(--green); }
+  .ts b { display: block; font-size: 12px; margin-bottom: 2px; }
+
+  .foot { margin-top: 18px; font-size: 11px; color: var(--dim); line-height: 1.6; border-top: 1px solid var(--line); padding-top: 12px; }
+  .foot b { color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark">ZET<span>WAY</span></div>
+    <div class="tag">What happens in a crash</div>
+    <div class="hint">space play / pause &nbsp;·&nbsp; R replay &nbsp;·&nbsp; S real time</div>
+  </header>
+
+  <div class="stage">
+
+    <!-- ================= the road ================= -->
+    <div class="panel scene">
+      <svg viewBox="0 0 800 500" aria-label="A rider comes off a motorcycle and the phone raises an alert">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#1b2433" />
+            <stop offset="1" stop-color="#121722" />
+          </linearGradient>
+          <radialGradient id="burst" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="#fff" stop-opacity="0.95" />
+            <stop offset="0.45" stop-color="#f0c000" stop-opacity="0.65" />
+            <stop offset="1" stop-color="#d83030" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+
+        <rect width="800" height="500" fill="url(#sky)" />
+
+        <!-- hills, so it reads as Mauritius rather than nowhere -->
+        <path d="M0 330 Q 120 268 240 318 T 470 300 Q 600 262 800 322 L800 500 L0 500Z" fill="#161d2a" />
+
+        <!-- road -->
+        <rect x="0" y="372" width="800" height="128" fill="#20262f" />
+        <rect x="0" y="372" width="800" height="3" fill="#2f3845" />
+        <g id="dashes" fill="#55606f">
+          <rect x="0" y="404" width="56" height="5" rx="2.5" />
+          <rect x="110" y="404" width="56" height="5" rx="2.5" />
+          <rect x="220" y="404" width="56" height="5" rx="2.5" />
+          <rect x="330" y="404" width="56" height="5" rx="2.5" />
+          <rect x="440" y="404" width="56" height="5" rx="2.5" />
+          <rect x="550" y="404" width="56" height="5" rx="2.5" />
+          <rect x="660" y="404" width="56" height="5" rx="2.5" />
+          <rect x="770" y="404" width="56" height="5" rx="2.5" />
+        </g>
+
+        <!-- the rider: one group, so the whole thing can be thrown at once -->
+        <g id="rider" transform="translate(330 258)">
+          <g id="riderInner">
+            <!-- speed streaks -->
+            <g id="streaks" stroke="#8aa0bb" stroke-width="2.5" stroke-linecap="round" opacity="0.5">
+              <line x1="-120" y1="40" x2="-56" y2="40" />
+              <line x1="-104" y1="66" x2="-52" y2="66" />
+              <line x1="-128" y1="92" x2="-72" y2="92" />
+            </g>
+            <!-- Motorcycle, side on. Thin outlines read as a bicycle on a
+                 projector, and this pitch is about riders, so it carries the
+                 mass a motorbike has: tyres, an engine, a tank and a screen. -->
+            <!-- tyres -->
+            <circle cx="-42" cy="104" r="30" fill="#11161f" stroke="#64748b" stroke-width="3" />
+            <circle cx="-42" cy="104" r="13" fill="none" stroke="#9fb3cc" stroke-width="4" />
+            <circle cx="58" cy="104" r="30" fill="#11161f" stroke="#64748b" stroke-width="3" />
+            <circle cx="58" cy="104" r="13" fill="none" stroke="#9fb3cc" stroke-width="4" />
+            <!-- engine and swingarm -->
+            <path d="M-42 104 L2 96 L22 96 L58 104" fill="none" stroke="#64748b"
+                  stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+            <rect x="-4" y="68" width="38" height="30" rx="7" fill="#46525f" />
+            <!-- tank, seat and tail -->
+            <path d="M-34 70 L-6 56 L30 54 L40 64 L34 76 L-10 80 Z"
+                  fill="var(--brand-deep)" stroke="var(--brand)" stroke-width="2.5"
+                  stroke-linejoin="round" />
+            <path d="M-46 72 L-16 66 L-14 78 L-44 82 Z" fill="#2b3545" />
+            <!-- forks and bars -->
+            <path d="M40 62 L58 104" stroke="#9fb3cc" stroke-width="7" stroke-linecap="round" />
+            <path d="M40 62 L62 50" stroke="#9fb3cc" stroke-width="6" stroke-linecap="round" />
+            <path d="M44 56 Q 66 40 60 26" fill="none" stroke="var(--brand)"
+                  stroke-width="5" stroke-linecap="round" opacity="0.9" />
+            <!-- headlight -->
+            <circle cx="64" cy="48" r="7" fill="var(--yellow)" opacity="0.95" />
+
+            <!-- rider, leaning into the road -->
+            <path d="M-6 46 L16 22" stroke="#e2e8f0" stroke-width="20" stroke-linecap="round" />
+            <circle cx="22" cy="12" r="17" fill="var(--yellow)" />
+            <path d="M30 6 a 17 17 0 0 1 -2 14" fill="none" stroke="#b08a00" stroke-width="3" />
+            <path d="M18 26 L56 44" stroke="#e2e8f0" stroke-width="10" stroke-linecap="round" />
+            <path d="M-6 44 L-2 74 L16 84" fill="none" stroke="#cbd5e1" stroke-width="12"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </g>
+        </g>
+
+        <!-- impact flash -->
+        <circle id="burstC" cx="430" cy="360" r="0" fill="url(#burst)" opacity="0" />
+
+        <!-- g-force trace -->
+        <g id="trace">
+          <text x="26" y="48" fill="#8aa0bb" font-size="12" font-family="var(--font)"
+                letter-spacing="1.6">ACCELEROMETER</text>
+          <line x1="26" y1="150" x2="330" y2="150" stroke="#2f3845" stroke-width="1.5" />
+          <text x="336" y="154" fill="#5c6a7d" font-size="10" font-family="var(--font)">1.0g rest</text>
+          <line id="thresholdLine" x1="26" y1="78" x2="330" y2="78" stroke="var(--red)"
+                stroke-width="1.5" stroke-dasharray="5 5" opacity="0.75" />
+          <text x="336" y="82" fill="var(--red)" font-size="10" font-family="var(--font)">3.1g triggers</text>
+          <polyline id="wave" fill="none" stroke="var(--brand)" stroke-width="2.5"
+                    stroke-linejoin="round" points="" />
+          <text id="gnow" x="26" y="200" fill="#fff" font-size="26" font-weight="700"
+                font-family="var(--font)">1.0g</text>
+        </g>
+      </svg>
+
+      <div class="caption" id="caption">
+        <b>Press play.</b> A rider on the Grand Baie to Port Louis corridor, after dark.
+        <span class="sub">Every figure on this page is one the app actually uses.</span>
+      </div>
+    </div>
+
+    <!-- ================= the phones ================= -->
+    <div class="phone-col">
+      <div class="phone" id="phone">
+        <div class="screen">
+          <div class="bar">ZET<span>WAY</span></div>
+          <div class="body">
+            <div class="card">
+              <h3>Crash watch</h3>
+              <p id="watchCopy">Watching for an impact — screen off, phone in a pocket, app closed.</p>
+              <div class="meter">
+                <div class="row"><span>Now</span><span id="meterNow">1.0g</span></div>
+                <div class="track"><div class="fill" id="meterFill"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- the takeover -->
+        <div class="alert" id="alert">
+          <div class="kicker" id="alertKicker">Heavy impact detected</div>
+          <div id="askBlock">
+            <div class="count" id="count">30</div>
+            <div class="ask">Are you alright?<br />If you do not answer, Zetway gets help.</div>
+            <button class="okbtn">I&rsquo;m OK</button>
+          </div>
+          <div id="doneBlock" style="display:none">
+            <div class="steps">
+              <div class="step" id="s1"><span class="tick">&#10003;</span><span>Texted Mum, Dad and Ravi your location.</span></div>
+              <div class="step" id="s2"><span class="tick">&bull;</span><span>Calling Mum now.</span></div>
+              <div class="step" id="s3"><span class="tick">&rarr;</span><span>Android does not let any app dial 114 by itself. One tap.</span></div>
+            </div>
+            <div class="callbtn" id="callbtn">Call ambulance 114</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="recv" id="recv">
+        <div class="who">Mum &mdash; incoming message</div>
+        <div class="msg">
+          I may have had a road accident and did not respond on my phone. Zetway detected an
+          impact of about 5.3g. My location:
+          <a href="#" onclick="return false">maps.google.com/?q=-20.16042,57.49871</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl" id="play">Play</button>
+    <button class="ctl ghost" id="replay">Replay</button>
+    <button class="ctl ghost" id="speed">Real time: off</button>
+    <span class="speed" id="speedNote">The 30-second countdown is shown at 6&times; so it fits a pitch.</span>
+  </div>
+
+  <div class="track-steps" id="tsWrap">
+    <div class="ts" data-i="0"><b>Riding</b>Sensor watching, screen off</div>
+    <div class="ts" data-i="1"><b>Impact</b>5.3g, over the 3.1g bar</div>
+    <div class="ts" data-i="2"><b>Alarm</b>Alarm volume, buzzes, wakes the locked screen</div>
+    <div class="ts" data-i="3"><b>30 seconds</b>No answer</div>
+    <div class="ts" data-i="4"><b>Automatic</b>Texts everyone, rings the first</div>
+    <div class="ts" data-i="5"><b>One tap left</b>114, because Android allows nothing else</div>
+  </div>
+
+  <p class="foot">
+    <b>Honest about the last step.</b> Android refuses <code>ACTION_CALL</code> for emergency
+    numbers from every third-party app and <code>CALL_PRIVILEGED</code> is closed to us, so no app
+    on the Play Store can dial an ambulance by itself. Apple&rsquo;s own Crash Detection, with the
+    hardware and the OS privileges, still counts down before calling. The texts and the call to a
+    saved contact are genuinely automatic; 114 is one tap.
+    <br />
+    <b>Numbers.</b> Trigger 30&nbsp;m/s&sup2; (3.1g) &middot; countdown 30&nbsp;s &middot; the 5.3g
+    reading is from the synthetic impact tested against production.
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- the app's real constants, so the prop cannot drift from the product
+  var THRESHOLD_G = 30 / 9.8;   // IMPACT_THRESHOLD_MS2
+  var COUNTDOWN   = 30;         // COUNTDOWN_SECONDS
+  var PEAK_G      = 5.3;        // measured in the production test
+  var COMPRESS    = 6;          // countdown speed-up, stated on screen
+
+  var el = function (id) { return document.getElementById(id); };
+  var phone = el('phone'), alertBox = el('alert'), caption = el('caption');
+  var count = el('count'), askBlock = el('askBlock'), doneBlock = el('doneBlock');
+  var meterFill = el('meterFill'), meterNow = el('meterNow'), gnow = el('gnow');
+  var wave = el('wave'), rider = el('rider'), riderInner = el('riderInner');
+  var burst = el('burstC'), dashes = el('dashes'), recv = el('recv');
+  var playBtn = el('play'), speedBtn = el('speed'), speedNote = el('speedNote');
+  var tsList = Array.prototype.slice.call(document.querySelectorAll('.ts'));
+
+  var t0 = null, raf = null, playing = false, realTime = false;
+  var spikeDrawn = false;
+  var streaks = document.getElementById('streaks');
+  var pausedAt = 0;
+
+  function setCaption(html, sub) {
+    caption.innerHTML = html + (sub ? '<span class="sub">' + sub + '</span>' : '');
+  }
+  function phase(i) {
+    tsList.forEach(function (n, j) {
+      n.classList.toggle('on', j === i);
+      n.classList.toggle('done', j < i);
+    });
+  }
+
+  // g trace, drawn as a scrolling polyline
+  var pts = [];
+  function pushG(g) {
+    // y: 150 is 1.0g rest, 78 is the 3.1g line
+    var y = 150 - (g - 1) * ((150 - 78) / (THRESHOLD_G - 1));
+    pts.push(Math.max(16, Math.min(190, y)));
+    if (pts.length > 150) pts.shift();
+    var s = '';
+    for (var i = 0; i < pts.length; i++) {
+      s += (26 + i * (304 / 150)).toFixed(1) + ',' + pts[i].toFixed(1) + ' ';
+    }
+    wave.setAttribute('points', s.trim());
+    gnow.textContent = g.toFixed(1) + 'g';
+    meterNow.textContent = g.toFixed(1) + 'g';
+    var pct = Math.min(100, (g / THRESHOLD_G) * 100);
+    meterFill.style.width = pct + '%';
+    meterFill.classList.toggle('hot', g >= THRESHOLD_G);
+  }
+
+  function reset() {
+    pts = [];
+    spikeDrawn = false;
+    streaks.style.opacity = 0.5;
+    for (var i = 0; i < 150; i++) pushG(1 + Math.random() * 0.06);
+    rider.setAttribute('transform', 'translate(330 258)');
+    riderInner.setAttribute('transform', 'rotate(0)');
+    riderInner.style.opacity = 1;
+    burst.setAttribute('r', 0); burst.setAttribute('opacity', 0);
+    alertBox.classList.remove('on');
+    phone.classList.remove('buzz');
+    askBlock.style.display = ''; doneBlock.style.display = 'none';
+    count.textContent = COUNTDOWN;
+    ['s1', 's2', 's3'].forEach(function (id) { el(id).classList.remove('on'); });
+    el('callbtn').classList.remove('flash');
+    recv.classList.remove('on');
+    phase(-1);
+    setCaption('<b>Press play.</b> A rider on the Grand Baie to Port Louis corridor, after dark.',
+               'Every figure on this page is one the app actually uses.');
+  }
+
+  // timeline, in seconds of demo time
+  var RIDE_END   = 3.0;
+  var COUNT_SECS = realTimeSecs();
+  function realTimeSecs() { return realTime ? COUNTDOWN : COUNTDOWN / COMPRESS; }
+
+  function frame(now) {
+    if (!t0) t0 = now;
+    var t = (now - t0) / 1000 + pausedAt;
+    var countSecs = realTimeSecs();
+    var IMPACT = RIDE_END;
+    var COUNT_END = IMPACT + 0.9 + countSecs;
+
+    // --- The scene is drawn from t on every frame, never only inside the
+    // window an event falls in. A dropped frame used to mean the rider never
+    // visibly crashed at all: the transform was set once, mid-tumble, and
+    // then never again. On a loaded laptop or a projector that is exactly
+    // when frames go missing, so the one thing the room came to see would
+    // have been the thing that vanished.
+    var k = Math.max(0, Math.min(1, (t - IMPACT) / 0.9));
+    rider.setAttribute('transform',
+      'translate(' + (330 + k * 150) + ' ' + (258 + k * k * 58) + ')');
+    riderInner.setAttribute('transform', 'rotate(' + (k * 94) + ')');
+    burst.setAttribute('opacity', k > 0 && k < 1 ? Math.max(0, 1 - k * 1.5) : 0);
+    burst.setAttribute('r', 30 + k * 190);
+    streaks.style.opacity = k > 0.05 ? 0 : 0.5;
+    if (t < IMPACT) {
+      dashes.setAttribute('transform', 'translate(' + (-(t * 420) % 110) + ' 0)');
+    }
+
+    if (t < IMPACT) {
+      phase(0);
+      pushG(1 + Math.random() * 0.22);
+      setCaption('<b>Riding.</b> The sensor is read about 50 times a second by a foreground service.',
+                 'Screen off, phone in a pocket. A web page cannot do this; the Android app can.');
+
+    } else if (t < IMPACT + 0.9) {
+      phase(1);
+      pushG(k < 0.3 ? 1 + (PEAK_G - 1) * (k / 0.3) : Math.max(1.2, PEAK_G * (1 - (k - 0.3))));
+      spikeDrawn = true;
+      setCaption('<b>Impact: 5.3g.</b> Over the 3.1g bar, so the watch fires.',
+                 'Hard braking and potholes stay well under 2g. That gap is why the bar sits there.');
+
+    } else if (t < COUNT_END) {
+      // The trace is a scrolling history, so it cannot be derived from t.
+      // If the impact window was skipped entirely, draw the spike it missed
+      // rather than showing a flat line through the moment of the crash.
+      if (!spikeDrawn) {
+        spikeDrawn = true;
+        [1.4, 2.9, 4.6, PEAK_G, 3.8, 2.2, 1.5].forEach(pushG);
+      }
+      // --- alarm and countdown
+      var left = Math.max(0, Math.ceil(COUNT_END - t));
+      count.textContent = realTime ? left : Math.ceil((COUNT_END - t) * COMPRESS);
+      alertBox.classList.add('on');
+      phone.classList.add('buzz');
+      pushG(1 + Math.random() * 0.1);
+      phase(t < IMPACT + 1.9 ? 2 : 3);
+      if (t < IMPACT + 1.9) {
+        setCaption('<b>Alarm, vibration, and the screen wakes.</b> At alarm volume, not notification volume.',
+                   'A phone on silent still rings for an alarm. The locked screen is woken by a full-screen intent.');
+      } else {
+        setCaption('<b>Thirty seconds to answer.</b> One tap on “I’m OK” and nothing happens.',
+                   'The countdown exists because detection is sometimes wrong. Apple counts down too.');
+      }
+
+    } else if (t < COUNT_END + 4.4) {
+      // --- the automatic part
+      phase(4);
+      phone.classList.remove('buzz');
+      askBlock.style.display = 'none';
+      doneBlock.style.display = '';
+      var u = t - COUNT_END;
+      if (u > 0.3) el('s1').classList.add('on');
+      if (u > 1.5) el('s2').classList.add('on');
+      if (u > 2.6) el('s3').classList.add('on');
+      if (u > 1.9) recv.classList.add('on');
+      setCaption('<b>No answer. Zetway acts.</b> Every contact is texted a map link, and the first is rung.',
+                 'No tap involved. This is the part a browser may never do, and the reason the app exists.');
+
+    } else {
+      // --- what is left for a human
+      phase(5);
+      el('callbtn').classList.add('flash');
+      setCaption('<b>One thing is still a tap: 114.</b> Android allows no third-party app to dial it.',
+                 'We say so on the screen rather than letting someone believe help is already coming.');
+      if (t > COUNT_END + 9) { stop(); return; }
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (playing) return;
+    playing = true;
+    playBtn.textContent = 'Pause';
+    t0 = null;
+    raf = requestAnimationFrame(frame);
+  }
+  function pause() {
+    if (!playing) return;
+    playing = false;
+    playBtn.textContent = 'Play';
+    pausedAt += t0 ? (performance.now() - t0) / 1000 : 0;
+    cancelAnimationFrame(raf);
+  }
+  function stop() {
+    playing = false;
+    playBtn.textContent = 'Replay';
+    cancelAnimationFrame(raf);
+  }
+  function replay() {
+    cancelAnimationFrame(raf);
+    playing = false; pausedAt = 0; t0 = null;
+    reset();
+    start();
+  }
+
+  playBtn.addEventListener('click', function () { playing ? pause() : start(); });
+  el('replay').addEventListener('click', replay);
+  speedBtn.addEventListener('click', function () {
+    realTime = !realTime;
+    speedBtn.textContent = 'Real time: ' + (realTime ? 'on' : 'off');
+    speedNote.textContent = realTime
+      ? 'The countdown now runs the full 30 seconds, as it does on the phone.'
+      : 'The 30-second countdown is shown at 6× so it fits a pitch.';
+    replay();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.code === 'Space') { e.preventDefault(); playing ? pause() : start(); }
+    if (e.key === 'r' || e.key === 'R') replay();
+    if (e.key === 's' || e.key === 'S') speedBtn.click();
+  });
+
+  reset();
+})();
+</script>
+</body>
+</html>
