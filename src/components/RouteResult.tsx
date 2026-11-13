@@ -1,0 +1,59 @@
+import { MODE_LABEL, TIME_BAND_LABEL, type RouteAssessment } from '../lib/risk'
+import type { AppData } from '../lib/types'
+import { AdviceList } from './AdviceList'
+import { EmergencyList } from './EmergencyList'
+import { FactorBreakdown } from './FactorBreakdown'
+import { HotspotList } from './HotspotList'
+import { ScoreDial } from './ScoreDial'
+import { SourcesPanel } from './SourcesPanel'
+
+export function RouteResult({
+  assessment,
+  data,
+  onBack,
+}: {
+  assessment: RouteAssessment
+  data: AppData
+  onBack: () => void
+}) {
+  const a = assessment
+  return (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-sm font-medium text-teal-700"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+          <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Change journey
+      </button>
+
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <p className="text-base font-semibold leading-snug text-slate-900">
+          {a.origin.name} <span className="text-slate-400">to</span> {a.destination.name}
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          {MODE_LABEL[a.mode]} · {TIME_BAND_LABEL[a.timeBand].toLowerCase()} ·{' '}
+          {a.directDistanceKm.toFixed(1)} km direct
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Police {a.districts.length === 1 ? 'district' : 'districts'}:{' '}
+          {a.districts.map((d) => d.name).join(', ')}
+        </p>
+      </section>
+
+      <ScoreDial assessment={a} />
+      <AdviceList advice={a.advice} />
+      <FactorBreakdown factors={a.factors} />
+      <HotspotList
+        hotspots={a.hotspots}
+        totalOnIsland={data.hotspots.hotspots.length}
+        radiusKm={data.hotspots.corridorRadiusKm}
+      />
+      <EmergencyList hospitals={a.emergency.hospitals} police={a.emergency.police} />
+      <SourcesPanel data={data} />
+    </div>
+  )
+}
