@@ -12,9 +12,15 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 
 /**
  * Watches the accelerometer while Zetway is not on screen.
@@ -54,7 +60,7 @@ public class CrashWatchService extends Service {
     public static final String EXTRA_IMPACT_PEAK = "impactPeak";
 
     private static final String CHANNEL_WATCH = "zetway.watch";
-    private static final String CHANNEL_ALERT = "zetway.alert";
+    private static final String CHANNEL_ALERT = "zetway.alert.v2";
     private static final int NOTE_WATCH = 1001;
     private static final int NOTE_ALERT = 1002;
 
@@ -205,6 +211,9 @@ public class CrashWatchService extends Service {
                 : "Tap if you are alright. Zetway will get help if you do not.")
             .setPriority(Notification.PRIORITY_MAX)
             .setCategory(Notification.CATEGORY_ALARM)
+            // PUBLIC, or a locked phone hides the text and the rider sees a
+            // blank "notification" telling them nothing.
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setOngoing(false)
             .setContentIntent(pi)
@@ -213,6 +222,11 @@ public class CrashWatchService extends Service {
 
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm != null) nm.notify(NOTE_ALERT, alert);
+
+        // Buzz from here as well as from the channel. When the web view has
+        // been killed there is nothing left to call nativeVibrate, and this is
+        // the one signal that reaches a phone in a pocket.
+        vibrateHard();
 
         try {
             startActivity(open);
@@ -258,7 +272,62 @@ public class CrashWatchService extends Service {
         alert.enableVibration(true);
         alert.setVibrationPattern(new long[] { 0, 600, 250, 600, 250, 1500 });
         alert.setBypassDnd(true);
+        // Shown in full on the lock screen. The default hides the text there.
+        alert.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        // An alarm sound at alarm volume, not a notification blip at
+        // notification volume. A phone on silent still rings for an alarm,
+        // and somebody face-down on a road needs the louder one.
+        Uri alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        if (alarmSound == null) {
+            alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        }
+        alert.setSound(alarmSound, new AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .build());
         nm.createNotificationChannel(alert);
+    }
+
+    private void vibrateHard() {
+        try {
+            Vibrator v;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                VibratorManager vm =
+                    (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+                v = vm == null ? null : vm.getDefaultVibrator();
+            } else {
+                v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            }
+            if (v != null && v.hasVibrator()) {
+                v.vibrate(VibrationEffect.createWaveform(
+                    new long[] { 0, 600, 250, 600, 250, 1500 }, -1));
+            }
+        } catch (Exception ignored) {
+            // A missing buzz must never stop the alert being raised.
+        }
+    }
+
+    /**
+     * Whether this app may actually put a screen in front of a locked phone.
+     *
+     * Android 14 reserved full-screen intents for calling and alarm apps.
+     * Everything else is silently downgraded to a heads-up notification,
+     * which on a locked screen means the alert never appears — the rider
+     * would have to wake the phone and look. Worth asking about before
+     * someone relies on this on a ride, which is why it is exposed to the UI.
+     */
+    public static boolean canRaiseOnLockScreen(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true;
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        return nm != null && nm.canUseFullScreenIntent();
+    }
+
+    /** Whether Android has been told to stop throttling this app in the
+     *  background. Without it many phones, and nearly every Chinese OEM skin,
+     *  will kill the service after a few minutes in a pocket. */
+    public static boolean isUnrestricted(Context context) {
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        return pm != null && pm.isIgnoringBatteryOptimizations(context.getPackageName());
     }
 
     @Override

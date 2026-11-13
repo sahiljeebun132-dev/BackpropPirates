@@ -28,6 +28,23 @@ export type CallResult = {
 
 export type NativeImpact = { peak: number; test: boolean }
 
+/** Whether an alert would actually reach a rider whose phone is locked in a
+ *  pocket. Every one of these is the rider's to grant and none can be
+ *  assumed. */
+export type Readiness = {
+  /** Android 13+: without it the alert cannot post at all. */
+  notifications: boolean
+  /** Android 14+ reserved full-screen intents for calling and alarm apps.
+   *  Denied, the alert is downgraded to a heads-up notification, which on a
+   *  locked screen means it never shows — the rider has to wake the phone. */
+  lockScreen: boolean
+  /** Exempt from battery optimisation. Without it many phones kill the
+   *  service after a few minutes in a pocket. */
+  unrestricted: boolean
+  /** Whether the service is running right now. */
+  watching: boolean
+}
+
 type CrashResponsePlugin = {
   vibrate(options?: { pattern?: number[] }): Promise<SimpleResult>
   stopVibration(): Promise<SimpleResult>
@@ -39,6 +56,10 @@ type CrashResponsePlugin = {
   stopWatching(): Promise<SimpleResult>
   isWatching(): Promise<{ running: boolean }>
   consumePendingImpact(): Promise<{ hasImpact: boolean; peak: number; test: boolean }>
+  checkReadiness(): Promise<Readiness>
+  openLockScreenSettings(): Promise<SimpleResult>
+  requestUnrestricted(): Promise<SimpleResult>
+  openAppSettings(): Promise<SimpleResult>
   addListener(
     event: 'impact',
     handler: (data: NativeImpact) => void,
@@ -163,5 +184,53 @@ export async function consumePendingImpact(): Promise<NativeImpact | null> {
     return r.hasImpact ? { peak: r.peak, test: r.test } : null
   } catch {
     return null
+  }
+}
+
+/** What would actually happen if the rider crashed with the phone locked.
+ *  On the web every answer is false, which is the truth. */
+export async function nativeReadiness(): Promise<Readiness> {
+  const none: Readiness = {
+    notifications: false,
+    lockScreen: false,
+    unrestricted: false,
+    watching: false,
+  }
+  if (!isNative()) return none
+  try {
+    return await plugin.checkReadiness()
+  } catch {
+    return none
+  }
+}
+
+/** Android 14's full-screen-intent screen. There is no runtime prompt for
+ *  this one, so sending the rider there is the only way to get it. */
+export async function openLockScreenSettings(): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.openLockScreenSettings()
+  } catch {
+    return { ok: false, message: 'Could not open that settings screen.' }
+  }
+}
+
+export async function requestUnrestricted(): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.requestUnrestricted()
+  } catch {
+    return { ok: false, message: 'This phone does not expose that setting.' }
+  }
+}
+
+/** This app's settings page, for when a permission was refused twice and
+ *  will never prompt again. */
+export async function openAppSettings(): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.openAppSettings()
+  } catch {
+    return { ok: false, message: 'Could not open the app settings.' }
   }
 }

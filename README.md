@@ -157,6 +157,7 @@ browser is deliberately barred and the app is not.
 |---|---|---|
 | Detect, alarm, 30-second countdown | yes | yes |
 | Keep watching with the screen off and the app closed | no — the page is suspended | **yes, foreground service** |
+| Wake a locked screen with the alert | no | **yes, full-screen intent at alarm volume** |
 | Vibrate | only where the browser allows it, never on iOS | yes |
 | Text every emergency contact with your location | one tap each | **automatic, no tap** |
 | Call your first contact | one tap | **automatic, no tap** |
@@ -168,6 +169,14 @@ moment it is backgrounded and suspended when the screen goes off, so the web bui
 watching while you are looking at it — and nobody rides like that. In the Android build a
 foreground service holds the sensor and a partial wake lock, so the phone is watched in a pocket.
 It shows a notification the whole time and costs extra battery, and the app says both.
+
+Watching is only half of it: the alert then has to reach someone whose phone is locked. Three
+settings decide that, all the rider's to grant, and none can be assumed — notifications on
+Android 13+, the full-screen-intent permission that Android 14 reserved for calling and alarm
+apps, and exemption from battery optimisation. Deny the second and detection works perfectly
+while the locked screen never shows a thing. So the app checks all three and puts them above the
+arm button with a button to fix each, rather than burying them here. The alert itself plays at
+**alarm** volume, not notification volume, because a phone on silent still rings for an alarm.
 
 The "one tap" row for 114 is not an oversight. **Android refuses `ACTION_CALL` for emergency
 numbers from any third-party app**, redirects it to the preloaded dialler, and `TelecomManager`

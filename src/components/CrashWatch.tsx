@@ -8,8 +8,9 @@ import {
 } from '../lib/crashWatch'
 import { escalate, type EscalationStep } from '../lib/escalate'
 import {
-  consumePendingImpact, nativeStartWatching, nativeStopVibration, nativeStopWatching,
-  nativeVibrate, onNativeImpact,
+  consumePendingImpact, nativeReadiness, nativeStartWatching, nativeStopVibration,
+  nativeStopWatching, nativeVibrate, onNativeImpact, openAppSettings,
+  openLockScreenSettings, requestUnrestricted, type Readiness,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
 
@@ -359,6 +360,8 @@ export function CrashWatch() {
         </p>
       )}
 
+      <LockScreenChecklist />
+
       {!vibrates && (
         <p className="mt-2 rounded-xl bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
           This phone does not let a web page vibrate, which iPhones never have. The alarm will
@@ -416,6 +419,105 @@ export function CrashWatch() {
         send a message by itself, so the last tap is always yours.
       </p>
     </section>
+  )
+}
+
+/**
+ * Whether an alert would actually reach this phone if it were locked in a
+ * pocket — which is the only state that matters on a real ride.
+ *
+ * Three settings decide it and every one is the rider's to grant. Android 13
+ * needs notifications allowed before the alert can post at all; Android 14
+ * reserved full-screen intents for calling and alarm apps, and without that
+ * the alert is quietly downgraded to a heads-up notification that a locked
+ * screen never shows; and battery optimisation will kill the service after
+ * minutes in a pocket on a great many phones.
+ *
+ * Detection runs regardless of all three. What they decide is whether anyone
+ * is told, and a crash is the worst imaginable moment to discover one was
+ * off, so the app checks and says so rather than hoping.
+ */
+function LockScreenChecklist() {
+  const [ready, setReady] = useState<Readiness | null>(null)
+
+  const refresh = useCallback(() => {
+    void nativeReadiness().then(setReady)
+  }, [])
+
+  useEffect(() => {
+    refresh()
+    // Each fix sends the rider to a settings screen and back, and the answer
+    // has changed by the time they return.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refresh])
+
+  if (!isNative() || !ready) return null
+
+  const rows = [
+    {
+      ok: ready.notifications,
+      label: 'Notifications allowed',
+      fixLabel: 'Settings',
+      fix: () => void openAppSettings(),
+    },
+    {
+      ok: ready.lockScreen,
+      label: 'Can wake a locked screen',
+      fixLabel: 'Allow',
+      fix: () => void openLockScreenSettings(),
+    },
+    {
+      ok: ready.unrestricted,
+      label: 'Not killed to save battery',
+      fixLabel: 'Allow',
+      fix: () => void requestUnrestricted(),
+    },
+  ]
+  const missing = rows.filter((r) => !r.ok).length
+
+  return (
+    <div
+      className={`mt-2 rounded-xl p-3 ring-1 ${
+        missing ? 'bg-amber-50 ring-amber-200' : 'bg-flag-green/10 ring-flag-green/30'
+      }`}
+    >
+      <p className={`text-xs font-semibold ${missing ? 'text-amber-900' : 'text-flag-green'}`}>
+        {missing === 0
+          ? 'Ready to alert you with the phone locked'
+          : `${missing} thing${missing > 1 ? 's' : ''} would stop the alert reaching a locked phone`}
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center gap-2 text-[11px] text-slate-700">
+            <span
+              aria-hidden="true"
+              className={`shrink-0 font-bold ${r.ok ? 'text-flag-green' : 'text-amber-700'}`}
+            >
+              {r.ok ? '✓' : '!'}
+            </span>
+            <span className="flex-1">{r.label}</span>
+            {!r.ok && (
+              <button
+                type="button"
+                onClick={r.fix}
+                className="shrink-0 rounded-lg bg-brand-deep px-2.5 py-1 text-[11px] font-semibold text-white active:bg-brand-deep/90"
+              >
+                {r.fixLabel}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {missing > 0 && (
+        <p className="mt-2 text-[11px] leading-relaxed text-amber-900">
+          Detection still runs without these. They decide whether you are told about it.
+        </p>
+      )}
+    </div>
   )
 }
 

@@ -77,6 +77,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- So the app can offer the exemption dialog itself. Without the
+         exemption many phones kill the service after minutes in a pocket,
+         which is exactly the case crash watch exists for. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- The app is useful without a SIM, so none of the telephony hardware is
          required to install it. Without these a tablet could not install the
          app at all, because requesting SEND_SMS implies telephony hardware. -->

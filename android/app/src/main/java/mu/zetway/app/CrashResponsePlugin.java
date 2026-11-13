@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.provider.Settings;
 import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 
@@ -374,6 +375,94 @@ public class CrashResponsePlugin extends Plugin {
         out.put("peak", peak);
         out.put("test", CrashWatchService.lastPendingWasTest());
         call.resolve(out);
+    }
+
+    // ------------------------------------------------- locked-screen readiness
+
+    /**
+     * The three things that decide whether an alert actually reaches someone
+     * whose phone is locked in a pocket. All three are the rider's to grant,
+     * none can be assumed, and silently failing any of them would be the
+     * worst kind of bug in this app: one you only discover after a crash.
+     */
+    @PluginMethod
+    public void checkReadiness(PluginCall call) {
+        JSObject out = new JSObject();
+        out.put("notifications",
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || getPermissionState("notifications") == PermissionState.GRANTED);
+        out.put("lockScreen", CrashWatchService.canRaiseOnLockScreen(getContext()));
+        out.put("unrestricted", CrashWatchService.isUnrestricted(getContext()));
+        out.put("watching", CrashWatchService.running);
+        call.resolve(out);
+    }
+
+    /** Android 14's full-screen-intent screen, which is the only place this
+     *  can be granted. There is no runtime prompt for it. */
+    @PluginMethod
+    public void openLockScreenSettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            call.resolve(result(true, "Not needed before Android 14."));
+            return;
+        }
+        try {
+            Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                .setData(Uri.parse("package:" + getContext().getPackageName()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve(result(true, null));
+        } catch (Exception e) {
+            call.resolve(result(false, "Could not open that settings screen."));
+        }
+    }
+
+    /**
+     * Ask to be exempt from battery optimisation.
+     *
+     * Without it a great many phones — and nearly every Chinese OEM skin —
+     * will kill a foreground service after a few minutes in a pocket, which
+     * is precisely the situation this feature exists for. The direct request
+     * shows a system dialog; where that is refused outright we fall back to
+     * the settings list so the rider can still find it.
+     */
+    @PluginMethod
+    public void requestUnrestricted(PluginCall call) {
+        if (CrashWatchService.isUnrestricted(getContext())) {
+            call.resolve(result(true, null));
+            return;
+        }
+        try {
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(Uri.parse("package:" + getContext().getPackageName()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve(result(true, null));
+        } catch (Exception first) {
+            try {
+                Intent list = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(list);
+                call.resolve(result(true, "Find Zetway in the list and allow it."));
+            } catch (Exception second) {
+                call.resolve(result(false, "This phone does not expose that setting."));
+            }
+        }
+    }
+
+    /** This app's own settings page. Needed because a permission refused
+     *  twice never prompts again, and because every OEM hides its own
+     *  background-killing switches somewhere different underneath it. */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        try {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:" + getContext().getPackageName()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve(result(true, null));
+        } catch (Exception e) {
+            call.resolve(result(false, "Could not open the app settings."));
+        }
     }
 
     // ----------------------------------------------------------------- shared
