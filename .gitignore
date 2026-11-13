@@ -33,6 +33,10 @@ coverage/
 # are the throwaway stills used to check a shot before committing to it.
 docs/pitch-assets/still_*.png
 
+# Blender writes a .blend1 backup beside every save. The .blend is kept; its
+# backup is noise.
+*.blend1
+
 # Logs and OS junk
 *.log
 .DS_Store
