@@ -2,7 +2,7 @@
 #
 # Deliberately not the APK: that is built by android.yml, which also publishes
 # it to the fixed download address. This workflow is the fast half — install,
-# typecheck, build, and then three guards over the things a green build would
+# typecheck, build, and then four guards over the things a green build would
 # otherwise miss.
 #
 # Unlike android.yml there is no paths-ignore here. The whole job runs in under
@@ -27,8 +27,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Same version android.yml builds the shipped APK with.
-          node-version: '22'
+          # 24 rather than the 22 android.yml uses for the APK: the stress
+          # test below imports src/lib/risk.ts directly and leans on Node
+          # stripping the types itself. The build runs the same on both.
+          node-version: '24'
           cache: npm
 
       - name: Install
@@ -57,3 +59,11 @@ jobs:
       # without breaking anything a build would notice.
       - name: Service worker precache
         run: node scripts/check_sw_precache.mjs
+
+      # Runs the real src/lib/risk.ts rather than the mirrored copy in
+      # check_score_spread.mjs, over every combination repeatedly: the engine
+      # has to stay pure, never hand the UI a malformed score, and stay fast
+      # enough to rerun on every keystroke. Time-boxed so it cannot hold up a
+      # push on pitch day.
+      - name: Scoring stress test
+        run: node scripts/stress_score.mjs --seconds=10

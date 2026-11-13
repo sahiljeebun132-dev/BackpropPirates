@@ -108,6 +108,10 @@ function check(pass, index, [origin, destination, mode, band], result) {
   let weightSum = 0
   for (const f of factors) {
     weightSum += f.weight
+    // The UI prints WEIGHTS on screen and invites a judge to argue with it.
+    // A factor carrying a different weight than the one shown would make that
+    // panel a lie, so check the two agree rather than only that they total 1.
+    if (f.weight !== WEIGHTS[f.key]) fail(`factor ${f.key} weight differs from WEIGHTS`, String(f.weight))
     if (!Number.isFinite(f.risk)) fail(`factor ${f.key} risk not finite`, String(f.risk))
     else if (f.risk < 0 || f.risk > 1) fail(`factor ${f.key} risk outside 0-1`, String(f.risk))
     if (!Number.isFinite(f.risk * f.weight)) fail(`factor ${f.key} contribution not finite`, 'NaN')
