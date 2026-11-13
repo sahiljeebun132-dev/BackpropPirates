@@ -1,0 +1,36 @@
+# Secrets: keys go in .env.local, never in git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+.next/
+out/
+.vercel/
+.turbo/
+coverage/
+
+# Model weights and big data: download them, don't commit them
+*.gguf
+*.safetensors
+*.bin
+*.onnx
+*.pt
+*.ckpt
+
+# Logs and OS junk
+*.log
+.DS_Store
+Thumbs.db
+.idea/
