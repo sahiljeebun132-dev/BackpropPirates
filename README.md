@@ -3,7 +3,7 @@
 
 **Live app: https://backprop-pirates.vercel.app** (open it on a phone — nothing to install)
 
-**Android app:** [latest APK](https://github.com/sahiljeebun132-dev/BackpropPirates/releases/latest/download/app-debug.apk),
+**Android app:** [latest APK](https://github.com/sahiljeebun132-dev/BackpropPirates/releases/download/latest/app-debug.apk),
 rebuilt by CI from every commit. It is the same app, plus the three things a browser forbids —
 see [Two builds](#two-builds).
 

@@ -6,7 +6,12 @@
 # commit the judges can read.
 #
 # The download never changes address:
-#   https://github.com/sahiljeebun132-dev/BackpropPirates/releases/latest/download/app-debug.apk
+#   https://github.com/sahiljeebun132-dev/BackpropPirates/releases/download/latest/app-debug.apk
+#
+# Note the shape of that URL. The more familiar `/releases/latest/download/...`
+# form does NOT work here: GitHub excludes prereleases from "latest", and this
+# is flagged as one because it is an unsigned debug build. Addressing the tag
+# by name works whatever the flag says.
 name: Android APK
 
 on:
