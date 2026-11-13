@@ -14,6 +14,7 @@ import {
   explainNoBuzz, vibrationDiagnostics, type Readiness, type VibrationReport,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
+import { MedicalIdCard } from './MedicalIdCard'
 import { Icon, PageHeader } from './ui'
 
 type Phase = 'off' | 'armed' | 'asking' | 'alerting'
@@ -520,6 +521,14 @@ export function CrashWatch({
           }}
         />
       )}
+
+      {/* Directly under the contacts, because the two are the same job: who
+          hears about it, and what they need to be told. It is on this page
+          rather than the home screen for the same reason the rest of the
+          setup is — filled in once before a ride, never during one. */}
+      <div className="mt-3">
+        <MedicalIdCard />
+      </div>
 
       <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-500">
         {isNative()
