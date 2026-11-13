@@ -8,5 +8,5 @@ Key decisions, with times (Fri 13 – Sat 14 November 2026, Mauritius time).
 | _Fri --:--_ | _Theme and problem: TODO_ | | |
 | _Fri --:--_ | _Target user: TODO_ | | |
 | _Fri --:--_ | _Dataset: TODO_ | | |
-| _Fri --:--_ | _Stack: TODO_ | | |
+| Fri 14:05 | Stack: a mobile-first web app (Vite, React, TypeScript, Tailwind) deployed on Vercel | Opens on any phone from a link, with no APK build that could fail before the demo. Organisers said web apps are equally valid. Every push redeploys in about a minute | Expo or React Native APK; Flutter |
 | _Sat --:--_ | _Surprise card adaptation: TODO_ | | |

@@ -34,3 +34,13 @@ coverage/
 .DS_Store
 Thumbs.db
 .idea/
+
+# Vite / editor extras
+dist-ssr/
+*.local
+.vscode/*
+!.vscode/extensions.json
+*.sw?
+
+# Local Claude Code / tool config
+.claude/

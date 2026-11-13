@@ -24,7 +24,11 @@ _Cleaning notes: TODO, describing what we fixed in the raw files and how._
 **How we adapted:** _TODO: what changed in the app, and where you can see it._
 
 ## Tech stack
-_TODO: framework, data storage, hosting, and why we chose each._
+- **Mobile-first web app**: Vite 8, React 19, TypeScript, Tailwind CSS 4. It runs in any phone browser and can be added to the home screen through the web manifest.
+- **Hosting**: Vercel, which redeploys on every push to `main`.
+- **Data**: cleaned JSON in `public/data/`, built from the raw official files in `data/raw/` by scripts in `scripts/` (see [data/README.md](data/README.md)).
+
+Why a web app: one link works on every teammate's and judge's phone, and there's no APK build that could fail at the last minute. The organisers confirmed web apps count equally.
 
 ## AI tools used (disclosure)
 | Tool | What we used it for |
@@ -37,7 +41,15 @@ Everything AI produced was reviewed, run and tested by the team.
 ## How to run
 **Live app:** _TODO: link (open on a phone)_
 
-_TODO: local setup steps and any environment variables (never commit real keys)._
+Run it locally (Node 20+):
+
+```bash
+npm install
+npm run dev      # http://localhost:5173, or add --host to open it on a phone on the same Wi-Fi
+npm run build    # type-check and production build into dist/
+```
+
+_TODO: any environment variables (never commit real keys)._
 
 ## Team
 _TODO: names and roles._
