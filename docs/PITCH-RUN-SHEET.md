@@ -120,6 +120,7 @@ The people who already publish this data. Handing it over is a repo transfer, no
 | Venue wifi | **Nothing.** The app is cached. That *is* the surprise-card answer — lean into it. |
 | Phone won't mirror | Hold it up and narrate. Or switch to the laptop tab. |
 | Live demo misbehaves | `zetway-demo.mp4`, 1 min 42 s, plays from the local file with no network. |
+| A judge asks how you avoid false alarms | The alert panel shows four measurements: impact, rotation, speed before, speed after. Say the honest thing — they are **shown, never used to suppress**. We proved it: the same 5.3g bang with no rotation and no movement raises the identical alert, because a missed crash is worse than a false one. That is why the countdown exists. |
 | Crash watch won't fire | Tap the **Crash watch** line, then *Show me what happens in a crash* — the rehearsal. Two taps now, not one, so know where it is. Say it's a rehearsal. |
 | Everything | The deck has screenshots of all of it. |
 
