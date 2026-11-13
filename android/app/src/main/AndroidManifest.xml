@@ -44,6 +44,21 @@
         </provider>
     </application>
 
+    <!-- Android 11 hides other packages from this one unless they are named
+         here, and both the speech recogniser and the speech engine live in
+         other packages. Without this block isRecognitionAvailable() returns
+         false on every modern phone and hands-free help silently never arms
+         itself — the failure looks exactly like a device with no microphone,
+         which is why it is worth a comment rather than four quiet lines. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -87,4 +102,5 @@
          app at all, because requesting SEND_SMS implies telephony hardware. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 </manifest>

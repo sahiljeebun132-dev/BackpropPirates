@@ -126,6 +126,45 @@ type CrashResponsePlugin = {
     handler: (data: NativeImpact) => void,
   ): Promise<PluginListenerHandle>
   addListener(event: 'jolt', handler: (data: NativeJolt) => void): Promise<PluginListenerHandle>
+  speak(options: { text: string }): Promise<SimpleResult & { usable?: boolean }>
+  stopSpeaking(): Promise<SimpleResult>
+  startListening(): Promise<SimpleResult & { onDevice?: boolean }>
+  stopListening(): Promise<SimpleResult>
+  voiceStatus(): Promise<VoiceStatus>
+  addListener(
+    event: 'heard',
+    handler: (data: { text: string; partial: boolean }) => void,
+  ): Promise<PluginListenerHandle>
+  addListener(
+    event: 'hearLevel',
+    handler: (data: { level: number }) => void,
+  ): Promise<PluginListenerHandle>
+  addListener(
+    event: 'hearStopped',
+    handler: (data: { reason: string }) => void,
+  ): Promise<PluginListenerHandle>
+}
+
+/** What this particular phone can hear and say.
+ *
+ * Every field is asked of the operating system rather than assumed, because
+ * the answers genuinely differ: a phone with no French model cannot match a
+ * word, and a phone with no on-device recogniser cannot listen without a
+ * signal. The hands-free screen states exactly what it got.
+ */
+export type VoiceStatus = {
+  ok: boolean
+  /** Permission actually granted. */
+  microphone: boolean
+  listening: boolean
+  /** The recogniser now in use runs on the phone, so no signal is needed. */
+  onDevice: boolean
+  /** Some recogniser exists, cloud or not. */
+  recognizerAvailable: boolean
+  /** An on-device one exists and could be used. */
+  onDeviceAvailable: boolean
+  /** The speech engine woke up and can speak. */
+  canSpeak: boolean
 }
 
 const plugin = registerPlugin<CrashResponsePlugin>('CrashResponse')
@@ -366,6 +405,112 @@ export async function onNativeJolt(
   if (!isNative()) return () => {}
   try {
     const handle = await plugin.addListener('jolt', handler)
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+// ------------------------------------------------------------------- voice
+
+/**
+ * Say something out loud.
+ *
+ * There is no web fallback and there cannot be one: speechSynthesis is
+ * undefined in the Android WebView, not merely unsupported, so the browser
+ * build stays silent and says so rather than appearing to speak.
+ */
+export async function nativeSpeak(text: string): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.speak({ text })
+  } catch {
+    return { ok: false, message: 'This phone would not speak.' }
+  }
+}
+
+export async function nativeStopSpeaking(): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.stopSpeaking()
+  } catch {
+    return unavailable
+  }
+}
+
+/** Begin listening. Asks for the microphone the first time, which is why it
+ *  is called from a button the rider pressed and not from app start. */
+export async function nativeStartListening(): Promise<SimpleResult & { onDevice?: boolean }> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.startListening()
+  } catch {
+    return { ok: false, message: 'This phone would not start listening.' }
+  }
+}
+
+export async function nativeStopListening(): Promise<SimpleResult> {
+  if (!isNative()) return unavailable
+  try {
+    return await plugin.stopListening()
+  } catch {
+    return unavailable
+  }
+}
+
+/** On the web every answer is false, which is the truth. */
+export async function nativeVoiceStatus(): Promise<VoiceStatus> {
+  const none: VoiceStatus = {
+    ok: false,
+    microphone: false,
+    listening: false,
+    onDevice: false,
+    recognizerAvailable: false,
+    onDeviceAvailable: false,
+    canSpeak: false,
+  }
+  if (!isNative()) return none
+  try {
+    return { ...none, ...(await plugin.voiceStatus()) }
+  } catch {
+    return none
+  }
+}
+
+/** Words the phone thought it heard. Partial results arrive too. */
+export async function onHeard(
+  handler: (data: { text: string; partial: boolean }) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('heard', handler)
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+/** Raw loudness while listening, which is the trigger that needs no language
+ *  and no signal. */
+export async function onHearLevel(
+  handler: (level: number) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('hearLevel', (d) => handler(d.level))
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+/** Listening gave up, with the reason in words fit for a screen. */
+export async function onHearStopped(
+  handler: (reason: string) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('hearStopped', (d) => handler(d.reason))
     return () => void handle.remove()
   } catch {
     return () => {}

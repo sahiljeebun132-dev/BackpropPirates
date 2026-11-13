@@ -57,23 +57,51 @@ import os
 import sys
 
 import bpy
-from mathutils import Euler, Vector
+from mathutils import Euler, Matrix, Vector
 
 R = math.radians
 
 # ------------------------------------------------------------------- timing
 FPS = 24
 F_START = 1
-F_FREE = 40           # the rig stops being driven and becomes physics
-F_END = 240           # 240 frames at 24 fps = 10.0 s
+F_LEAN = 60           # the front lets go and the machine starts to fall
+F_FREE = 72           # the rig stops being driven and becomes physics
+F_END = 192           # 192 frames at 24 fps = 8.0 s
+# Three seconds of ordinary riding, two and a half of crash, two and a half
+# of the aftermath holding still. The approach earns its length: the point
+# being made is that this is an unremarkable commute until it isn't, and a
+# clip that opens mid-impact has thrown that away. The tail is as long as it
+# is because the last thing on screen should be the stillness, which is
+# where a jury reads the consequence.
+
+# The bike goes down before it reaches the car, and that is a decision about
+# physics as much as about staging. Hitting a car square at 40 km/h, an
+# indestructible rigid bike cannot do anything but pitch about its nose, and
+# the seat becomes a trebuchet arm: measured, it threw the rider 10.6 m into
+# the air. Nothing about that is wrong in Bullet's terms and everything about
+# it is wrong for this clip. A real machine folds its forks, and a real rider
+# who sees a car pull out brakes hard and loses the front first. Leaning the
+# bike over during the approach hands Bullet an angular velocity along with
+# the linear one, the bike goes down on its side, and a bike already on its
+# side has no nose to pitch over. The rider separates by sliding off, which
+# is what the clip is about.
+LEAN_MAX = R(20)      # how far over the machine is at the handover
 
 # The bike is driven in a straight line up to F_FREE and then let go. Bullet
 # carries the velocity of a kinematic body across the handover, which is how
 # an "initial velocity" is expressed here: there is no API to set one
 # directly. Verified on this build before the scene was written.
-APPROACH_M = 18.2     # metres covered between F_START and F_FREE
-Y_RELEASE = -3.5      # bike centre at the handover; the car is 2.5 m ahead
-SPEED = APPROACH_M / ((F_FREE - F_START) / float(FPS))   # ~11.2 m/s, 40 km/h
+#
+# The speed is the input and the distance is derived, not the other way
+# round: 40 km/h is an ordinary Mauritian urban speed and the whole argument
+# of the clip rests on it being ordinary, so it is the number that should
+# stay put when the timing moves.
+SPEED = 40.0 / 3.6                                       # m/s
+APPROACH_M = SPEED * (F_FREE - F_START) / float(FPS)
+# Released 5 m short of the car: far enough that the lean becomes a real
+# fall before it gets there, close enough that it arrives with most of its
+# speed and the car is plainly the cause rather than scenery.
+Y_RELEASE = -5.0
 
 # ----------------------------------------------------------------- geometry
 # The car is parked across the lane, offset in X so the bike strikes it off
@@ -315,7 +343,18 @@ def joint(name, a, b, at, *, ang_x, ang_y, ang_z):
     # Bullet spends the first frame shoving them apart and the figure
     # detonates before the bike has moved.
     c.disable_collisions = True
-    JOINTS.append((name, e, a, b, (a.location - b.location).length))
+
+    # Record where this joint sits in each body's OWN frame. Comparing the
+    # two bodies' centres instead would measure the joint bending, not the
+    # joint failing: an elbow swinging through 90 degrees moves the forearm's
+    # centre a long way from the upper arm's while the constraint is being
+    # obeyed perfectly. The only honest measure of a constraint coming apart
+    # is how far the single pinned point drifts from itself.
+    bpy.context.view_layer.update()
+    jp = Vector(at)
+    JOINTS.append((name, e, a, b,
+                   a.matrix_world.inverted() @ jp,
+                   b.matrix_world.inverted() @ jp))
     return e
 
 
@@ -386,23 +425,37 @@ def build_car():
     glass = mat("CarGlass", CAR_GLASS, rough=0.12)
     trim = mat("CarTrim", CAR_TRIM, rough=0.7)
 
-    # Nothing here is parented. The body is a cube scaled 4.3 x 1.8 x 1.3, and
-    # a child of it would inherit that scale - the trap crash_scene.py hit
-    # with the phone screen. The car never moves, so siblings at world
-    # positions are simpler than a rig and cannot be scaled by accident.
-    # The collider is the body slab alone, and it reaches down to 0.30 so the
-    # bike's front wheel strikes it rather than ducking under the sill into
-    # a gap the eye cannot see.
-    body = cube("Car", (CAR_X, CAR_Y, 0.70), (CAR_L, CAR_W, 0.80), paint)
-    rb(body, "PASSIVE", shape="BOX", friction=0.6, margin=0.006)
+    # Nothing here is parented. The body is a cube scaled 4.3 x 1.8, and a
+    # child of it would inherit that scale - the trap crash_scene.py hit with
+    # the phone screen. The car never moves, so siblings at world positions
+    # are simpler than a rig and cannot be scaled by accident.
 
-    cube("CarCabin", (CAR_X - 0.30, CAR_Y, 1.30), (2.4, 1.64, 0.46), glass)
+    # The collider is its own box and it goes all the way to the road. A car
+    # modelled honestly has 30 cm of air under the sill, and the bike's front
+    # wheel found it: the wheel slid into the gap, jammed against a static
+    # ledge and was levered upward, which threw the rider 10.6 m into the sky
+    # at 40 km/h. The visible car keeps its ground clearance; the thing the
+    # bike actually hits is a solid wall, which is what a car is at this
+    # speed. Hidden from the render, present to the solver.
+    shell = cube("CarCollider", (CAR_X, CAR_Y, 0.55), (CAR_L, CAR_W, 1.10))
+    rb(shell, "PASSIVE", shape="BOX", friction=0.6, margin=0.01)
+    shell.hide_render = True
+
+    cube("CarBody", (CAR_X, CAR_Y, 0.74), (CAR_L, CAR_W, 0.72), paint)
+
+    # The cabin is a collider too, and it has to be. With only the body slab
+    # solid, everything above 1.10 m was scenery: the rider came down across
+    # the roof and sank straight through it, arms out, half inside the car.
+    # Anything the eye reads as part of the car must be something the solver
+    # agrees is there.
+    cabin = cube("CarCabin", (CAR_X - 0.30, CAR_Y, 1.30), (2.4, 1.64, 0.46), glass)
+    rb(cabin, "PASSIVE", shape="BOX", friction=0.6, margin=0.01)
     cube("CarSill", (CAR_X, CAR_Y, 0.37), (4.34, 1.84, 0.14), trim)
     for sx in (-1, 1):
         for i, x in enumerate((CAR_X - 1.4, CAR_X + 1.4)):
             cyl(f"CarWheel{i}{sx}", 0.33, 0.22, (x, CAR_Y + sx * 0.84, 0.33),
                 rot=(R(90), 0, 0), material=trim)
-    return body
+    return shell
 
 
 def build_bike():
@@ -455,8 +508,14 @@ def build_bike():
     # 170 kg is a mid-size machine with fuel. It matters: the mass ratio
     # between bike and rider is what decides whether the rider is flung or
     # merely tipped over, and that ratio is the whole claim of this clip.
+    # The damping is doing a job no rigid body can do for itself. A real
+    # machine folds its forks and absorbs a large share of the impact; this
+    # one is indestructible, so every joule goes into pitching it about the
+    # contact point and the seat becomes a trebuchet arm under the rider.
+    # Bleeding rotation hard is the honest stand-in for a front end that
+    # crumples, and it is what keeps the crash a crash.
     rb(bike, "ACTIVE", shape="CONVEX_HULL", mass=170.0,
-       friction=0.5, bounce=0.04, lin_damp=0.05, ang_damp=0.10)
+       friction=0.42, bounce=0.0, lin_damp=0.12, ang_damp=0.55)
     return bike
 
 
@@ -607,16 +666,54 @@ def drive_in(bodies):
     tore itself apart - hips pulled 20 m open by frame 114. Measured, not
     guessed: run with --probe and read the JOINT STRETCH table.
     """
-    back = Vector((0, -APPROACH_M, 0))
-    for _n, pivot, _a, _b, _r in JOINTS:
-        rest = pivot.location.copy()
-        key(pivot, F_START, loc=tuple(rest + back), interp="LINEAR")
-        key(pivot, F_FREE, loc=tuple(rest), interp="LINEAR")
+    # Quaternions, not eulers. The rig is carried through a 32 degree roll by
+    # writing a world matrix per object per key, and an euler decomposition
+    # is free to jump branches between two of those keys - which Blender then
+    # interpolates as a limb spinning most of the way round. Quaternions
+    # interpolate the short way by construction.
     for o in bodies:
-        rest_loc = o.location.copy()
-        rest_rot = tuple(o.rotation_euler)
-        key(o, F_START, loc=tuple(rest_loc + back), rot=rest_rot, interp="LINEAR")
-        key(o, F_FREE, loc=tuple(rest_loc), rot=rest_rot, interp="LINEAR")
+        o.rotation_mode = "QUATERNION"
+
+    # matrix_world is stale until the depsgraph runs, and every pose below is
+    # built by multiplying into it.
+    bpy.context.view_layer.update()
+    build = {o: o.matrix_world.copy() for o in bodies}
+
+    # The lean is a rotation of the whole rig about the contact patch - the
+    # road-level line under the bike, not the bike's centre - because that is
+    # the axis a motorcycle actually leans about, and rotating about anything
+    # else lifts the wheels off the tarmac.
+    pivot_pt = Vector((0.0, Y_RELEASE, 0.0))
+
+    # Keyed every three frames through the lean rather than at its ends.
+    # Blender interpolates each object's own location, so a rig rotated about
+    # a distant pivot in one step travels the chord instead of the arc and
+    # arrives a couple of centimetres out of its bind pose - which the
+    # constraints then snap shut at the handover, for free energy. Small
+    # steps keep that error near a millimetre.
+    frames = [F_START] + list(range(F_LEAN, F_FREE + 1, 3))
+    if frames[-1] != F_FREE:
+        frames.append(F_FREE)
+
+    span = float(F_FREE - F_START)
+    for f in frames:
+        travel = -APPROACH_M * (F_FREE - f) / span
+        t = 0.0 if f <= F_LEAN else (f - F_LEAN) / float(F_FREE - F_LEAN)
+        pose = (Matrix.Translation((0.0, travel, 0.0))
+                @ Matrix.Translation(pivot_pt)
+                @ Matrix.Rotation(LEAN_MAX * t, 4, "Y")
+                @ Matrix.Translation(-pivot_pt))
+        for o in bodies:
+            o.matrix_world = pose @ build[o]
+            o.keyframe_insert("location", frame=f)
+            o.keyframe_insert("rotation_quaternion", frame=f)
+            _set_interp(o, f, "LINEAR", only="location")
+            _set_interp(o, f, "LINEAR", only="rotation_quaternion")
+
+    for o in bodies:
+        # The joint empties are driven too but are not rigid bodies.
+        if o.rigid_body is None:
+            continue
         o.rigid_body.kinematic = True
         o.rigid_body.keyframe_insert("kinematic", frame=F_START)
         o.rigid_body.kinematic = False
@@ -639,6 +736,13 @@ def setup_world(scene):
     # --probe stayed under a centimetre everywhere.
     rw.substeps_per_frame = 30
     rw.solver_iterations = 120
+    # Position correction must not be paid for in velocity. Without split
+    # impulse, Bullet pushes interpenetrating bodies apart by giving them
+    # speed, and a deep contact at 40 km/h comes back out as free energy.
+    if hasattr(rw, "use_split_impulse"):
+        rw.use_split_impulse = True
+    else:
+        print("NOTE: no use_split_impulse on this build")
     # The cache ignores scene.frame_end and defaults to 250. Any clip past
     # that frame freezes mid-air with no warning printed.
     rw.point_cache.frame_start = F_START
@@ -670,31 +774,85 @@ def bake(scene):
 
 
 def report_joints(scene):
-    """How far each joint was pulled apart, and when. Prints the worst first.
+    """How far each joint was pulled open, and when. Worst first.
 
-    The distance between two jointed bodies should not change: these are
-    6DOF constraints with all three linear limits pinned to zero. Any growth
-    is the solver giving up, and past a couple of centimetres it is visible
-    as a gap between a limb and the body it belongs to.
+    These are 6DOF constraints with all three linear limits pinned to zero,
+    so the one point they share should stay one point. Whatever it drifts is
+    the solver giving up, and past a couple of centimetres it shows as a gap
+    between a limb and the body it belongs to - which on a road-safety slide
+    is not a glitch, it is a dismemberment.
     """
-    worst = []
-    for name, _e, a, b, rest in JOINTS:
-        peak, at = 0.0, F_START
-        for f in range(F_START, F_END + 1):
-            scene.frame_set(f)
-            dg = bpy.context.evaluated_depsgraph_get()
-            pa = a.evaluated_get(dg).matrix_world.translation
-            pb = b.evaluated_get(dg).matrix_world.translation
-            stretch = (pa - pb).length - rest
-            if stretch > peak:
-                peak, at = stretch, f
-        worst.append((peak, name, at))
-    worst.sort(reverse=True)
-    print("JOINT STRETCH (metres beyond rest, worst first)")
-    for peak, name, at in worst:
-        flag = "  <-- VISIBLE" if peak > 0.02 else ""
-        print("  %-12s %+.4f at frame %3d%s" % (name, peak, at, flag))
+    peaks = {n: (0.0, F_START) for (n, _e, _a, _b, _pa, _pb) in JOINTS}
+    for f in range(F_START, F_END + 1):
+        scene.frame_set(f)
+        dg = bpy.context.evaluated_depsgraph_get()
+        for name, _e, a, b, pa_local, pb_local in JOINTS:
+            wa = a.evaluated_get(dg).matrix_world @ pa_local
+            wb = b.evaluated_get(dg).matrix_world @ pb_local
+            gap = (wa - wb).length
+            if gap > peaks[name][0]:
+                peaks[name] = (gap, f)
+    worst = sorted(((g, n, f) for n, (g, f) in peaks.items()), reverse=True)
+    print("JOINT GAP (metres the pinned point drifted apart, worst first)")
+    for gap, name, at in worst:
+        flag = "  <-- VISIBLE" if gap > 0.02 else ""
+        print("  %-12s %.4f at frame %3d%s" % (name, gap, at, flag))
     return worst[0][0] if worst else 0.0
+
+
+def report_clipping(scene, parts, solids):
+    """Does any visible piece end up inside the road or inside the car?
+
+    Occlusion and intersection look identical in a still, so this is decided
+    by arithmetic rather than by squinting: every frame, every part's own
+    bounding box is taken into world space and tested against the road plane
+    and against each solid's box. What is measured is the *rendered* mesh,
+    not the collision proxy, because a limb that is legal to Bullet and
+    visibly buried in a car door is still a broken shot.
+    """
+    # Real vertices, not the bounding box. A rotated object's local bbox
+    # corners sit out in empty space - for the 0.145 m head sphere they are
+    # 0.106 m off, which is precisely the "penetration" an earlier version of
+    # this check reported for it, frame after frame, while the head was
+    # resting cleanly on the tarmac. These meshes are a few hundred vertices
+    # between them; test the geometry that is actually drawn.
+    worst_floor = {}
+    worst_solid = {}
+    for f in range(F_START, F_END + 1):
+        scene.frame_set(f)
+        dg = bpy.context.evaluated_depsgraph_get()
+        for o in parts:
+            ev = o.evaluated_get(dg)
+            mw = ev.matrix_world
+            for v in ev.data.vertices:
+                w = mw @ v.co
+                if w.z < worst_floor.get(o.name, (0.0, 0))[0]:
+                    worst_floor[o.name] = (w.z, f)
+                for (lo, hi, label) in solids:
+                    if not all(lo[i] < w[i] < hi[i] for i in range(3)):
+                        continue
+                    depth = min(min(w[i] - lo[i], hi[i] - w[i])
+                                for i in range(3))
+                    if depth > worst_solid.get(o.name, (0.0, 0, ""))[0]:
+                        worst_solid[o.name] = (depth, f, label)
+
+    print("CLIPPING, road surface (metres below z=0, worst first)")
+    sunk = sorted(((v[0], n, v[1]) for n, v in worst_floor.items()))
+    for depth, name, at in sunk[:5]:
+        flag = "  <-- VISIBLE" if depth < -0.03 else ""
+        print("  %-14s %+.4f at frame %3d%s" % (name, depth, at, flag))
+    if not sunk:
+        print("  nothing went below the road")
+
+    print("CLIPPING, into the car (metres of overlap, worst first)")
+    into = sorted(((v[0], n, v[1], v[2]) for n, v in worst_solid.items()),
+                  reverse=True)
+    for depth, name, at, label in into[:5]:
+        flag = "  <-- VISIBLE" if depth > 0.03 else ""
+        print("  %-14s %.4f into %s at frame %3d%s"
+              % (name, depth, label, at, flag))
+    if not into:
+        print("  nothing entered the car")
 
 
 def sample(scene, objs):
@@ -737,21 +895,42 @@ def aim_camera(scene, cam, target, anchor, bike, pelvis, head):
     tight = smooth(raw, 5)
     loose = smooth(raw, 16)
 
-    # The camera swings from alongside and high during the approach to lower
-    # and nearer once everything is down, so the shot ends at the eye level
-    # of someone standing over the scene rather than flying above it.
-    near, far = Vector((5.6, -1.6, 1.75)), Vector((10.2, -3.4, 3.40))
+    # How far apart the things being watched are, frame by frame. On the
+    # approach this is half a metre; by the time everything stops the rider
+    # is six metres from the machine, and a camera framed for the first
+    # number puts the rider's head in the corner of the last shot and his
+    # legs outside it. Smoothed hard, because it must not twitch.
+    spread = smooth([Vector((max((q - c).length for q in trio) * 2.0, 0, 0))
+                     for trio, c in zip(tracks, raw)], 16)
+
+    # Direction swings from alongside during the approach to a higher three
+    # quarter view at the end, where the shot has to read as a diagram of
+    # where everything finished rather than as a moment.
+    dir_far = Vector((0.88, -0.34, 0.33)).normalized()
+    dir_near = Vector((0.74, -0.30, 0.60)).normalized()
+    # Half the horizontal frame, in metres per metre of distance, from the
+    # lens and the 36 mm sensor: 18/38. The 1.4 is headroom.
+    half_frame = 18.0 / 38.0
     span = float(F_END - F_FREE)
+
+    def place(i, f):
+        t = 0.0 if f <= F_FREE else min(1.0, (f - F_FREE) / span)
+        ease = t * t * (3 - 2 * t)
+        # Nominal distance pushes in as the event settles; the fit distance
+        # pulls back as the wreckage spreads. Whichever is larger wins, so
+        # the push-in happens only while there is room for it.
+        nominal = 11.0 + (7.0 - 11.0) * ease
+        fit = (spread[i].x * 1.4 * 0.5) / half_frame + 2.0
+        direction = dir_far.lerp(dir_near, ease).normalized()
+        return loose[i] + direction * max(nominal, fit)
+
     for i in range(0, len(raw), 4):
         f = F_START + i
-        t = 0.0 if f <= F_FREE else min(1.0, (f - F_FREE) / span)
-        # Hold the wide offset through the impact, then ease in over the rest.
-        ease = t * t * (3 - 2 * t)
-        off = far.lerp(near, ease)
         key(target, f, loc=tuple(tight[i] + Vector((0, 0, 0.25))), interp="LINEAR")
-        key(anchor, f, loc=tuple(loose[i] + off), interp="LINEAR")
-    key(target, F_END, loc=tuple(tight[-1] + Vector((0, 0, 0.25))), interp="LINEAR")
-    key(anchor, F_END, loc=tuple(loose[-1] + near), interp="LINEAR")
+        key(anchor, f, loc=tuple(place(i, f)), interp="LINEAR")
+    last = len(raw) - 1
+    key(target, F_END, loc=tuple(tight[last] + Vector((0, 0, 0.25))), interp="LINEAR")
+    key(anchor, F_END, loc=tuple(place(last, F_END)), interp="LINEAR")
 
     cam.parent = anchor
     cam.location = (0, 0, 0)
@@ -805,7 +984,8 @@ def main() -> int:
     build_lights()
     bike = build_bike()
     rider = build_rider()
-    drive_in([bike] + rider)
+    # The joint pivots are driven along with the bodies; see drive_in().
+    drive_in([bike] + rider + [j[1] for j in JOINTS])
 
     by_name = {o.name: o for o in rider}
     pelvis, head = by_name["Pelvis"], by_name["Head"]
@@ -831,6 +1011,12 @@ def main() -> int:
     sep = (tracks[-1][1] - tracks[-1][0]).length
     print("SEPARATION pelvis to bike at rest: %.2f m" % sep)
     report_joints(scene)
+    # The two boxes the solver treats as the car, as world AABBs.
+    solids = [((CAR_X - CAR_L / 2, CAR_Y - CAR_W / 2, 0.0),
+               (CAR_X + CAR_L / 2, CAR_Y + CAR_W / 2, 1.10), "body"),
+              ((CAR_X - 0.30 - 1.2, CAR_Y - 0.82, 1.07),
+               (CAR_X - 0.30 + 1.2, CAR_Y + 0.82, 1.53), "cabin")]
+    report_clipping(scene, [bike] + rider, solids)
 
     # The trajectory, so the event can be read as numbers as well as frames:
     # where the bike stopped, where the rider went on to, and how far apart

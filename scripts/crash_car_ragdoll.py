@@ -12,6 +12,10 @@ Run:
     --crf NAME     Blender's constant_rate_factor; a lower setting is a smaller file
     --save         also write the .blend, so it can be opened and nudged by hand
     --trace        print where the car and the occupant actually went, per frame
+    --no-occupant  build the car alone; --no-interior drops the seat and floor.
+                   Both exist because every instability in this scene looked
+                   identical from the outside, and the only way to tell which
+                   body was causing one was to remove the others.
 
 WHAT THIS CLIP IS FOR, because it governs every choice below.
 
@@ -79,32 +83,57 @@ R = math.radians
 FPS = 24
 
 F_START = 1
-F_RELEASE = 62     # kinematic off: the solver owns everything from here
-F_END = 240        # 10.0 s
+F_RELEASE = 72     # kinematic off: the solver owns everything from here
+F_END = 240        # 10.0 s of screen time
 
-# The approach, in metres of road per frame. 0.5164 m/frame at 24 fps is
-# 12.4 m/s, about 45 km/h - an urban speed, and survivable belted, which is
-# the whole reason this clip is worth showing.
-CAR_START_Y = -37.5
-CAR_RELEASE_Y = -6.0
-SPEED_PER_FRAME = (CAR_RELEASE_Y - CAR_START_Y) / (F_RELEASE - F_START)
+# Half speed, through the rigid body world's own time scale rather than by
+# slowing anything down by hand. At full speed the entire event - the car
+# stopping and the occupant reaching the end of the belt - is over in about
+# twelve frames, which in a ten-second clip is a blink. Measured on this
+# scene before the slowdown was added: the chest reached its furthest point
+# three frames after contact and had settled by nine.
+#
+# This is the honest kind of slow motion. Bullet still integrates a real
+# 12.4 m/s impact; it just advances half as much physics per frame, so the
+# clip shows twice as many frames of it. Nothing about the collision is
+# softened, and the car's speed is still a real speed - it is the playback
+# that is slow, which is how crash footage has always been shown.
+SLOW_MOTION = 0.5
+REAL_SPEED = 12.4   # m/s, about 45 km/h: urban, and survivable belted
+
+# Metres of road per frame, which is what the keyframes need. At half speed a
+# frame is REAL_SPEED * SLOW_MOTION / FPS of road.
+SPEED_PER_FRAME = REAL_SPEED * SLOW_MOTION / FPS
+# Handed over close to the barrier on purpose. The car slides on a flat
+# underside once it is dynamic, and at the friction a crashed car needs in
+# order to stop against the barrier it also sheds about a tenth of its speed
+# per ten frames of coasting. Releasing it two car-lengths out keeps that
+# loss under two per cent, so the speed it hits at is the speed it was given.
+CAR_RELEASE_Y = -4.6
+CAR_START_Y = CAR_RELEASE_Y - SPEED_PER_FRAME * (F_RELEASE - F_START)
 
 # ------------------------------------------------------------------- palette
 # The hex values are src/index.css, so this clip and the app agree. They are
 # converted to linear below rather than eyeballed, because the view transform
 # is Standard and a wrong conversion would show up as the wrong brand blue.
-BG = "#eef2f7"
-ROAD = "#dfe5ec"
-VERGE = "#cbd5e1"
-CAR_SHELL = "#aebccd"
-CAR_DARK = "#64748b"
-GLASS = "#c7d6e4"
-TYRE = "#1e2430"
-FIGURE = "#334155"   # the mannequin, one flat colour throughout
+# Chosen for separation in the render, not on a swatch. The first pass used
+# the app's lightest neutrals for road, car and sky alike and came out as a
+# white car on a white road under a white sky - every edge gone. These keep
+# the app's hues and spread the values: dark road, mid car, light sky.
+BG = "#dde8f2"        # sky, seen by camera rays only
+AMBIENT = "#8fa6bd"   # what the sky actually lights the scene with
+ROAD = "#8b97a6"
+VERGE = "#9aa897"
+CAR_SHELL = "#d4dde7"
+CAR_DARK = "#4a5768"
+SEAT = "#6b7889"      # lighter than the figure, so the figure reads against it
+GLASS = "#93aac1"
+TYRE = "#232a35"
+FIGURE = "#2f3a4a"   # the mannequin, one flat colour throughout
 BELT = "#189edb"     # the only brand-coloured thing in the frame
-BARRIER = "#475569"
+BARRIER = "#5c6878"
 HAZARD = "#f0c000"
-LINE = "#f8fafc"
+LINE = "#f2f6fa"
 
 
 def srgb_to_linear(c: float) -> float:
@@ -287,11 +316,15 @@ def build_barrier():
     """
     body = matte("BarrierBody", BARRIER, rough=0.92)
     stripe = matte("BarrierStripe", HAZARD, rough=0.9)
-    wall = box("Barrier", (8.0, 0.70, 0.95), (0, 0.35, 0.475), material=body)
+    wall = box("Barrier", (5.2, 0.70, 0.95), (0, 0.35, 0.475), material=body)
     rigid(wall, kind="PASSIVE", shape="BOX", layer=0, friction=0.8)
+    # Stripes on both faces. The camera stands past the barrier looking back,
+    # so the face it actually sees is the far one, and the first pass striped
+    # only the side nobody was ever going to be looking at.
     for i in range(6):
-        box(f"BarrierStripe{i}", (0.42, 0.02, 0.30),
-            (-2.6 + i * 1.05, -0.01, 0.62), rot=(0, R(22), 0), material=stripe)
+        for face_y, tilt in ((-0.01, R(22)), (0.71, R(-22))):
+            box(f"BarrierStripe{i}{face_y}", (0.38, 0.02, 0.30),
+                (-1.95 + i * 0.78, face_y, 0.62), rot=(0, tilt, 0), material=stripe)
     return wall
 
 
@@ -299,6 +332,16 @@ def build_barrier():
 # Car-local coordinates: origin on the road surface at the centre of the car,
 # +Y the direction of travel, +X to the car's right, +Z up.
 CAR_LEN, CAR_WID = 4.30, 1.78
+# Half the collider's height, and so the height of the car's origin above the
+# road. It has to be a named constant because Blender builds a primitive
+# collision shape from the object's dimensions CENTRED ON ITS ORIGIN, and
+# ignores where the mesh actually sits. Dropping the car's origin to its
+# underside - which is the natural thing to do so panel heights read as
+# heights - therefore buries the collider 0.65 m in the road without changing
+# anything visible. Measured: the car left the ground on the handoff frame and
+# was 280 m up by the end, and the height scaled with the substep count
+# because it was penetration recovery, not momentum.
+CAR_BODY_Z = 0.65
 # Mauritius drives on the left, so the driver sits on the right of the car.
 # The camera therefore has to look in from the left, across the cabin, which
 # is why the near side is the one left open below.
@@ -311,19 +354,25 @@ def build_car():
     glass = matte("CarGlass", GLASS, rough=0.5)
     tyre = matte("Tyre", TYRE, rough=0.95)
 
-    # The collider is a single box the size of the car, hidden from the render.
-    # Built centred, then its origin dropped to the road, so that every panel
-    # coordinate below reads as a height above the ground rather than as an
-    # offset from the middle of an invisible box.
-    car = box("CarCollider", (CAR_WID, CAR_LEN, 1.30), (0, 0, 0.65))
+    # The collider is a single box the size of the car, hidden from the
+    # render, with its origin left in its own centre - see CAR_BODY_Z.
+    car = box("CarCollider", (CAR_WID, CAR_LEN, 1.30), (0, 0, CAR_BODY_Z))
     car.hide_render = True
-    _activate(car)
-    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
     rigid(car, kind="ACTIVE", shape="BOX", mass=1250.0, layer=0,
-          friction=0.7, bounce=0.03)
+          friction=0.45, bounce=0.03)
+    # Two centimetres of air under the car on frame 1. The car is kinematic
+    # for 61 frames, so Bullet ignores every overlap it has during the
+    # approach and then has to resolve them all on the handoff frame, inside
+    # a single substep. Gravity closes this gap in two frames and nobody sees
+    # it; starting flush on the road does not get resolved so quietly.
+    car.location.z = CAR_BODY_Z + 0.02
 
     def panel(name, dims, loc, rot=(0, 0, 0), material=shell):
-        o = box(name, dims, loc, rot, material=material)
+        # Panel coordinates are written as heights above the road, which is
+        # the only way they are checkable by eye, but a child is positioned
+        # relative to its parent's origin - and the car's origin has to stay
+        # in the middle of its own collider. So the shift happens here, once.
+        o = box(name, dims, (loc[0], loc[1], loc[2] - CAR_BODY_Z), rot, material=material)
         o.parent = car
         return o
 
@@ -340,29 +389,36 @@ def build_car():
           rot=(R(-26), 0, 0), material=glass)
     panel("RearGlass", (CAR_WID - 0.1, 0.05, 0.72), (0, -1.38, 1.22),
           rot=(R(28), 0, 0), material=glass)
-    # Near-side outline: sill, two pillars and a roof rail. Enough edge for the
-    # eye to close the shape into a car without closing the view into it.
+    # The near side carries a sill and nothing else. It first had an A-pillar,
+    # a B-pillar and a roof rail as well, on the theory that an outline would
+    # help the eye close the shape into a car. At this camera distance they
+    # were the nearest things to the lens and rendered as three dark fins
+    # across the one opening the clip exists to look through. The roof, the
+    # bonnet, the boot, the far side and four wheels are already enough car.
+    panel("SillNear", (0.07, 2.3, 0.14), (-0.855, -0.20, 0.33), material=dark)
+    # The far side keeps its pillars, which is what the roof visibly stands
+    # on once the near ones are gone.
     for name, dims, loc, rot in (
-        ("SillNear", (0.07, 2.3, 0.14), (-0.855, -0.20, 0.33), (0, 0, 0)),
-        ("PillarA", (0.07, 0.10, 1.00), (-0.855, 0.70, 1.06), (R(-26), 0, 0)),
-        ("PillarB", (0.07, 0.11, 1.20), (-0.855, -1.30, 0.95), (R(22), 0, 0)),
-        ("RailNear", (0.07, 1.95, 0.08), (-0.855, -0.38, 1.52), (0, 0, 0)),
+        ("PillarAFar", (0.07, 0.11, 0.98), (0.855, 0.70, 1.07), (R(-26), 0, 0)),
+        ("PillarBFar", (0.07, 0.12, 1.18), (0.855, -1.30, 0.96), (R(22), 0, 0)),
     ):
         panel(name, dims, loc, rot, material=dark)
 
     for sx in (-1, 1):
         for y in (1.45, -1.45):
             w = cylinder(f"Wheel{sx}_{y}", 0.32, 0.22,
-                         (sx * 0.82, y, 0.32), rot=(0, R(90), 0), material=tyre)
+                         (sx * 0.82, y, 0.32 - CAR_BODY_Z), rot=(0, R(90), 0),
+                         material=tyre)
             w.parent = car
 
-    seat_vis = matte("SeatVis", CAR_DARK, rough=0.9)
+    seat_vis = matte("SeatVis", SEAT, rough=0.9)
     for name, dims, loc in (
         ("SeatPanVis", (0.50, 0.50, 0.08), (DRIVER_X, -0.42, 0.56)),
         ("SeatBackVis", (0.50, 0.10, 0.62), (DRIVER_X, -0.70, 0.91)),
     ):
         panel(name, dims, loc, material=seat_vis)
-    wheel = cylinder("SteeringWheel", 0.17, 0.035, (DRIVER_X, 0.12, 0.95),
+    wheel = cylinder("SteeringWheel", 0.17, 0.035,
+                     (DRIVER_X, 0.12, 0.95 - CAR_BODY_Z),
                      rot=(R(74), 0, 0), material=dark, verts=24)
     wheel.parent = car
 
@@ -489,14 +545,18 @@ def build_occupant():
     # passing through it. It is the only brand-coloured object in the frame:
     # the clip is about surviving the crash, so the restraint is what the eye
     # should find.
-    sash = box("BeltSash", (0.07, 0.26, 0.42),
-               tuple(at("chest") + Vector((-0.14, 0.015, 0.0))),
-               rot=(0, R(-18), 0), material=belt_m)
+    # Across the front of the chest, not down its side: a strap 40 cm long and
+    # 10 cm deep, laid on at the angle a sash actually runs. The first version
+    # was a 26 by 42 cm plate on the near face, which from the camera side
+    # read as a blue shield covering the whole torso.
+    sash = box("BeltSash", (0.40, 0.055, 0.10),
+               tuple(at("chest") + Vector((0.0, 0.135, 0.0))),
+               rot=(0, R(32), 0), material=belt_m)
     sash.parent = parts["chest"]
     sash.matrix_parent_inverse = parts["chest"].matrix_world.inverted()
 
-    lap = box("BeltLap", (0.33, 0.08, 0.08),
-              tuple(at("pelvis") + Vector((0.0, 0.11, 0.02))), material=belt_m)
+    lap = box("BeltLap", (0.34, 0.055, 0.07),
+              tuple(at("pelvis") + Vector((0.0, 0.135, -0.01))), material=belt_m)
     lap.parent = parts["pelvis"]
     lap.matrix_parent_inverse = parts["pelvis"].matrix_world.inverted()
 
@@ -730,13 +790,19 @@ def animate_camera(cam, target, car_track, chest_track, impact):
     push = impact + 26
     close = impact + 92
 
-    key(cam, F_START, loc=(-12.5, -9.5, 5.0))
-    key(cam, impact, loc=(-10.6, -6.4, 3.9))
-    key(cam, push, loc=(-8.2, -4.9, 3.0))
-    key(cam, close, loc=(-5.0, -3.0, 1.95))
+    # The camera stands past the barrier and to the left, looking back down
+    # the road. That puts the barrier in the foreground and the car coming at
+    # it, so the frame says what is about to happen before it happens. The
+    # first pass had the camera on the near side of the barrier looking the
+    # other way, which framed a car driving across an empty road towards
+    # nothing the audience could see.
+    key(cam, F_START, loc=(-11.2, 11.0, 3.9))
+    key(cam, impact, loc=(-8.6, 5.2, 4.4))
+    key(cam, push, loc=(-7.4, 2.4, 3.4))
+    key(cam, close, loc=(-4.4, -1.35, 1.95))
     # Arrive before the end and hold. A push that runs to the last frame puts
     # the shot the whole clip builds to on screen for an instant.
-    key(cam, hold, loc=(-4.75, -2.85, 1.88))
+    key(cam, hold, loc=(-4.3, -1.42, 1.92))
 
     def aim(frame, vec):
         key(target, frame, loc=tuple(vec))
@@ -770,11 +836,30 @@ def build_lighting(scene):
     fo.location = (-16, -12, 9)
     fo.rotation_euler = Euler((R(52), 0, R(-52)))
 
+    # The sky has two jobs that pull against each other: it is the backdrop,
+    # which wants to be a light brand neutral, and it is the ambient fill,
+    # which at that brightness flattens every surface in the scene. A Light
+    # Path node splits them - camera rays see the backdrop, shading rays see
+    # a dimmer, bluer sky - so the background can be light without the car
+    # losing its edges.
     world = bpy.data.worlds.new("Daylight")
     world.use_nodes = True
-    bg = world.node_tree.nodes["Background"]
-    bg.inputs[0].default_value = rgba(BG)
-    bg.inputs[1].default_value = 1.0
+    tree = world.node_tree
+    out = tree.nodes["World Output"]
+    seen = tree.nodes["Background"]
+    seen.inputs[0].default_value = rgba(BG)
+    seen.inputs[1].default_value = 1.0
+
+    lighting = tree.nodes.new("ShaderNodeBackground")
+    lighting.inputs[0].default_value = rgba(AMBIENT)
+    lighting.inputs[1].default_value = 0.55
+
+    path = tree.nodes.new("ShaderNodeLightPath")
+    mix = tree.nodes.new("ShaderNodeMixShader")
+    tree.links.new(path.outputs["Is Camera Ray"], mix.inputs[0])
+    tree.links.new(lighting.outputs[0], mix.inputs[1])
+    tree.links.new(seen.outputs[0], mix.inputs[2])
+    tree.links.new(mix.outputs[0], out.inputs[0])
     scene.world = world
 
 
@@ -784,7 +869,7 @@ OUT_DIR = os.path.join(_REPO, "public", "guides")
 STILL_DIR = os.path.join(_REPO, "docs", "pitch-assets")
 
 
-def setup_render(scene, *, samples=32):
+def setup_render(scene, *, samples=96):
     scene.render.engine = "BLENDER_EEVEE"   # 5.2 calls it this again
     scene.render.resolution_x, scene.render.resolution_y = 1280, 720
     scene.render.resolution_percentage = 100
@@ -825,10 +910,15 @@ def main() -> int:
     # stretch visibly on the impact frame. Both go away at 30.
     rbw.substeps_per_frame = 30
     rbw.solver_iterations = 30
+    rbw.time_scale = SLOW_MOTION
 
     build_road()
     build_barrier()
     car, interior = build_car()
+    if "--no-interior" in argv:
+        for col in interior:
+            bpy.data.objects.remove(col, do_unlink=True)
+        interior = []
     for col in interior:
         fixed_joint(f"Bolt_{col.name}", car, col, Vector(col.location))
 
@@ -837,7 +927,12 @@ def main() -> int:
     # walked backwards along the approach with it. So the seated pose is
     # authored once, in the frame where it has to be right.
     parts = build_occupant()
-    build_joints(parts, car)
+    if "--no-occupant" in argv:
+        for o in list(parts.values()):
+            bpy.data.objects.remove(o, do_unlink=True)
+        parts = {}
+    else:
+        build_joints(parts, car)
 
     bodies = [car] + interior + [parts[k] for k in sorted(parts)]
     animate_approach(bodies)
@@ -849,16 +944,21 @@ def main() -> int:
     bake(scene)
 
     frames = list(range(F_START, F_END + 1))
-    watched = [car, parts["chest"], parts["head"], parts["pelvis"], parts["forearmR"]]
+    watched = [car] + ([parts["chest"], parts["head"], parts["pelvis"], parts["forearmR"]] if parts else [])
     tracks = sample(watched, frames)
-    car_track, chest_track = tracks["CarCollider"], tracks["chest"]
+    car_track = tracks["CarCollider"]
+    chest_track = tracks["chest"] if parts else car_track
 
     # The impact frame is read out of the simulation rather than asserted: it
     # is the first frame on which the car has lost a tenth of its speed.
+    # Not 0.9: the car coasts on a flat underside and loses a little speed to
+    # friction before it ever reaches the barrier, which trips a tight
+    # threshold several frames early and puts the camera's cut in the wrong
+    # place. Half speed can only be the barrier.
     impact = F_END
-    for f in range(F_RELEASE + 1, F_END):
+    for f in range(F_RELEASE + 2, F_END):
         step = car_track[f].y - car_track[f - 1].y
-        if step < abs(SPEED_PER_FRAME) * 0.9:
+        if step < abs(SPEED_PER_FRAME) * 0.5:
             impact = f
             break
 
@@ -868,11 +968,31 @@ def main() -> int:
     bake(scene)
 
     settle = car_track[F_END] - car_track[impact]
-    lunge = chest_track[min(impact + 14, F_END)] - chest_track[impact]
-    print(f"SPEED {abs(SPEED_PER_FRAME) * FPS:.2f} m/s  IMPACT frame {impact}  "
-          f"car travelled {settle.y:+.2f} m after it")
-    print(f"CHEST moved {lunge.y:+.3f} m forward, {lunge.z:+.3f} m vertically, "
-          f"in the 14 frames after impact")
+    # Relative to the car, because in world space the chest is still carrying
+    # the car's own forward motion and the number means nothing.
+    def rel(track, f):
+        return track[f] - car_track[f]
+
+    # Measured from the last kinematic frame, which is the seated pose. The
+    # impact frame is already a few centimetres into the lunge, because the
+    # car starts shedding speed to friction before it touches the barrier.
+    seated = F_RELEASE - 1
+    head_track = tracks["head"]
+
+    def excursion(track):
+        peak = max(range(impact, min(impact + 40, F_END)),
+                   key=lambda f: rel(track, f).y)
+        return peak, rel(track, peak).y - rel(track, seated).y
+
+    peak_f, lunge_y = excursion(chest_track)
+    head_peak, head_lunge_y = excursion(head_track)
+    print(f"SPEED {REAL_SPEED:.2f} m/s real, shown at {SLOW_MOTION:g}x  "
+          f"IMPACT frame {impact}  car travelled {settle.y:+.2f} m after it")
+    print(f"CHEST lunged {lunge_y:+.3f} m forward against the belt by frame "
+          f"{peak_f}, {peak_f - impact} frames after impact")
+    print(f"HEAD  lunged {head_lunge_y:+.3f} m forward by frame {head_peak}, "
+          f"then rebounded {rel(head_track, F_END).y - rel(head_track, seated).y:+.3f} m "
+          f"past where it started")
 
     if do_trace:
         # Positions relative to the car, which is the only way to see whether
@@ -880,9 +1000,9 @@ def main() -> int:
         print("  frame |   car.y | chest rel car (y,z) |  head rel car (y,z) | fore.y")
         for f in list(range(F_RELEASE - 2, min(impact + 40, F_END), 3)) + [F_END]:
             c = car_track[f]
-            ch = tracks["chest"][f] - c
-            hd = tracks["head"][f] - c
-            fr = tracks["forearmR"][f] - c
+            ch = (tracks["chest"][f] - c) if parts else c * 0
+            hd = (tracks["head"][f] - c) if parts else c * 0
+            fr = (tracks["forearmR"][f] - c) if parts else c * 0
             cr = tracks["_rot"]["CarCollider"][f]
             print(f"  {f:5d} | {c.y:7.2f} | {ch.y:8.3f} {ch.z:8.3f}   | "
                   f"{hd.y:8.3f} {hd.z:8.3f}   | {fr.y:7.3f} | car z={c.z:6.2f} "

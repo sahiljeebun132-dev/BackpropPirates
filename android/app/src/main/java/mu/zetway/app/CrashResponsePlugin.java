@@ -726,6 +726,145 @@ public class CrashResponsePlugin extends Plugin {
         }
     }
 
+    // ------------------------------------------------------------------ voice
+
+    /** Built on first use and kept, because a rider shouting for help should
+     *  not be waiting on a speech engine's cold start. */
+    private Speaker speaker;
+    private VoiceSos voice;
+
+    private Speaker speaker() {
+        if (speaker == null) speaker = new Speaker(getContext());
+        return speaker;
+    }
+
+    /**
+     * Say something out loud.
+     *
+     * The web layer has no way to do this at all — speechSynthesis does not
+     * exist in the Android WebView — so every spoken word in this app comes
+     * through here.
+     */
+    @PluginMethod
+    public void speak(PluginCall call) {
+        String text = call.getString("text", "");
+        if (text == null || text.trim().isEmpty()) {
+            call.resolve(result(false, "Nothing to say."));
+            return;
+        }
+        Speaker s = speaker();
+        s.speak(text);
+        // Reported as ok even before the engine has woken, because the line
+        // is queued and will be spoken; usable says whether it ever can be.
+        JSObject out = result(true, null);
+        out.put("usable", s.isUsable());
+        call.resolve(out);
+    }
+
+    @PluginMethod
+    public void stopSpeaking(PluginCall call) {
+        if (speaker != null) speaker.stop();
+        call.resolve(result(true, null));
+    }
+
+    /**
+     * Start listening for a shout.
+     *
+     * The microphone permission is requested here rather than at launch. A
+     * road-safety app asking to listen on first run, with no context, is an
+     * app people uninstall; asking at the moment the rider turns hands-free
+     * help on is a question that answers itself.
+     */
+    @PluginMethod
+    public void startListening(PluginCall call) {
+        if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAlias("microphone", call, "microphonePermissionCallback");
+            return;
+        }
+        beginListening(call);
+    }
+
+    @PermissionCallback
+    private void microphonePermissionCallback(PluginCall call) {
+        if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            call.resolve(result(false, "Zetway needs the microphone to listen for a shout."));
+            return;
+        }
+        beginListening(call);
+    }
+
+    private void beginListening(PluginCall call) {
+        if (voice == null) {
+            voice = new VoiceSos(getContext(), new VoiceSos.Listener() {
+                @Override
+                public void onHeard(String text, boolean partial) {
+                    JSObject data = new JSObject();
+                    data.put("text", text);
+                    data.put("partial", partial);
+                    // Retained: the phone may well be locked with the screen
+                    // off, and a shout that arrives while the page is
+                    // suspended is the one that mattered most.
+                    notifyListeners("heard", data, true);
+                }
+
+                @Override
+                public void onLevel(float level) {
+                    JSObject data = new JSObject();
+                    data.put("level", level);
+                    // Not retained. Loudness is only meaningful live, and
+                    // queueing a few hundred of these would bury the events
+                    // that are.
+                    notifyListeners("hearLevel", data, false);
+                }
+
+                @Override
+                public void onDegraded(String reason) {
+                    JSObject data = new JSObject();
+                    data.put("reason", reason);
+                    notifyListeners("hearStopped", data, true);
+                }
+            });
+        }
+        voice.start();
+
+        JSObject out = result(true, null);
+        out.put("onDevice", voice.isOnDevice());
+        call.resolve(out);
+    }
+
+    @PluginMethod
+    public void stopListening(PluginCall call) {
+        if (voice != null) voice.stop();
+        call.resolve(result(true, null));
+    }
+
+    /** What this phone can actually do, so the screen can promise only that. */
+    @PluginMethod
+    public void voiceStatus(PluginCall call) {
+        JSObject out = result(true, null);
+        out.put("microphone", getPermissionState("microphone") == PermissionState.GRANTED);
+        out.put("listening", voice != null && voice.isListening());
+        out.put("onDevice", voice != null && voice.isOnDevice());
+        out.put(
+            "recognizerAvailable",
+            android.speech.SpeechRecognizer.isRecognitionAvailable(getContext())
+        );
+        out.put(
+            "onDeviceAvailable",
+            Build.VERSION.SDK_INT >= 33
+                && android.speech.SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
+        );
+        out.put("canSpeak", speaker().isUsable());
+        call.resolve(out);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (voice != null) voice.stop();
+        if (speaker != null) speaker.release();
+        super.handleOnDestroy();
+    }
+
     // ----------------------------------------------------------------- shared
 
     private JSObject result(boolean ok, String message) {
