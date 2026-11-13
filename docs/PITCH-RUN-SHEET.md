@@ -91,7 +91,13 @@ Android refuses `ACTION_CALL` for emergency numbers from every third-party app, 
 No. Two scripts: `fetch_raw.py` downloads the tables, `build_app_data.py` cleans them. Nothing typed by hand. The raw downloads are in the repo.
 
 **"Your routes are straight lines."**
-Yes, and the app says so on screen. A segment counts as on your corridor within 2 km of the line — that figure is printed under the stretch list, so quote it as 2. On an island 65 km across that is a fair approximation, and real routing is the obvious next step.
+Yes, and the app says so on screen — the figure is labelled **direct**, and a segment counts as on your corridor within **2 km** of the line, which is printed under the stretch list.
+
+Do not call it "a fair approximation" any more. We measured it. Against real road routes on five corridors the straight line understates distance by **42% on average** — Grand Baie to Port Louis is 18.2 km direct and 27.3 km by road, and Grand Baie to Centre de Flacq is 24.7 against 39.7. The honest answer is:
+
+> *"It is a straight line, and we checked how wrong that is rather than guessing: about 40% short on the corridors we measured. The score is an exposure indicator over a corridor, not a distance calculator, so the ranking holds — but real routing is the first thing we would add, and it is a key away, not a rewrite."*
+
+That is a stronger answer than the one it replaces, because a judge who measures it themselves finds you already had the number.
 
 **"How do you know the score is calibrated?"**
 `check_score_spread.mjs` scores all 5,200 combinations: 22 to 94, median 59. **Our first version was wrong** — it rated 70% of routes Severe because vehicle occupants are always the largest casualty group, so every car trip was punished for being ordinary. We re-anchored each factor to the range the data spans.
