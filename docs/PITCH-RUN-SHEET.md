@@ -14,7 +14,8 @@ Everything below is a thing that already works. Nothing here needs building.
   2. `backprop-pirates.vercel.app/crash-demo.html`
   3. `docs/pitch-assets/zetway-demo.mp4` (the backup video, **local file**, not streamed)
   4. The deck
-- [ ] Load the live app once on the laptop **while you still have wifi**, so the service worker caches it. If the venue wifi dies, the demo still runs.
+- [ ] Load the live app once on the laptop **while you still have wifi**, so the service worker caches it. If the venue wifi dies, the demo still runs. **Do this after the last deploy, not before** — the cache is versioned, so a deploy empties it and the first online load is what refills it.
+- [ ] Judges can install it themselves: the site now carries both builds, in a card under crash watch. Say so — it is a stronger line than any slide about shipping twice from one codebase.
 - [ ] Team leader: repo link submitted via the organisers' form
 
 ---
