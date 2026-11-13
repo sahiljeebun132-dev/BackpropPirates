@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { AppShell } from './components/AppShell'
+import { BreakdownFlow } from './components/BreakdownFlow'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
 import { RouteResult } from './components/RouteResult'
@@ -16,7 +17,7 @@ import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
-type View = 'plan' | 'result'
+type View = 'plan' | 'result' | 'help'
 
 export default function App() {
   const state = useAppData()
@@ -95,7 +96,16 @@ export default function App() {
 
   return (
     <AppShell>
-      {view === 'result' && assessment ? (
+      {view === 'help' && from ? (
+        <BreakdownFlow
+          data={appData}
+          position={gps.position}
+          onUseGps={gps.request}
+          fallbackPlace={from}
+          isDark={band === 'night-lit' || band === 'night-unlit'}
+          onBack={() => setView('plan')}
+        />
+      ) : view === 'result' && assessment ? (
         <RouteResult
           assessment={assessment}
           data={appData}
@@ -119,6 +129,20 @@ export default function App() {
       ) : (
         <>
           <IslandContext data={appData} />
+
+          <button
+            type="button"
+            onClick={() => setView('help')}
+            className="flex w-full items-center gap-3 rounded-2xl bg-flag-red px-4 py-3.5 text-left text-white shadow-sm active:bg-flag-red/90"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6 shrink-0">
+              <path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>
+              <span className="block text-sm font-bold">Broken down or had a crash?</span>
+              <span className="block text-xs text-white/85">Safety check first, then what to do</span>
+            </span>
+          </button>
           <PlanForm
             places={appData.places.places}
             origin={origin}
