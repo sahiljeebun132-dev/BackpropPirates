@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* The @font-face sheet is linked from index.html, not imported here: an
+   @import sitting after `@import "tailwindcss"` is swallowed by the v4
+   PostCSS pass and the build emitted no @font-face at all, so the whole app
+   silently fell back to system-ui. Self-hosted rather than Google Fonts
+   because the APK is served from https://localhost and the offline demo has
+   no network — the typeface has to ship with the app. 183 KB, latin only. */
+
 /* Brand palette, sampled from the Zetway logo so the app and the mark match
    exactly. The four flag colours are the ones inside the pin. */
 @theme {
@@ -11,6 +18,10 @@
   --color-flag-yellow: #f0c000;
   --color-flag-green: #007848;
   --color-flag-blue: #181860;
+
+  --font-display: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 html,
@@ -20,8 +31,62 @@ body,
 }
 
 body {
-  background-color: var(--color-slate-100);
-  color: var(--color-slate-900);
+  font-family: var(--font-sans);
+  background-color: #f1f5f9;
+  color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Headings default to the display face. `font-display` as a utility comes
+   from the @theme token above, so it is not redeclared here. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+
+/* Figures that change in place — a score, a countdown, a g reading — set in
+   tabular numerals so the digits do not jitter sideways as they tick. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The page itself: near-white, with four faint washes in the flag's own
+   colours. It is the one piece of decoration in the app, and it is the flag
+   rather than an arbitrary gradient — red, blue, yellow, green, in the
+   corners, at under a tenth opacity so nothing competes with the content. */
+.zw-page {
+  background-color: #fafbfd;
+  background-image:
+    radial-gradient(at 8% 6%, rgba(216, 48, 48, 0.085) 0px, transparent 48%),
+    radial-gradient(at 92% 24%, rgba(24, 158, 219, 0.085) 0px, transparent 50%),
+    radial-gradient(at 15% 68%, rgba(240, 192, 0, 0.09) 0px, transparent 52%),
+    radial-gradient(at 88% 92%, rgba(0, 120, 72, 0.09) 0px, transparent 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
+}
+
+/* Behind the phone-width column on a wide screen, so a laptop demo does not
+   show a bare grey gutter either side. */
+.zw-canvas {
+  background-color: #f1f5f9;
+  background-image:
+    radial-gradient(at 18% 15%, rgba(216, 48, 48, 0.07) 0px, transparent 45%),
+    radial-gradient(at 82% 20%, rgba(24, 158, 219, 0.07) 0px, transparent 45%),
+    radial-gradient(at 22% 82%, rgba(240, 192, 0, 0.08) 0px, transparent 45%),
+    radial-gradient(at 80% 85%, rgba(0, 120, 72, 0.07) 0px, transparent 45%);
+}
+
+.zw-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.zw-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zw-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.22);
+  border-radius: 9999px;
 }

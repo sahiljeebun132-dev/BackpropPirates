@@ -31,7 +31,7 @@
 // Bump to retire old caches. The hashed asset names make a stale bundle
 // impossible, but the data files keep their names across deploys, so a
 // version is the only thing that forces them to refresh.
-const CACHE = 'zetway-v3'
+const CACHE = 'zetway-v4'
 
 const DATA = [
   'cars', 'conditions', 'districts', 'emergency', 'exposure',
@@ -46,6 +46,10 @@ const SHELL = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/brand/zetway-logo.png',
+  // The header's mark, which is a different file from the logo above. It was
+  // missing here, so the first offline load rendered the app with a hole
+  // where its own logo should be.
+  '/brand/zetway-mark.png',
   '/crash-demo.html',
 ]
 
@@ -70,6 +74,22 @@ async function assetsFromShell() {
     const pattern = /(?:src|href)="(\/[^"]+\.(?:js|css))"/g
     let m
     while ((m = pattern.exec(html)) !== null) urls.add(m[1])
+
+    // Fonts are referenced from inside a stylesheet, not from the HTML, so
+    // the sweep above never sees them and the offline app falls back to
+    // system-ui — a visibly different screen from the one demoed a minute
+    // earlier. Read each stylesheet and pick its @font-face files up too,
+    // which keeps this free of a build step that could drift.
+    for (const css of [...urls].filter((u) => u.endsWith('.css'))) {
+      try {
+        const text = await (await fetch(css, { cache: 'reload' })).text()
+        const fonts = /url\((?:"|')?(\/[^)"']+\.woff2)(?:"|')?\)/g
+        let f
+        while ((f = fonts.exec(text)) !== null) urls.add(f[1])
+      } catch {
+        // One unreadable stylesheet must not cost us the rest of the shell.
+      }
+    }
     return [...urls]
   } catch {
     return []

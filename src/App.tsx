@@ -7,10 +7,14 @@ import { LegalPanel } from './components/LegalPanel'
 import { OfflineBanner } from './components/OfflineBanner'
 import { FirstRunPermissions } from './components/FirstRunPermissions'
 import { InstallApp } from './components/InstallApp'
+import { HomeDashboard } from './components/HomeDashboard'
+import { LiveConditionsPanel, LiveUnavailable } from './components/LiveConditions'
+import { HotspotList } from './components/HotspotList'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
 import { RouteResult } from './components/RouteResult'
 import { SourcesPanel } from './components/SourcesPanel'
+import { PageHeader } from './components/ui'
 import { planDeparture } from './lib/departure'
 import { lightBandAt } from './lib/live'
 import { assessRoute } from './lib/risk'
@@ -22,7 +26,7 @@ import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
-type View = 'plan' | 'result' | 'help'
+type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate'
 
 export default function App() {
   const state = useAppData()
@@ -67,6 +71,32 @@ export default function App() {
   const band: TimeBand = liveConditions
     ? lightBandAt(liveConditions, departAt, roadIsLit).band
     : fallbackBand
+
+  /** The amber strip on the home screen, or nothing.
+   *
+   *  The supplied design hard-codes a weather warning into the layout. A
+   *  warning that is on screen every time the app opens is one nobody reads,
+   *  and this one would also be invented. So it is derived from the forecast
+   *  already fetched for the corridor, names the window it covers, and is
+   *  null whenever the next few hours are clear. */
+  const vigilance = useMemo(() => {
+    if (!liveConditions) return null
+    const now = departAt.getTime()
+    const soon = liveConditions.hourly.filter(
+      (h) => h.time.getTime() >= now && h.time.getTime() <= now + 6 * 3600_000,
+    )
+    if (soon.length === 0) return null
+
+    const wettest = Math.max(...soon.map((h) => h.precipitationMm))
+    const gust = Math.max(...soon.map((h) => h.windGustKmh ?? 0))
+    const fog = soon.some((h) => h.visibilityM !== null && h.visibilityM < 1000)
+
+    if (fog) return 'Visibility under 1 km forecast on this corridor in the next few hours.'
+    if (wettest >= 4) return `Heavy rain forecast on this corridor, up to ${wettest.toFixed(1)} mm in an hour.`
+    if (wettest >= 1) return `Rain forecast on this corridor in the next few hours.`
+    if (gust >= 50) return `Gusts to ${Math.round(gust)} km/h forecast on this corridor.`
+    return null
+  }, [liveConditions, departAt])
 
   const assessment = useMemo(() => {
     if (!data || !from || !to || from.id === to.id) return null
@@ -133,6 +163,37 @@ export default function App() {
           }}
           onBack={() => setView('plan')}
         />
+      ) : view === 'accidents' ? (
+        <>
+          <PageHeader title="Accidents & road safety" onBack={() => setView('plan')} />
+          <IslandContext data={appData} />
+          <HotspotList
+            hotspots={appData.hotspots.hotspots.map((h) => ({ ...h, detourKm: 0 }))}
+            totalOnIsland={appData.hotspots.hotspots.length}
+            radiusKm={appData.hotspots.corridorRadiusKm}
+          />
+          <SourcesPanel data={appData} />
+        </>
+      ) : view === 'climate' ? (
+        <>
+          <PageHeader title="Climate & vigilance" onBack={() => setView('plan')} />
+          {liveConditions && departureAdvice && from && to ? (
+            <LiveConditionsPanel
+              data={appData}
+              live={liveConditions}
+              advice={departureAdvice}
+              departAt={departAt}
+              directKm={corridorKm}
+              onAccept={(d: Date) => {
+                setDepartAt(d)
+                setDepartIsNow(false)
+              }}
+            />
+          ) : (
+            <LiveUnavailable band={band} onChange={() => setView('plan')} />
+          )}
+          <SourcesPanel data={appData} />
+        </>
       ) : (
         <>
           {/* Before anything else: if there is no signal, say so and say what
@@ -144,57 +205,52 @@ export default function App() {
               during a crash. */}
           <FirstRunPermissions />
 
-          <IslandContext data={appData} />
-
-          <button
-            type="button"
-            onClick={() => setView('help')}
-            className="flex w-full items-center gap-3 rounded-2xl bg-flag-red px-4 py-3.5 text-left text-white shadow-sm active:bg-flag-red/90"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6 shrink-0">
-              <path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span>
-              <span className="block text-sm font-bold">Broken down or had a crash?</span>
-              <span className="block text-xs text-white/85">Safety check first, then what to do</span>
-            </span>
-          </button>
-          <PlanForm
-            places={appData.places.places}
-            origin={origin}
-            destination={destination}
-            mode={mode}
-            departAt={departAt}
-            departIsNow={departIsNow}
-            roadIsLit={roadIsLit}
-            fallbackBand={fallbackBand}
-            liveFailed={live.status === 'error'}
-            onOrigin={setOrigin}
-            onDestination={setDestination}
-            onMode={setMode}
-            onDepartAt={(d, isNow = false) => {
-              setDepartAt(d)
-              setDepartIsNow(isNow)
-            }}
-            onRoadIsLit={setRoadIsLit}
-            onFallbackBand={setFallbackBand}
-            onSwap={() => {
-              setOrigin(destination)
-              setDestination(origin)
-            }}
-            onSubmit={() => setView('result')}
-            sameEndpoints={origin === destination}
+          <HomeDashboard
+            vigilance={vigilance}
+            onAccidents={() => setView('accidents')}
+            onClimate={() => setView('climate')}
+            onReport={() => setView('result')}
+            onRoadside={() => setView('help')}
+            planner={
+              <PlanForm
+                places={appData.places.places}
+                origin={origin}
+                destination={destination}
+                mode={mode}
+                departAt={departAt}
+                departIsNow={departIsNow}
+                roadIsLit={roadIsLit}
+                fallbackBand={fallbackBand}
+                liveFailed={live.status === 'error'}
+                onOrigin={setOrigin}
+                onDestination={setDestination}
+                onMode={setMode}
+                onDepartAt={(d, isNow = false) => {
+                  setDepartAt(d)
+                  setDepartIsNow(isNow)
+                }}
+                onRoadIsLit={setRoadIsLit}
+                onFallbackBand={setFallbackBand}
+                onSwap={() => {
+                  setOrigin(destination)
+                  setDestination(origin)
+                }}
+                onSubmit={() => setView('result')}
+                sameEndpoints={origin === destination}
+              />
+            }
+            crashWatch={<CrashWatch />}
+            footer={
+              <>
+                {/* Directly under crash watch, because that card has just
+                    promised background detection and this one says which
+                    build actually delivers it. Null inside the APK. */}
+                <InstallApp />
+                <LegalPanel />
+                <SourcesPanel data={appData} />
+              </>
+            }
           />
-          <CrashWatch />
-
-          {/* Directly under crash watch, because that card has just promised
-              background detection and this one says which build actually
-              delivers it. Renders nothing inside the Android app. */}
-          <InstallApp />
-
-          <LegalPanel />
-
-          <SourcesPanel data={appData} />
         </>
       )}
     </AppShell>
