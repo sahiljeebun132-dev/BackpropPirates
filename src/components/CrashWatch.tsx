@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
-  COUNTDOWN_SECONDS, currentPosition, helpMessage, IMPACT_THRESHOLD_MS2, keepAwake,
-  readContacts, recordAudio, requestMotionPermission, smsLink, watchForImpact,
-  whatsappLink, writeContacts, type EmergencyContact, type Recording,
+  buzz, canVibrate, COUNTDOWN_SECONDS, createAlarm, currentPosition, helpMessage,
+  IMPACT_THRESHOLD_MS2, keepAwake, readContacts, recordAudio, requestMotionPermission,
+  smsLink, TEST_THRESHOLD_MS2, watchForImpact, whatsappLink, writeContacts,
+  type EmergencyContact, type Recording,
 } from '../lib/crashWatch'
 
 type Phase = 'off' | 'armed' | 'asking' | 'alerting'
 
 const newId = () => Math.random().toString(36).slice(2, 9)
+const toG = (ms2: number) => ms2 / 9.8
 
 export function CrashWatch() {
   const [phase, setPhase] = useState<Phase>('off')
+  const [testMode, setTestMode] = useState(false)
   const [contacts, setContacts] = useState<EmergencyContact[]>(() => readContacts())
   const [peak, setPeak] = useState<number | null>(null)
   const [left, setLeft] = useState(COUNTDOWN_SECONDS)
@@ -21,9 +24,52 @@ export function CrashWatch() {
   const [notice, setNotice] = useState<string | null>(null)
   const [setupOpen, setSetupOpen] = useState(false)
 
+  // Live sensor readout, so a rider can see the thing is actually listening.
+  const [reading, setReading] = useState(0)
+  const [peakSeen, setPeakSeen] = useState(0)
+  const [sensorSeen, setSensorSeen] = useState(false)
+  /** True only when the sensor fired for real, at the real threshold. A
+   *  rehearsal and a test-mode shake must never reach for the dialler. */
+  const [liveIncident, setLiveIncident] = useState(false)
+  const [dialled, setDialled] = useState(false)
+
   const stopWatch = useRef<(() => void) | null>(null)
   const wakeLock = useRef<{ release: () => void } | null>(null)
   const stopRecording = useRef<(() => void) | null>(null)
+  const alarm = useRef<ReturnType<typeof createAlarm>>(null)
+
+  const vibrates = canVibrate()
+
+  const onReading = useCallback((magnitude: number) => {
+    setSensorSeen(true)
+    setReading(magnitude)
+    setPeakSeen((p) => (magnitude > p ? magnitude : p))
+  }, [])
+
+  const trigger = useCallback((g: number | null, live = false) => {
+    setLiveIncident(live)
+    setDialled(false)
+    setPeak(g)
+    setLeft(COUNTDOWN_SECONDS)
+    setPhase('asking')
+    // Both at once: vibration reaches a phone in a pocket, sound reaches an
+    // iPhone, which cannot vibrate from a web page at all.
+    buzz([600, 200, 600, 200, 600])
+    alarm.current?.start()
+    void currentPosition().then(setPosition)
+  }, [])
+
+  const startWatching = useCallback(
+    (test: boolean) => {
+      stopWatch.current?.()
+      stopWatch.current = watchForImpact(
+        (g) => trigger(g, !test),
+        test ? TEST_THRESHOLD_MS2 : IMPACT_THRESHOLD_MS2,
+        onReading,
+      )
+    },
+    [trigger, onReading],
+  )
 
   const disarm = useCallback(() => {
     stopWatch.current?.()
@@ -32,6 +78,8 @@ export function CrashWatch() {
     wakeLock.current = null
     stopRecording.current?.()
     stopRecording.current = null
+    alarm.current?.stop()
+    alarm.current = null
   }, [])
 
   useEffect(() => disarm, [disarm])
@@ -39,17 +87,18 @@ export function CrashWatch() {
   const arm = async () => {
     const allowed = await requestMotionPermission()
     if (!allowed) {
-      setNotice('Motion access was refused, so impacts cannot be detected. Everything else in the app still works.')
+      setNotice(
+        'This phone refused motion access, so an impact cannot be detected. On an iPhone, check Settings, Safari, Motion and Orientation Access. Everything else in the app still works.',
+      )
       return
     }
+    // Created now, while we are inside the tap: a browser will not let a page
+    // make a sound until the user has interacted with it.
+    alarm.current = createAlarm()
     wakeLock.current = await keepAwake()
-    stopWatch.current = watchForImpact((g) => {
-      setPeak(g)
-      setPhase('asking')
-      setLeft(COUNTDOWN_SECONDS)
-      navigator.vibrate?.([400, 200, 400, 200, 400])
-      void currentPosition().then(setPosition)
-    })
+    setSensorSeen(false)
+    setPeakSeen(0)
+    startWatching(testMode)
     setNotice(null)
     setPhase('armed')
   }
@@ -62,24 +111,30 @@ export function CrashWatch() {
     setRecordingNow(false)
   }
 
-  /** Run the alert on demand.
-   *
-   *  Worth having for its own sake: nobody should meet this screen for the
-   *  first time while hurt, and knowing the countdown exists is what stops a
-   *  false alarm becoming a panic. It also means the feature can be checked on
-   *  a phone whose sensor is unavailable. */
+  /** Run the alert on demand. Nobody should meet that screen for the first
+   *  time while hurt, and it works on a phone whose sensor is unavailable. */
   const rehearse = () => {
-    setPeak(null)
-    setLeft(COUNTDOWN_SECONDS)
-    setPhase('asking')
-    navigator.vibrate?.([200, 100, 200])
-    void currentPosition().then(setPosition)
+    alarm.current ??= createAlarm()
+    trigger(null)
   }
 
-  /** Nobody answered, so treat them as unable to. */
   const beginAlerting = useCallback(() => {
     setPhase('alerting')
     setRecordingNow(true)
+
+    // As close to an automatic call as a browser allows. Navigating to a tel:
+    // URL hands the number to the phone's dialler; the handset still asks the
+    // person to confirm, and nothing on the web can press that for them.
+    // Skipped entirely for a rehearsal or a test-mode shake, because a false
+    // call to 114 occupies an ambulance line somebody else needs.
+    if (liveIncident) {
+      try {
+        window.location.href = 'tel:114'
+        setDialled(true)
+      } catch {
+        setDialled(false)
+      }
+    }
     void recordAudio(
       (rec) => {
         setRecording(rec)
@@ -92,7 +147,7 @@ export function CrashWatch() {
     ).then((stop) => {
       stopRecording.current = stop
     })
-  }, [])
+  }, [liveIncident])
 
   // The countdown. The transition happens inside the timer rather than in the
   // effect body, so a render never triggers another render on its own.
@@ -103,6 +158,7 @@ export function CrashWatch() {
         setLeft(0)
         beginAlerting()
       } else {
+        buzz([250]) // a pulse a second, so it keeps nagging
         setLeft(left - 1)
       }
     }, 1000)
@@ -110,21 +166,15 @@ export function CrashWatch() {
   }, [phase, left, beginAlerting])
 
   const imOk = () => {
+    alarm.current?.stop()
     stopRecording.current?.()
     stopRecording.current = null
+    buzz([0])
     setPhase('armed')
     setPeak(null)
     setRecording(null)
     setRecordingNow(false)
-    // Re-arm: watchForImpact fires once, so a fresh listener is needed.
-    stopWatch.current?.()
-    stopWatch.current = watchForImpact((g) => {
-      setPeak(g)
-      setPhase('asking')
-      setLeft(COUNTDOWN_SECONDS)
-      navigator.vibrate?.([400, 200, 400])
-      void currentPosition().then(setPosition)
-    })
+    startWatching(testMode) // watchForImpact fires once, so re-attach
   }
 
   if (phase === 'asking' || phase === 'alerting') {
@@ -138,11 +188,14 @@ export function CrashWatch() {
         recording={recording}
         recordingNow={recordingNow}
         notice={notice}
+        dialled={dialled}
         onImOk={imOk}
         onStandDown={standDown}
       />
     )
   }
+
+  const threshold = testMode ? TEST_THRESHOLD_MS2 : IMPACT_THRESHOLD_MS2
 
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -152,7 +205,7 @@ export function CrashWatch() {
           <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
             {phase === 'armed'
               ? 'Watching for an impact. Keep this screen open and the phone mounted.'
-              : 'Watches the phone’s motion sensor while you ride, and if it feels a heavy impact and you do not answer, it puts calling for help one tap away.'}
+              : 'Watches the phone’s motion sensor while you ride. On a heavy impact it sounds an alarm, and if you do not answer it puts calling for help one tap away.'}
           </p>
         </div>
         <span
@@ -163,6 +216,70 @@ export function CrashWatch() {
           {phase === 'armed' ? 'On' : 'Off'}
         </span>
       </div>
+
+      {phase === 'armed' && (
+        <div className="mt-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium text-slate-500">Sensor right now</span>
+            <span className="text-xs tabular-nums text-slate-500">
+              fires at {toG(threshold).toFixed(1)}g
+            </span>
+          </div>
+          <p className="mt-0.5 text-2xl font-bold tabular-nums text-slate-900">
+            {toG(reading).toFixed(2)}
+            <span className="ml-1 text-sm font-medium text-slate-500">g</span>
+            <span className="ml-3 text-sm font-medium text-slate-500">
+              peak {toG(peakSeen).toFixed(2)}g
+            </span>
+          </p>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className={`h-full rounded-full transition-all ${
+                reading >= threshold ? 'bg-flag-red' : 'bg-flag-green'
+              }`}
+              style={{ width: `${Math.min(100, (reading / threshold) * 100)}%` }}
+            />
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+            {sensorSeen
+              ? 'Shake the phone and watch this move. If it reaches the bar, the alarm fires.'
+              : 'No readings yet. If this stays at zero, the phone is not giving the page its motion sensor.'}
+          </p>
+        </div>
+      )}
+
+      <label className="mt-3 flex items-start gap-2.5">
+        <input
+          type="checkbox"
+          checked={testMode}
+          onChange={(e) => {
+            setTestMode(e.target.checked)
+            if (phase === 'armed') startWatching(e.target.checked)
+          }}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[var(--color-flag-red)]"
+        />
+        <span className="text-xs leading-relaxed text-slate-700">
+          <span className="font-semibold">Test mode</span> — fires at{' '}
+          {toG(TEST_THRESHOLD_MS2).toFixed(1)}g so a hard shake sets it off, instead of the{' '}
+          {toG(IMPACT_THRESHOLD_MS2).toFixed(1)}g a real crash needs.
+          <span className="block text-slate-500">
+            Use it to check the alarm works, then turn it off before you ride.
+          </span>
+        </span>
+      </label>
+
+      {testMode && phase === 'armed' && (
+        <p className="mt-2 rounded-xl bg-flag-red/10 p-2.5 text-xs font-semibold text-flag-red ring-1 ring-flag-red/30">
+          Test mode is on. A bump could set this off.
+        </p>
+      )}
+
+      {!vibrates && (
+        <p className="mt-2 rounded-xl bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
+          This phone does not let a web page vibrate, which iPhones never have. The alarm will
+          sound instead, so keep the volume up and the silent switch off.
+        </p>
+      )}
 
       {notice && (
         <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
@@ -195,9 +312,7 @@ export function CrashWatch() {
         onClick={() => setSetupOpen((o) => !o)}
         className="mt-2 w-full text-xs font-semibold text-brand-deep underline"
       >
-        {contacts.length
-          ? `People to alert (${contacts.length})`
-          : 'Add someone to alert'}
+        {contacts.length ? `People to alert (${contacts.length})` : 'Add someone to alert'}
       </button>
 
       {setupOpen && (
@@ -213,9 +328,7 @@ export function CrashWatch() {
       <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-500">
         Honest about the limits: this only works while the app is open on screen, because a phone
         browser suspends a page that is hidden. And a web page is not allowed to place a call or
-        send a message by itself, so the last tap is always yours. It triggers above{' '}
-        {(IMPACT_THRESHOLD_MS2 / 9.8).toFixed(1)}g, which a firm shake will reach — try it, that is
-        how you check it works.
+        send a message by itself, so the last tap is always yours.
       </p>
     </section>
   )
@@ -299,10 +412,11 @@ function AlertOverlay(props: {
   recording: Recording | null
   recordingNow: boolean
   notice: string | null
+  dialled: boolean
   onImOk: () => void
   onStandDown: () => void
 }) {
-  const { phase, left, peak, position, contacts, recording, recordingNow, notice, onImOk, onStandDown } = props
+  const { phase, left, peak, position, contacts, recording, recordingNow, notice, dialled, onImOk, onStandDown } = props
   const message = helpMessage(position, peak)
 
   return (
@@ -337,6 +451,12 @@ function AlertOverlay(props: {
               No answer. Get help now
             </p>
 
+            {dialled && (
+              <p className="rounded-xl bg-white/15 p-3 text-sm leading-relaxed ring-1 ring-white/30">
+                The dialler has been opened with 114 already entered. Press the green button to
+                connect. If nothing opened, use the button below.
+              </p>
+            )}
             <a
               href="tel:114"
               className="block rounded-2xl bg-white px-4 py-5 text-center text-xl font-bold text-flag-red"
@@ -402,7 +522,7 @@ function AlertOverlay(props: {
 
             <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/20">
               <p className="text-xs font-semibold uppercase tracking-wide text-white/75">
-                {recordingNow ? 'Recording now' : recording ? 'Voice note' : 'Voice note'}
+                Voice note
               </p>
               {recordingNow && (
                 <p className="mt-1 flex items-center gap-2 text-sm">
@@ -426,8 +546,9 @@ function AlertOverlay(props: {
             </div>
 
             <p className="rounded-xl bg-black/20 p-3 text-xs leading-relaxed text-white/85">
-              Zetway cannot place the call or send the message for you. No web page is allowed to,
-              on any phone. Everything above is prepared and waiting for one tap.
+              Zetway opens the dialler with the number in it, but no web page is allowed to press
+              call, on any phone. The same goes for sending a message. Everything above is prepared
+              and waiting for one tap.
             </p>
 
             <button

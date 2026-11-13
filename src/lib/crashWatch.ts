@@ -27,6 +27,13 @@
  */
 export const IMPACT_THRESHOLD_MS2 = 30
 
+/** Test mode's bar, in m/s². A hand shake peaks somewhere around 2g to 3g and
+ *  a phone only samples about 60 times a second, so it can miss the top of a
+ *  real spike. 16 is low enough that a deliberate shake always fires and high
+ *  enough that carrying the phone does not. Test mode is never left on by
+ *  accident: the screen says so in red the whole time it is active. */
+export const TEST_THRESHOLD_MS2 = 16
+
 /** Seconds to cancel before the app decides you cannot answer. */
 export const COUNTDOWN_SECONDS = 30
 
@@ -68,16 +75,38 @@ export async function requestMotionPermission(): Promise<boolean> {
   }
 }
 
-/** Watch for an impact. Returns a function that stops watching. */
-export function watchForImpact(onImpact: (peak: number) => void): () => void {
+/** Watch for an impact, and report what the sensor is reading as it goes.
+ *
+ *  The live reading matters more than it looks. Without it, a rider who
+ *  shakes the phone and sees nothing cannot tell whether the sensor is
+ *  blocked, the app is not listening, or they simply did not shake hard
+ *  enough. With it, the number moves and the answer is obvious.
+ *
+ *  Returns a function that stops watching.
+ */
+export function watchForImpact(
+  onImpact: (peak: number) => void,
+  threshold: number = IMPACT_THRESHOLD_MS2,
+  onReading?: (magnitude: number) => void,
+): () => void {
   let armed = true
+  let lastReport = 0
 
   const handler = (e: DeviceMotionEvent) => {
     const a = e.accelerationIncludingGravity
-    if (!a || a.x === null || a.y === null || a.z === null || !armed) return
+    if (!a || a.x === null || a.y === null || a.z === null) return
     const magnitude = Math.hypot(a.x, a.y, a.z)
-    if (magnitude >= IMPACT_THRESHOLD_MS2) {
-      // One trigger per event. Re-arming is the caller's decision, after the
+
+    // Throttled, because the sensor fires about sixty times a second and
+    // re-rendering at that rate would do nothing but drain the battery.
+    const now = Date.now()
+    if (onReading && now - lastReport > 120) {
+      lastReport = now
+      onReading(magnitude)
+    }
+
+    if (armed && magnitude >= threshold) {
+      // One trigger per watch. Re-arming is the caller's decision, after the
       // rider has dealt with the alert.
       armed = false
       onImpact(Math.round(magnitude))
@@ -88,6 +117,79 @@ export function watchForImpact(onImpact: (peak: number) => void): () => void {
   return () => {
     armed = false
     window.removeEventListener('devicemotion', handler)
+  }
+}
+
+/** Whether this phone lets a web page vibrate at all.
+ *
+ *  iPhones do not, in any browser: Safari has never shipped the Vibration
+ *  API, and every iOS browser is Safari underneath. Rather than silently do
+ *  nothing there, the app says so and leans on sound instead.
+ */
+export function canVibrate(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
+}
+
+export function buzz(pattern: number[]): void {
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {
+    // Some browsers expose it and refuse it. Not worth a failure.
+  }
+}
+
+/** A loud two-tone alarm, built with Web Audio so it needs no audio file.
+ *
+ *  Sound carries where vibration cannot: it works on an iPhone, it reaches
+ *  someone who has dropped the phone, and it tells a passer-by something is
+ *  wrong. The context is created when the watch is armed, because a browser
+ *  will not let a page make noise until the user has interacted with it.
+ */
+export function createAlarm(): { start: () => void; stop: () => void } | null {
+  type WindowWithAudio = Window & { webkitAudioContext?: typeof AudioContext }
+  const Ctor = window.AudioContext ?? (window as WindowWithAudio).webkitAudioContext
+  if (!Ctor) return null
+
+  let ctx: AudioContext | null = null
+  let timer: ReturnType<typeof setInterval> | null = null
+
+  const beep = (at: number, frequency: number) => {
+    if (!ctx) return
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'square'
+    osc.frequency.value = frequency
+    // Ramped rather than switched, because an abrupt square wave clicks.
+    gain.gain.setValueAtTime(0.0001, at)
+    gain.gain.exponentialRampToValueAtTime(0.5, at + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.38)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(at)
+    osc.stop(at + 0.4)
+  }
+
+  return {
+    start: () => {
+      try {
+        ctx ??= new Ctor()
+        void ctx.resume()
+        const cycle = () => {
+          if (!ctx) return
+          beep(ctx.currentTime, 880)
+          beep(ctx.currentTime + 0.45, 660)
+        }
+        cycle()
+        timer ??= setInterval(cycle, 1000)
+      } catch {
+        // No sound is survivable. The screen still shouts.
+      }
+    },
+    stop: () => {
+      if (timer) clearInterval(timer)
+      timer = null
+      void ctx?.close()
+      ctx = null
+    },
   }
 }
 
