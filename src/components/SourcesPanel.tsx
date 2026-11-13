@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { AppData, Source } from '../lib/types'
+import { DatasetExplorer } from './DatasetExplorer'
 
 /** Every table behind the app, with its data.govmu.org link. Rule 4 says the
  *  dataset must power a feature; this shows which feature each one powers. */
@@ -62,6 +63,10 @@ export function SourcesPanel({ data }: { data: AppData }) {
           ))}
         </ul>
       )}
+
+      {/* Naming the table is the claim; showing the rows is the evidence.
+          Folded into the same disclosure so it costs nothing when closed. */}
+      {open && <DatasetExplorer data={data} />}
     </section>
   )
 }
