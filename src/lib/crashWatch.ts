@@ -306,3 +306,56 @@ export const smsLink = (phone: string, body: string): string =>
 
 export const whatsappLink = (phone: string, body: string): string =>
   `https://wa.me/${phone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(body)}`
+
+/**
+ * The impact, in the words a rider can check against what just happened.
+ *
+ * These are read out, never acted on. The alert has already fired by the
+ * time any of this is on screen, and nothing here can call it off: the app
+ * says in its own copy that detection is sometimes wrong and that the
+ * countdown is the answer to that, so adding a second opinion that could
+ * silence the alarm would quietly undo the promise.
+ *
+ * What they are good for is the opposite question. A phone that slid into
+ * the footwell reads a hard knock with almost no rotation and no change of
+ * speed. A vehicle that was doing 60 and is now doing nothing, while the
+ * phone spun, reads as the thing the app exists for. A rider holding the
+ * red screen can tell those apart in a second; the accelerometer alone
+ * cannot.
+ *
+ * -1 from the service means not measured — this phone has no gyroscope, or
+ * location was refused, or no fix had arrived. It is shown as that rather
+ * than as a zero somebody could read as "you were already stopped".
+ */
+export function evidenceLines(
+  e: {
+    peak: number
+    rotation: number
+    speedBefore: number
+    speedAfter: number
+    complete: boolean
+  } | null,
+): { label: string; value: string }[] {
+  if (!e) return []
+  const kmh = (ms: number) => `${Math.round(ms * 3.6)} km/h`
+  return [
+    { label: 'Impact', value: `${(e.peak / 9.8).toFixed(1)}g` },
+    {
+      label: 'Rotation',
+      value: e.rotation < 0 ? 'no gyroscope here' : `${e.rotation.toFixed(1)} rad/s`,
+    },
+    {
+      label: 'Speed before',
+      value: e.speedBefore < 0 ? 'not measured' : kmh(e.speedBefore),
+    },
+    {
+      label: 'Speed after',
+      value:
+        e.speedAfter < 0
+          ? e.complete
+            ? 'not measured'
+            : 'still measuring'
+          : kmh(e.speedAfter),
+    },
+  ]
+}

@@ -345,14 +345,42 @@ public class CrashResponsePlugin extends Plugin {
      */
     @Override
     public void load() {
-        CrashWatchService.setListener((peak, test) -> {
-            JSObject data = new JSObject();
-            data.put("peak", peak);
-            data.put("test", test);
-            // Retained: the page is very often suspended at the moment this
-            // fires, and an impact must not be dropped for want of a listener.
-            notifyListeners("impact", data, true);
+        CrashWatchService.setListener(new CrashWatchService.ImpactListener() {
+            @Override
+            public void onImpact(CrashWatchService.Impact impact) {
+                // Retained: the page is very often suspended at the moment
+                // this fires, and an impact must not be dropped for want of
+                // a listener.
+                notifyListeners("impact", describe(impact), true);
+            }
+
+            @Override
+            public void onEvidence(CrashWatchService.Impact impact) {
+                // A second message rather than a fuller first one. The speed
+                // after the crash cannot exist until a few seconds have
+                // passed, and the alarm is not waiting on it.
+                notifyListeners("impactEvidence", describe(impact), true);
+            }
         });
+    }
+
+    /**
+     * One impact as the web layer reads it.
+     *
+     * -1 throughout means "this phone could not measure that" — no
+     * gyroscope, no location permission, no fix yet — and the UI says so in
+     * those words rather than printing a zero somebody could read as "it did
+     * not spin" or "you were already stopped".
+     */
+    private static JSObject describe(CrashWatchService.Impact impact) {
+        JSObject data = new JSObject();
+        data.put("peak", impact.peak);
+        data.put("rotation", impact.rotation);
+        data.put("speedBefore", impact.speedBefore);
+        data.put("speedAfter", impact.speedAfter);
+        data.put("test", impact.test);
+        data.put("complete", impact.complete);
+        return data;
     }
 
     @PluginMethod
@@ -425,18 +453,42 @@ public class CrashResponsePlugin extends Plugin {
      */
     @PluginMethod
     public void consumePendingImpact(PluginCall call) {
-        float peak = CrashWatchService.consumePending();
-        if (peak < 0 && getActivity() != null && getActivity().getIntent() != null) {
-            peak = getActivity().getIntent()
-                .getFloatExtra(CrashWatchService.EXTRA_IMPACT_PEAK, -1f);
+        CrashWatchService.Impact impact = CrashWatchService.consumePending();
+        if (impact != null) {
+            JSObject out = describe(impact);
+            out.put("hasImpact", impact.peak >= 0);
+            call.resolve(out);
+            return;
+        }
+
+        float peak = -1f, rotation = -1f, before = -1f, after = -1f;
+        if (getActivity() != null && getActivity().getIntent() != null) {
+            Intent from = getActivity().getIntent();
+            peak = from.getFloatExtra(CrashWatchService.EXTRA_IMPACT_PEAK, -1f);
             if (peak >= 0) {
-                getActivity().getIntent().removeExtra(CrashWatchService.EXTRA_IMPACT_PEAK);
+                // Whatever the service had measured by the time it built this
+                // intent. The process was killed afterwards, so the rest of
+                // the window never reached anybody and the speed after the
+                // crash is simply gone.
+                rotation = from.getFloatExtra(CrashWatchService.EXTRA_IMPACT_ROTATION, -1f);
+                before = from.getFloatExtra(CrashWatchService.EXTRA_SPEED_BEFORE, -1f);
+                after = from.getFloatExtra(CrashWatchService.EXTRA_SPEED_AFTER, -1f);
+                from.removeExtra(CrashWatchService.EXTRA_IMPACT_PEAK);
+                from.removeExtra(CrashWatchService.EXTRA_IMPACT_ROTATION);
+                from.removeExtra(CrashWatchService.EXTRA_SPEED_BEFORE);
+                from.removeExtra(CrashWatchService.EXTRA_SPEED_AFTER);
             }
         }
         JSObject out = new JSObject();
         out.put("hasImpact", peak >= 0);
         out.put("peak", peak);
-        out.put("test", CrashWatchService.lastPendingWasTest());
+        out.put("rotation", rotation);
+        out.put("speedBefore", before);
+        out.put("speedAfter", after);
+        // Unchanged from before: nothing that survived a process kill knows
+        // whether the watch was in test mode, so this stays the safe answer.
+        out.put("test", false);
+        out.put("complete", false);
         call.resolve(out);
     }
 

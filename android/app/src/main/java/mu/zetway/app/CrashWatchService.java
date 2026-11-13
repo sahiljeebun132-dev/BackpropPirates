@@ -33,7 +33,8 @@ import android.os.VibratorManager;
 import android.util.Log;
 
 /**
- * Watches the accelerometer while Zetway is not on screen.
+ * Watches the accelerometer while Zetway is not on screen, and gathers the
+ * two signals that say whether the bang was a vehicle or a dropped phone.
  *
  * This is the difference between a feature that demos well and one that would
  * actually help. A web page — and a web view — is throttled the moment it is
@@ -48,6 +49,17 @@ import android.util.Log;
  * This class has one job: stay alive, watch one number, and when that number
  * is too big, get the app in front of the rider. Everything else is a message
  * passed along.
+ *
+ * The accelerometer decides, and only the accelerometer. The gyroscope and
+ * the speed from the location provider are measured alongside it and travel
+ * with the alert, but nothing they say can stop the alarm or lower the bar.
+ * That is deliberate and it is the whole design: a missed crash costs far
+ * more than a false one, the thirty-second countdown is already the app's
+ * answer to being wrong, and a rule that could suppress an alert would be
+ * the one bug in here nobody discovers until it matters. What these two add
+ * is evidence, so a rider looking at the red screen — and whoever they hand
+ * the phone to — can see whether the phone spun and whether the vehicle was
+ * moving, instead of one number with no context.
  *
  * Two Android facts shape the rest of it:
  *
@@ -166,14 +178,51 @@ public class CrashWatchService extends Service {
 
     private SensorManager sensors;
     private Sensor accelerometer;
+    private Sensor gyroscope;
+    private LocationManager locations;
     private PowerManager.WakeLock wakeLock;
+    private final Handler main = new Handler(Looper.getMainLooper());
     private float threshold = 30f;
     private boolean testMode = false;
     private boolean armed = true;
 
+    /**
+     * Recent angular rates, newest at gyroHistoryHead - 1, wrapping.
+     *
+     * A ring rather than a running maximum because the peak has to be the peak
+     * of a window that ends at the impact. A running maximum would still be
+     * carrying the spin from a turn taken a minute ago.
+     *
+     * 256 slots is about five seconds at SENSOR_DELAY_GAME, comfortably more
+     * than the three the lookback asks for even if the rate drifts.
+     */
+    private static final int GYRO_HISTORY = 256;
+    private final float[] gyroRate = new float[GYRO_HISTORY];
+    private final long[] gyroAt = new long[GYRO_HISTORY];
+    private int gyroHistoryHead = 0;
+    /** False until a gyroscope reading actually arrives, so a sensor that is
+     *  listed but silent reads as "no rotation measured", not "0 rad/s". */
+    private boolean gyroSeen = false;
+
+    /** Last speed the location provider gave us, and when, on the monotonic
+     *  clock. elapsedRealtime, not wall time: the phone can change timezone
+     *  mid-ride and NTP can step the clock. */
+    private float lastSpeed = UNKNOWN;
+    private long lastSpeedAt = 0;
+    private Location lastFix;
+
+    /** The impact currently being measured, held while the post-impact window
+     *  is open so the late figures can be folded into it. */
+    private Impact inFlight;
+    private float windowRotation = UNKNOWN;
+
     private final SensorEventListener sensorListener = new SensorEventListener() {
         @Override
         public void onSensorChanged(SensorEvent event) {
+            if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
+                onGyro(event);
+                return;
+            }
             if (!armed) return;
             float x = event.values[0], y = event.values[1], z = event.values[2];
             // TYPE_ACCELEROMETER includes gravity, which is what the web build's
@@ -192,12 +241,92 @@ public class CrashWatchService extends Service {
         }
     };
 
+    /** Angular rate about all three axes, in rad/s. A phone lying still reads
+     *  near zero; a phone being carried reads a few; a vehicle being spun
+     *  reads far more, and that difference is the point of measuring it. */
+    private void onGyro(SensorEvent event) {
+        float x = event.values[0], y = event.values[1], z = event.values[2];
+        float rate = (float) Math.sqrt(x * x + y * y + z * z);
+        gyroSeen = true;
+        gyroRate[gyroHistoryHead] = rate;
+        gyroAt[gyroHistoryHead] = SystemClock.elapsedRealtime();
+        gyroHistoryHead = (gyroHistoryHead + 1) % GYRO_HISTORY;
+        // While the window after an impact is open, every later reading can
+        // still raise the peak: the spin usually outlasts the bang.
+        if (inFlight != null && rate > windowRotation) windowRotation = rate;
+    }
+
+    private float peakRotationSince(long sinceMs) {
+        if (!gyroSeen) return UNKNOWN;
+        float peak = 0f;
+        for (int i = 0; i < GYRO_HISTORY; i++) {
+            if (gyroAt[i] >= sinceMs && gyroRate[i] > peak) peak = gyroRate[i];
+        }
+        return peak;
+    }
+
+    /**
+     * Speed at this moment, or UNKNOWN.
+     *
+     * A fix from four minutes ago describes a different part of the ride, so
+     * it is thrown away rather than quoted. Saying nothing is recoverable;
+     * telling a dispatcher the rider was doing 60 when the phone last looked
+     * five minutes earlier is not.
+     */
+    private float freshSpeed() {
+        if (lastSpeed < 0) return UNKNOWN;
+        if (SystemClock.elapsedRealtime() - lastSpeedAt > FIX_STALE_MS) return UNKNOWN;
+        return lastSpeed;
+    }
+
+    /**
+     * Speed from each fix, preferring what the provider measured.
+     *
+     * GPS derives speed from Doppler shift, which is more accurate than
+     * differencing two positions and does not need a second fix to exist. The
+     * fallback is for providers that report no speed at all — the network
+     * provider is one — where two positions and the time between them is the
+     * only answer available.
+     */
+    private final LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(Location fix) {
+            float speed = UNKNOWN;
+            if (fix.hasSpeed()) {
+                speed = fix.getSpeed();
+            } else if (lastFix != null) {
+                float seconds = (fix.getElapsedRealtimeNanos()
+                    - lastFix.getElapsedRealtimeNanos()) / 1_000_000_000f;
+                if (seconds > 0.1f) speed = lastFix.distanceTo(fix) / seconds;
+            }
+            lastFix = fix;
+            if (speed >= 0) {
+                lastSpeed = speed;
+                lastSpeedAt = SystemClock.elapsedRealtime();
+            }
+        }
+
+        // Required on API levels below 30, where the default methods on
+        // LocationListener do not exist yet and an abstract method would
+        // crash the service the first time a provider changed state.
+        @Override public void onStatusChanged(String provider, int status, Bundle extras) { }
+        @Override public void onProviderEnabled(String provider) { }
+        @Override public void onProviderDisabled(String provider) { }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
         createChannels();
         sensors = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        if (sensors != null) accelerometer = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (sensors != null) {
+            accelerometer = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            // May be null. Cheap phones ship without one, and the watch has to
+            // work on those exactly as it did before: the rotation figure is
+            // simply reported as not measured.
+            gyroscope = sensors.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        }
+        locations = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
     }
 
     @Override
@@ -220,6 +349,12 @@ public class CrashWatchService extends Service {
             // to last the whole ride.
             sensors.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_GAME);
         }
+        if (gyroscope != null && sensors != null) {
+            // Same rate as the accelerometer so the two histories line up and
+            // the rotation window can be cut at the moment of the spike.
+            sensors.registerListener(sensorListener, gyroscope, SensorManager.SENSOR_DELAY_GAME);
+        }
+        startLocationUpdates();
 
         if (wakeLock == null) {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -237,17 +372,97 @@ public class CrashWatchService extends Service {
         return START_STICKY;
     }
 
+    /**
+     * Ask the platform for a fix every second or so, if the rider granted it.
+     *
+     * "Was moving fast, then suddenly was not" is the single most telling
+     * thing about a car crash, and it cannot be read off an accelerometer.
+     * Refused permission is not a failure here: the speeds are reported as
+     * not measured and nothing else about the watch changes.
+     */
+    private void startLocationUpdates() {
+        if (locations == null) return;
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+            && checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        // GPS for the speed itself; network as the one that still answers in
+        // a tunnel or a multi-storey, where its own fix is poor but a change
+        // from moving to stopped is still visible.
+        String[] providers = { LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER };
+        for (String provider : providers) {
+            try {
+                if (!locations.isProviderEnabled(provider)) continue;
+                // 1000 ms and 0 m: a crash is over in under a second, so the
+                // last fix before it has to be recent. Distance filtering is
+                // off because a vehicle that has stopped stops producing
+                // fixes under one, and a stop is exactly what we want to see.
+                locations.requestLocationUpdates(provider, 1000L, 0f, locationListener,
+                    Looper.getMainLooper());
+            } catch (SecurityException | IllegalArgumentException ignored) {
+                // A provider this device does not have, or a permission
+                // revoked between the check and the call. Neither is worth
+                // stopping the watch for.
+            }
+        }
+    }
+
     private void onImpact(float peak) {
+        long now = SystemClock.elapsedRealtime();
+        float rotation = peakRotationSince(now - ROTATION_LOOKBACK_MS);
+        float speedBefore = freshSpeed();
+
+        // Dispatched with what is known right now, before anything waits for
+        // anything. The figures that need the next few seconds follow in a
+        // second message; the alarm must not be one of them.
+        Impact immediate = new Impact(peak, rotation, speedBefore, UNKNOWN, testMode, false);
+        inFlight = immediate;
+        windowRotation = rotation;
+        dispatch(immediate, false);
+        raiseAlert(peak);
+
+        main.postDelayed(this::closeEvidenceWindow, EVIDENCE_WINDOW_MS);
+    }
+
+    /**
+     * The same impact, measured through.
+     *
+     * Nothing here can cancel or downgrade the alert that is already running.
+     * It exists so the rider can see what the phone sensed rather than one
+     * number: a 5g spike with the vehicle still doing 40 and barely turning
+     * reads very differently from a 5g spike that ended at a standstill.
+     */
+    private void closeEvidenceWindow() {
+        Impact i = inFlight;
+        if (i == null) return;
+        inFlight = null;
+        Impact complete = new Impact(
+            i.peak, windowRotation, i.speedBefore, freshSpeed(), i.test, true);
+        Log.i(TAG, "impact peak=" + complete.peak + " m/s2"
+            + " rotation=" + complete.rotation + " rad/s"
+            + " speedBefore=" + complete.speedBefore + " m/s"
+            + " speedAfter=" + complete.speedAfter + " m/s"
+            + " test=" + complete.test);
+        dispatch(complete, true);
+    }
+
+    private void dispatch(Impact impact, boolean isEvidence) {
         ImpactListener l = listener;
         if (l != null) {
-            l.onImpact(peak, testMode);
-        } else {
-            // No web view to tell. Hold it so the page can collect it when it
-            // starts, and make sure the page does start.
-            pendingPeak = peak;
-            pendingTest = testMode;
+            if (isEvidence) l.onEvidence(impact); else l.onImpact(impact);
         }
-        raiseAlert(peak);
+        // Kept only for an impact no page has seen. An impact already
+        // delivered to a live listener must never also sit here, or reopening
+        // the app hours later would raise the same crash a second time.
+        if (l == null) {
+            pending = impact;
+        } else if (isEvidence && pending != null) {
+            // A page appeared mid-window. The waiting copy becomes the full
+            // one rather than the half-measured one.
+            pending = impact;
+        }
     }
 
     /**
@@ -263,7 +478,14 @@ public class CrashWatchService extends Service {
         Intent open = new Intent(this, MainActivity.class)
             .setAction(Intent.ACTION_MAIN)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            .putExtra(EXTRA_IMPACT_PEAK, peak);
+            .putExtra(EXTRA_IMPACT_PEAK, peak)
+            // Built at the moment of the spike, so these are what was known
+            // then: the speed afterwards does not exist yet. This intent is
+            // the route used when Android has killed the process entirely,
+            // where a half-measured impact still beats no impact.
+            .putExtra(EXTRA_IMPACT_ROTATION, inFlight == null ? UNKNOWN : inFlight.rotation)
+            .putExtra(EXTRA_SPEED_BEFORE, inFlight == null ? UNKNOWN : inFlight.speedBefore)
+            .putExtra(EXTRA_SPEED_AFTER, UNKNOWN);
 
         PendingIntent pi = PendingIntent.getActivity(
             this, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -430,6 +652,14 @@ public class CrashWatchService extends Service {
     public void onDestroy() {
         running = false;
         if (sensors != null) sensors.unregisterListener(sensorListener);
+        if (locations != null) {
+            try {
+                locations.removeUpdates(locationListener);
+            } catch (Exception ignored) {
+                // Never registered, or the permission was revoked under us.
+            }
+        }
+        main.removeCallbacksAndMessages(null);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         wakeLock = null;
         super.onDestroy();

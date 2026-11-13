@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
-  buzz, canVibrate, COUNTDOWN_SECONDS, createAlarm, currentPosition, helpMessage,
-  IMPACT_THRESHOLD_MS2, keepAwake, readContacts, recordAudio, requestMotionPermission,
-  smsLink, TEST_THRESHOLD_MS2, watchForImpact, whatsappLink, writeContacts,
-  type EmergencyContact, type Recording,
+  buzz, canVibrate, COUNTDOWN_SECONDS, createAlarm, currentPosition, evidenceLines,
+  helpMessage, IMPACT_THRESHOLD_MS2, keepAwake, readContacts, recordAudio,
+  requestMotionPermission, smsLink, TEST_THRESHOLD_MS2, watchForImpact, whatsappLink,
+  writeContacts, type EmergencyContact, type Recording,
 } from '../lib/crashWatch'
 import { escalate, type EscalationStep } from '../lib/escalate'
 import {
   consumePendingImpact, nativeReadiness, nativeStartWatching, nativeStopVibration,
-  nativeStopWatching, nativeVibrate, onNativeImpact, openAppSettings,
-  openLockScreenSettings, requestCrashPermissions, requestUnrestricted,
-  explainNoBuzz, vibrationDiagnostics, type Readiness, type VibrationReport,
+  nativeStopWatching, nativeVibrate, onNativeImpact, onNativeImpactEvidence,
+  openAppSettings, openLockScreenSettings, requestCrashPermissions, requestUnrestricted,
+  explainNoBuzz, vibrationDiagnostics, type ImpactEvidence, type Readiness,
+  type VibrationReport,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
 import { MedicalIdCard } from './MedicalIdCard'
@@ -53,6 +54,10 @@ export function CrashWatch({
   const [testMode, setTestMode] = useState(false)
   const [contacts, setContacts] = useState<EmergencyContact[]>(() => readContacts())
   const [peak, setPeak] = useState<number | null>(null)
+  /** What the gyroscope and the location provider saw around the impact.
+   *  Native only, display only: it is shown on the red screen and never
+   *  consulted before raising or keeping the alert. */
+  const [evidence, setEvidence] = useState<ImpactEvidence | null>(null)
   const [left, setLeft] = useState(COUNTDOWN_SECONDS)
   const [position, setPosition] = useState<{ lat: number; lon: number } | null>(null)
   const [recording, setRecording] = useState<Recording | null>(null)
@@ -127,20 +132,38 @@ export function CrashWatch({
   // moments after Android has resumed a web view it had suspended.
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
-    void onNativeImpact(({ peak: p, test }) => {
-      trigger(Math.round(p), !test)
+    void onNativeImpact(({ test, ...measured }) => {
+      setEvidence(measured)
+      trigger(Math.round(measured.peak), !test)
     }).then((off) => {
       unsubscribe = off
     })
     return () => unsubscribe?.()
   }, [trigger])
 
+  // The rest of the same impact, a few seconds later: the rotation the spin
+  // reached and the speed the vehicle was left at, neither of which exists
+  // at the moment of the bang. It only fills in numbers on a screen that is
+  // already up — it cannot start an alert and it cannot end one.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    void onNativeImpactEvidence(({ test: _test, ...measured }) => {
+      setEvidence(measured)
+    }).then((off) => {
+      unsubscribe = off
+    })
+    return () => unsubscribe?.()
+  }, [])
+
   // An impact detected while no page was running at all — the web view killed
   // under memory pressure, or the app simply closed. Without this the service
   // would have done its job and the rider would open the app to nothing.
   useEffect(() => {
     void consumePendingImpact().then((pending) => {
-      if (pending) trigger(Math.round(pending.peak), !pending.test)
+      if (!pending) return
+      const { test, ...measured } = pending
+      setEvidence(measured)
+      trigger(Math.round(measured.peak), !test)
     })
   }, [trigger])
 
@@ -213,6 +236,7 @@ export function CrashWatch({
     disarm()
     setPhase('off')
     setPeak(null)
+    setEvidence(null)
     setRecording(null)
     setRecordingNow(false)
   }
@@ -221,6 +245,7 @@ export function CrashWatch({
    *  time while hurt, and it works on a phone whose sensor is unavailable. */
   const rehearse = () => {
     alarm.current ??= createAlarm()
+    setEvidence(null) // nothing was sensed, so nothing is reported as sensed
     trigger(null)
   }
 
@@ -301,6 +326,7 @@ export function CrashWatch({
     void nativeStopVibration()
     setPhase('armed')
     setPeak(null)
+    setEvidence(null)
     setRecording(null)
     setRecordingNow(false)
     startWatching(testMode) // watchForImpact fires once, so re-attach
@@ -312,6 +338,7 @@ export function CrashWatch({
         phase={phase}
         left={left}
         peak={peak}
+        evidence={evidence}
         position={position}
         contacts={contacts}
         recording={recording}
@@ -730,6 +757,7 @@ function AlertOverlay(props: {
   phase: 'asking' | 'alerting'
   left: number
   peak: number | null
+  evidence: ImpactEvidence | null
   position: { lat: number; lon: number } | null
   contacts: EmergencyContact[]
   recording: Recording | null
@@ -742,10 +770,11 @@ function AlertOverlay(props: {
   onStandDown: () => void
 }) {
   const {
-    phase, left, peak, position, contacts, recording, recordingNow, notice, autoSteps,
-    onImOk, onHelpNow, onCallEmergency, onStandDown,
+    phase, left, peak, evidence, position, contacts, recording, recordingNow, notice,
+    autoSteps, onImOk, onHelpNow, onCallEmergency, onStandDown,
   } = props
   const message = helpMessage(position, peak)
+  const sensed = evidenceLines(evidence)
   const firstAction = useRef<HTMLButtonElement | null>(null)
 
   // A screen-reader user was never told any of this was happening. The
@@ -815,6 +844,20 @@ function AlertOverlay(props: {
             >
               I need help &mdash; don&rsquo;t wait
             </button>
+            {/* What the phone sensed, so the rider can weigh it themselves.
+                No rotation and no change of speed is what a phone sliding
+                off a seat looks like; the app will not decide that for
+                anyone, but it will say what it saw. */}
+            {sensed.length > 0 && (
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-xl bg-white/10 p-3 text-xs ring-1 ring-white/20">
+                {sensed.map((line) => (
+                  <div key={line.label} className="flex justify-between gap-2">
+                    <dt className="text-white/70">{line.label}</dt>
+                    <dd className="font-semibold tabular-nums text-white">{line.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
             <p className="text-center text-xs leading-relaxed text-white/70">
               {peak
                 ? `Measured about ${(peak / 9.8).toFixed(1)}g. A knock or a dropped phone can do this too, which is why it asks. `

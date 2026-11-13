@@ -26,7 +26,33 @@ export type CallResult = {
   reason?: 'emergency-number' | 'permission-denied' | 'refused'
 }
 
-export type NativeImpact = { peak: number; test: boolean }
+/**
+ * One impact and what the phone measured around it.
+ *
+ * The accelerometer still decides on its own. These other figures are
+ * carried so the red screen can show what happened rather than one number:
+ * a phone that slid off a seat reads a hard knock with no rotation and no
+ * change of speed, and a rider looking at that can tell.
+ *
+ * -1 everywhere means "not measured" — no gyroscope on this phone, location
+ * refused, or no fix yet — and must be shown as that, never as a zero.
+ */
+export type ImpactEvidence = {
+  /** Peak acceleration magnitude, m/s², gravity included. */
+  peak: number
+  /** Peak angular rate around the impact, rad/s. */
+  rotation: number
+  /** Speed from the last fix before the spike, m/s. */
+  speedBefore: number
+  /** Speed once the few seconds after the spike had passed, m/s. */
+  speedAfter: number
+  /** False while the service is still measuring the seconds after the hit. */
+  complete: boolean
+}
+
+export type NativeImpact = ImpactEvidence & { test: boolean }
+
+export const NOT_MEASURED = -1
 
 /** Whether an alert would actually reach a rider whose phone is locked in a
  *  pocket. Every one of these is the rider's to grant and none can be
@@ -66,14 +92,14 @@ type CrashResponsePlugin = {
   >
   stopWatching(): Promise<SimpleResult>
   isWatching(): Promise<{ running: boolean }>
-  consumePendingImpact(): Promise<{ hasImpact: boolean; peak: number; test: boolean }>
+  consumePendingImpact(): Promise<NativeImpact & { hasImpact: boolean }>
   checkReadiness(): Promise<Readiness>
   requestPermissions(): Promise<Record<string, string>>
   openLockScreenSettings(): Promise<SimpleResult>
   requestUnrestricted(): Promise<SimpleResult>
   openAppSettings(): Promise<SimpleResult>
   addListener(
-    event: 'impact',
+    event: 'impact' | 'impactEvidence',
     handler: (data: NativeImpact) => void,
   ): Promise<PluginListenerHandle>
 }
@@ -243,14 +269,32 @@ export async function onNativeImpact(
   }
 }
 
+/** The rest of the measurements for an impact already being shown.
+ *
+ *  Separate from `impact` because the speed after a crash does not exist at
+ *  the moment of the crash: the service needs a few seconds and another
+ *  location fix. The alarm never waits for this, which is the point — it
+ *  fills in numbers on a screen that is already up. */
+export async function onNativeImpactEvidence(
+  handler: (impact: NativeImpact) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('impactEvidence', handler)
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
 /** An impact detected while no page was running — after Android killed the
  *  web view, or before the rider reopened the app. Returns null when there is
  *  nothing waiting, and clears it either way so one crash raises one alert. */
 export async function consumePendingImpact(): Promise<NativeImpact | null> {
   if (!isNative()) return null
   try {
-    const r = await plugin.consumePendingImpact()
-    return r.hasImpact ? { peak: r.peak, test: r.test } : null
+    const { hasImpact, ...impact } = await plugin.consumePendingImpact()
+    return hasImpact ? impact : null
   } catch {
     return null
   }
