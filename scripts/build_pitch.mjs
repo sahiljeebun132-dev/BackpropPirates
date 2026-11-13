@@ -7,7 +7,20 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import Module, { createRequire } from 'node:module'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// apply_theme.js ships inside the pptx skill and resolves jszip relative to
+// itself, where there isn't one. Point Node at this project's node_modules
+// before requiring it, so `node scripts/build_pitch.mjs` just works instead
+// of needing NODE_PATH set by hand. Without this the deck still builds but
+// applyTheme throws, and every scheme colour silently falls back to Office's
+// stock palette.
+process.env.NODE_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)), '..', 'node_modules',
+)
+Module._initPaths()
 
 const require = createRequire(import.meta.url)
 const pptxgen = require('pptxgenjs')
@@ -25,6 +38,14 @@ const day = light['Day light']
 const worst = [...D.districts.districts].sort((a, b) => b.casualtyAccidents - a.casualtyAccidents)[0]
 const quietest = Math.min(...D.districts.districts.map((d) => d.casualtyAccidents))
 const nf = (n) => Number(n).toLocaleString('en-GB')
+
+// Read from the source so a slide cannot drift from the app. The last time
+// a count was typed by hand here, the deck claimed ten tables and listed
+// nine.
+const BREAKDOWN_SRC = readFileSync('src/lib/breakdown.ts', 'utf8')
+const CAR_GUIDES = (BREAKDOWN_SRC.match(/vehicle: 'car',/g) || []).length
+const MOTO_GUIDES = (BREAKDOWN_SRC.match(/vehicle: 'motorcycle',/g) || []).length
+if (!CAR_GUIDES || !MOTO_GUIDES) throw new Error('guide counts failed to parse')
 const pct = (n, dp = 1) => `${(n * 100).toFixed(dp)}%`
 
 // --- theme -----------------------------------------------------------------
@@ -216,7 +237,7 @@ pres.addSection({ title: 'The problem' })
 pres.addSection({ title: 'The app' })
 {
   const s = pres.addSlide({ masterName: 'LIGHT', sectionTitle: 'The app' })
-  s.addText('One screen, three live answers', { placeholder: 'title' })
+  s.addText('Before you ride, and when it goes wrong', { placeholder: 'title' })
 
   // The whole product in one capture: a rider report, the score, and the
   // conditions panel telling them to leave an hour earlier.
@@ -249,21 +270,23 @@ pres.addSection({ title: 'The app' })
   const cw = W - M - cx
   s.addShape(pres.ShapeType.roundRect, {
     x: cx, y: 3.6, w: cw, h: 2.5, rectRadius: 0.1,
-    fill: { color: C.text1 }, line: { color: C.text1 }, objectName: 'satellite-callout',
+    fill: { color: C.text1 }, line: { color: C.text1 }, objectName: 'when-it-goes-wrong',
   })
-  s.addText('We were asked for satellite crash detection', {
-    isTextBox: true, x: cx + 0.28, y: 3.8, w: cw - 0.56, h: 0.32, margin: 0,
+  s.addText('And when it goes wrong anyway', {
+    isTextBox: true, x: cx + 0.28, y: 3.78, w: cw - 0.56, h: 0.3, margin: 0,
     fontSize: 13, bold: true, color: C.accent6,
   })
   s.addText(
-    'Seeing something car-sized needs sub-metre resolution, so low orbit and one pass a day. The satellites that watch continuously are weather satellites at 500 m a pixel, where a car does not exist. Mauritius is cloudy too.',
-    { isTextBox: true, x: cx + 0.28, y: 4.16, w: cw - 0.56, h: 1.2, margin: 0, fontSize: 11.5,
-      color: 'CBD5E1', lineSpacing: 16 },
-  )
-  s.addText(
-    'So we used the remote-sensed data that does arrive hourly and free, and the riders already on the road.',
-    { isTextBox: true, x: cx + 0.28, y: 5.42, w: cw - 0.56, h: 0.5, margin: 0, fontSize: 11.5,
-      color: C.accent6, lineSpacing: 16 },
+    [
+      { text: `Roadside guides: ${CAR_GUIDES} for cars, ${MOTO_GUIDES} for motorcycles, written separately. Safety check first — on a main road it refuses to show repair steps at all.`,
+        options: { bullet: true, breakLine: true } },
+      { text: 'Crash watch: a foreground service reads the accelerometer with the screen off. Over 3.1g it alarms and counts down 30 seconds.',
+        options: { bullet: true, breakLine: true } },
+      { text: 'Unanswered, the Android build texts every contact a map link and rings the first, with no tap. 114 stays one tap, because Android lets no app dial it.',
+        options: { bullet: true } },
+    ],
+    { isTextBox: true, x: cx + 0.28, y: 4.14, w: cw - 0.56, h: 1.85, margin: 0,
+      fontSize: 10.5, color: 'CBD5E1', lineSpacing: 13.5, paraSpaceAfter: 6 },
   )
 
   s.addNotes(
@@ -276,10 +299,12 @@ pres.addSection({ title: 'The app' })
     `Then report a hazard live from a phone in the room and show it appear on another phone within seconds.
 
 ` +
-    `On satellite, if asked: we evaluated it and rejected it on evidence, not effort. Resolution and revisit rate are a tradeoff you cannot escape, and Mauritius is cloudy. Weather models ingest satellite observations, so what we use is still remote-sensed, it just arrives as numbers.
+    `On satellite, if asked \u2014 and this used to be on the slide: we evaluated it and rejected it on evidence, not effort. Seeing something car-sized needs sub-metre resolution, which means low orbit and about one pass a day; the satellites that watch continuously are weather satellites at 500 m a pixel, where a car does not exist. Mauritius is cloudy too. Resolution and revisit rate are a tradeoff you cannot escape, and Mauritius is cloudy. Weather models ingest satellite observations, so what we use is still remote-sensed, it just arrives as numbers.
 
 ` +
-    `Reports never move the score. The score cites government tables over years; an unverified report from a stranger is a different kind of claim, so it sits above the score instead of inside it.`,
+    `Reports never move the score. The score cites government tables over years; an unverified report from a stranger is a different kind of claim, so it sits above the score instead of inside it.\n\n` +
+    `If asked why 114 is not dialled automatically: Android refuses ACTION_CALL for emergency numbers from every third-party app and CALL_PRIVILEGED is closed to us, so no app on the Play Store can dial an ambulance by itself. Apple's own Crash Detection, with the hardware and the OS privileges, still counts down before calling. Our plugin asks the operating system whether a number is an emergency number and refuses rather than throwing mid-crash.\n\n` +
+    `If asked about privacy or the law: we read the Data Protection Act 2017 and the Road Traffic Act rather than guessing. A voice recording is personal data, so the crash recording rests on the vital-interests basis the Act allows, is capped at 45 seconds, is announced on screen and never leaves the handset. Hand-held phone use while driving is an offence carrying penalty points, so everything the app asks of a rider happens before they set off or after they have stopped. There is a panel in the app that says all of this, and says we are students and not lawyers.`,
   )
 }
 
@@ -419,8 +444,8 @@ pres.addSection({ title: 'Impact' })
       'A data refresh is two scripts and a push.',
     ]],
     ['Reaches people now', [
-      'A link, not an app store. It opens on any phone and installs to the home screen.',
-      'Works on the cheap Android phones riders actually carry.',
+      'A link first: it opens on any phone, no store, no install, nothing to fail before a demo.',
+      'And an APK from the same code, for the three things a browser forbids after a crash.',
     ]],
     ['Belongs to someone', [
       'The Road Safety Unit or the police already publish this data.',
@@ -461,7 +486,7 @@ pres.addSection({ title: 'Impact' })
     isTextBox: true, x: M, y: 5.25, w: 1.2, h: 0.3, margin: 0, fontSize: 13, bold: true, color: C.accent6,
   })
   s.addText(
-    'Real road routing instead of straight lines  ·  the Metro Express corridor  ·  photos on reports  ·  offline caching for where the signal drops',
+    'Real road routing instead of straight lines  ·  the Metro Express corridor  ·  photos on reports  ·  a signed release build so the APK installs without a warning',
     { isTextBox: true, x: M, y: 5.58, w: W - 2 * M, h: 0.5, margin: 0, fontSize: 13, color: 'CBD5E1' },
   )
 
@@ -472,7 +497,7 @@ pres.addSection({ title: 'Impact' })
 
   s.addNotes(
     `Cost: it genuinely runs on nothing. Static JSON on a free tier, no backend, no API keys. That matters for a public-sector handover.\n\n` +
-    `Reach: a link works on any phone. No app store review, no install friction, and it works on the cheap Android phones the riders we built this for actually carry.\n\n` +
+    `Reach: a link works on any phone, with no store review and no install friction, and that is still what we demo from. The Android build is additive — it exists only because a browser may not text or call on its own after a crash — and inside the APK the data ships too, so the core works with no signal at all.\n\n` +
     `Who runs it: the people who publish this data already. Handing it over is a repo transfer, not a procurement exercise.\n\n` +
     `Limits, if asked: routes are straight lines between towns, not real road paths, and the app says so. Light and junction tables are 2018, the latest published. 26 towns, limited to places with an official health facility so the coordinates are real.\n\n` +
     `FILL IN THE SURPRISE CARD BOX BEFORE PITCHING.`,
