@@ -1,7 +1,7 @@
 {
-  "name": "BackpropPirates",
-  "short_name": "BackpropPirates",
-  "description": "Built at Life Powered by Tech 2026, Mauritius.",
+  "name": "Zetway",
+  "short_name": "Zetway",
+  "description": "How dangerous is your journey across Mauritius, from official road-casualty data.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

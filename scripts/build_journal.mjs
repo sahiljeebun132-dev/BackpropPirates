@@ -1,5 +1,5 @@
 /**
- * Builds docs/SafeRoute-Build-Journal.docx: the running record of what we built,
+ * Builds docs/Zetway-Build-Journal.docx: the running record of what we built,
  * why, and where every number comes from. Written for the jury Q&A.
  *
  * It reads the real data files, so the figures in the document are the same
@@ -45,16 +45,6 @@ const Bullet = (text, level = 0) =>
     numbering: { reference: 'bullets', level },
     spacing: { after: 60, line: 276 },
     children: [new TextRun({ text, size: 21, color: INK })],
-  })
-
-/** A label: value line, used for the quick-answer blocks. */
-const Fact = (label, value) =>
-  new Paragraph({
-    spacing: { after: 60, line: 276 },
-    children: [
-      new TextRun({ text: `${label}  `, size: 21, bold: true, color: INK }),
-      new TextRun({ text: value, size: 21, color: INK }),
-    ],
   })
 
 const Callout = (title, body) =>
@@ -157,6 +147,8 @@ const TIMELINE = [
   ['15:20', 'Risk model, planner screen and results dashboard built', 'The core feature, end to end'],
   ['15:35', 'Score calibration bug found and fixed across all 5,200 combinations',
     'The first model rated 70% of routes Severe'],
+  ['15:50', 'README, decision log and this journal written', 'All three are judged deliverables'],
+  ['16:00', 'Named the app Zetway', '"Zet" from trajet, the journey — which is what the app scores'],
 ]
 
 const QA = [
@@ -186,7 +178,7 @@ const QA = [
 
 const doc = new Document({
   creator: 'Team BackpropPirates',
-  title: 'SafeRoute Mauritius: Build Journal',
+  title: 'Zetway: Build Journal',
   description: 'Running record of the build, the data and the decisions, for the jury.',
   numbering: {
     config: [{
@@ -219,7 +211,7 @@ const doc = new Document({
   sections: [{
     properties: { page: { margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } },
     children: [
-      new Paragraph({ text: 'SafeRoute Mauritius', heading: HeadingLevel.TITLE }),
+      new Paragraph({ text: 'Zetway', heading: HeadingLevel.TITLE }),
       new Paragraph({
         spacing: { after: 40 },
         children: [new TextRun({ text: 'Build journal — Team BackpropPirates', size: 24, color: MUTED })],
@@ -234,7 +226,7 @@ const doc = new Document({
       }),
 
       Callout('In one line',
-        'SafeRoute tells a commuter how dangerous their specific journey is — for how they are travelling, at the hour they are travelling — using the government’s own road-casualty data, and shows them where help is along the way.'),
+        'Zetway tells a commuter how dangerous their specific journey is — for how they are travelling, at the hour they are travelling — using the government’s own road-casualty data, and shows them where help is along the way.'),
 
       H1('The problem, and who we built it for'),
       P(`In ${D.island.year} Mauritius recorded ${nf(D.island.accidents)} road accidents. ${nf(D.island.fatal)} people were killed and ${nf(D.island.casualties)} were injured or killed on an island of about 1.3 million. Those are the published figures, not estimates.`),
@@ -245,6 +237,39 @@ const doc = new Document({
       Bullet(`${nf(worstDistrict.riderCasualties)} of that district’s casualties were riders, the highest rider count on the island.`),
       Bullet(`Riding in darkness with no street lighting, ${pct(dark.fatalShare)} of casualties are fatal, against ${pct(day.fatalShare)} in daylight.`),
       P('Today they have no way to know any of this before they set off. Government road-safety data exists, but it is in annual PDF digests and CSV tables, not in anyone’s pocket.', { italics: true }),
+
+      H1('What the data told us'),
+      P('Findings from the official tables that shaped the app. Each is a figure we can point at.'),
+      makeTable(
+        ['Finding', 'The figure', 'Where it shows up'],
+        [
+          ['Half of all road harm lands on people with no vehicle around them',
+            `${pct(D.exposure.vulnerableShare)} of casualties were riders or on foot`,
+            'Why the app treats travel mode as a first-class input'],
+          ['Riders are worse off even allowing for how many there are',
+            `${D.exposure.riderCasualtiesPer1000Vehicles} casualties per 1,000 two-wheelers against ${D.exposure.occupantCasualtiesPer1000Vehicles} for other vehicles (${D.exposure.riderRiskRatio}×)`,
+            'The rider advice card'],
+          ['Darkness more than doubles the chance a casualty is fatal',
+            `${pct(dark.fatalShare)} fatal in unlit darkness against ${pct(day.fatalShare)} in daylight`,
+            'The light-conditions factor, 15% of the score'],
+          ['The open road kills more than junctions do',
+            `${pct(notJunction.fatalShare)} of casualty accidents away from a junction were fatal`,
+            'The junction advice card'],
+          ['Motorways carry the highest fatal share of any road type',
+            `${pct(dual.fatalShare)} on dual carriageways`,
+            'The motorway warning, shown when the corridor uses M1 or M2'],
+          ['Risk is not spread evenly across the island',
+            `${worstDistrict.name} recorded ${nf(worstDistrict.casualtyAccidents)} casualty accidents, against ${nf(Math.min(...D.districts.districts.map((d) => d.casualtyAccidents)))} in the quietest district`,
+            'The district factor, 25% of the score'],
+        ],
+        [30, 36, 34],
+      ),
+      Spacer(),
+
+      H1('How the build went'),
+      P('What we did and when, so the commit history and this document agree.'),
+      makeTable(['Time', 'What happened', 'Why'], TIMELINE, [10, 48, 42]),
+      Spacer(),
 
       H1('What the app does'),
       P('One feature, working end to end. Pick where you are going from, where to, how you are travelling and when. The app returns:'),
@@ -366,7 +391,7 @@ const doc = new Document({
 })
 
 mkdirSync('docs', { recursive: true })
-const out = 'docs/SafeRoute-Build-Journal.docx'
+const out = 'docs/Zetway-Build-Journal.docx'
 const buffer = await Packer.toBuffer(doc)
 writeFileSync(out, buffer)
 console.log(`  wrote ${out}  (${(buffer.length / 1024).toFixed(0)} KB)`)

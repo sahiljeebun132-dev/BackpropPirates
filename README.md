@@ -1,11 +1,11 @@
-# SafeRoute Mauritius
+# Zetway
 
 **Live app: https://backprop-pirates.vercel.app** (open it on a phone)
 
 Team BackpropPirates · Life Powered by Tech, 13–14 November 2026
 IET Society × Middlesex University Mauritius · **Theme 2: Powered to Move**
 
-> SafeRoute tells a commuter how dangerous their specific journey is — for how they are
+> Zetway tells a commuter how dangerous their specific journey is — for how they are
 > travelling, at the hour they are travelling — using the government's own road-casualty data,
 > and shows them where help is along the way.
 
@@ -162,6 +162,6 @@ No environment variables and no API keys. All data is static JSON in `public/dat
 
 ## Documents
 
-- [Build journal](docs/SafeRoute-Build-Journal.docx) — the running record of the build, the data,
+- [Build journal](docs/Zetway-Build-Journal.docx) — the running record of the build, the data,
   the decisions and the jury Q&A
 - [Decision log](DECISIONS.md)
