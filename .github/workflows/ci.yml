@@ -1,0 +1,59 @@
+# The checks that have to pass before a commit is worth demoing.
+#
+# Deliberately not the APK: that is built by android.yml, which also publishes
+# it to the fixed download address. This workflow is the fast half — install,
+# typecheck, build, and then three guards over the things a green build would
+# otherwise miss.
+#
+# Unlike android.yml there is no paths-ignore here. The whole job runs in under
+# a minute, and the point is a tick on every commit rather than on some of them.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  # Per ref, so pushing again supersedes the run in flight but two branches
+  # never cancel each other.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Same version android.yml builds the shipped APK with.
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # tsc -b then vite build. Separate from the checks below so a red tick
+      # says whether the code stopped compiling or the data stopped making
+      # sense.
+      - name: Typecheck and build
+        run: npm run build
+
+      # The scoring is the product, so this is the guard that matters. Runs
+      # check_score_spread.mjs over all route/mode/time combinations and fails
+      # if the median leaves the moderate-to-high range, if the middle 80% of
+      # routes collapse into less than one band, or if any of the four verdicts
+      # becomes unreachable.
+      - name: Score calibration
+        run: node scripts/check_score_calibration.mjs
+
+      # The nine JSON files are fetched at runtime, so the type checker never
+      # sees inside them.
+      - name: Data integrity
+        run: node scripts/check_data_integrity.mjs
+
+      # Losing the service worker's index.html sweep breaks the offline demo
+      # without breaking anything a build would notice.
+      - name: Service worker precache
+        run: node scripts/check_sw_precache.mjs
