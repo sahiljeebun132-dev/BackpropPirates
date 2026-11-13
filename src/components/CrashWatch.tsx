@@ -426,7 +426,7 @@ export function CrashWatch() {
         Show me what happens in a crash
       </button>
 
-      {isNative() && <BuzzSelfTest />}
+      <BuzzSelfTest />
 
       <button
         type="button"
@@ -896,14 +896,58 @@ const intensity = (v: number | undefined): string =>
 function BuzzSelfTest() {
   const [report, setReport] = useState<VibrationReport | null>(null)
   const [ran, setRan] = useState(false)
+  const native = isNative()
 
   const run = async () => {
     setRan(true)
-    await nativeVibrate([0, 700, 300, 700])
-    setReport(await vibrationDiagnostics())
+    if (native) {
+      await nativeVibrate([0, 700, 300, 700])
+      setReport(await vibrationDiagnostics())
+    } else {
+      // Best effort, and it is genuinely all a page can do.
+      try {
+        navigator.vibrate?.([0, 700, 300, 700])
+      } catch {
+        // Some browsers throw rather than return false. Either way the
+        // answer below is the same.
+      }
+    }
   }
 
   const reason = explainNoBuzz(report)
+
+  // The web build cannot win this one, and saying so is more use than a
+  // button that quietly does nothing. A page may only call
+  // navigator.vibrate, which Android files under its default usage — the
+  // bucket Do Not Disturb and a silent ringer both discard. There is no web
+  // API for an alarm-priority buzz, so the honest answer is the APK.
+  if (!native) {
+    return (
+      <div className="mt-2">
+        <button
+          type="button"
+          onClick={run}
+          className="w-full rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200 active:bg-slate-100"
+        >
+          Test the buzz
+        </button>
+        {ran && (
+          <div className="mt-2 rounded-xl bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900 ring-1 ring-amber-200">
+            <p className="font-semibold">You are running the web app.</p>
+            <p className="mt-1">
+              {canVibrate()
+                ? 'It just asked the phone to buzz, but a web page can only make an ordinary vibration request — the kind Android silently drops when the phone is on silent or in Do Not Disturb. There is no way for a page to ask for an alarm-priority buzz.'
+                : 'This browser does not expose vibration to a web page at all, so nothing was even requested.'}
+            </p>
+            <p className="mt-1 font-semibold">
+              The Android app buzzes for 35 seconds at alarm priority, through Do Not
+              Disturb. If you need the vibration, install it.
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="mt-2">

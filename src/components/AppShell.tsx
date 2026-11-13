@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import mark from '/brand/zetway-mark.png'
+import { isNative } from '../lib/platform'
 
 type Props = {
   children: ReactNode
@@ -91,8 +92,14 @@ export function AppShell({ children, location = null }: Props) {
 
         <main className="flex-1 space-y-3.5 px-4 py-4">{children}</main>
 
+        {/* Which build this is, spelled out. Two people lost an evening to a
+            phone that would not vibrate before anyone established whether it
+            was running the Android app or the web one, and only the Android
+            app can buzz at alarm priority. A word in the footer settles it. */}
         <footer className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-center text-[11px] text-slate-400">
-          Team BackpropPirates · Life Powered by Tech 2026 · build {buildLabel}
+          Team BackpropPirates · Life Powered by Tech 2026
+          <br />
+          {isNative() ? 'Android app' : 'Web app'} · build {buildLabel}
         </footer>
       </div>
     </div>
