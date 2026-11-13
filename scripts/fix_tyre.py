@@ -108,7 +108,8 @@ LAY = {
     "rim": 0.50,
     "spoke": 0.45,
     "cap": 0.40,
-    "line": 0.35,
+    "line": 0.36,
+    "socket": 0.33,
     "nut": 0.30,
     "chock": 0.25,
     "brace": 0.20,
@@ -373,8 +374,10 @@ def build_car(mats):
     ]
 
     # The jack point. breakdown.ts: "a reinforced pad under the sill, usually
-    # marked with a notch, arrow or triangle in the trim."
-    mark = triangle("JackMark", 0.075, (JACK_X, LAY["mark"], BODY_BOTTOM + 0.055),
+    # marked with a notch, arrow or triangle in the trim." Hung below the sill
+    # with its tip just inside it, so it points at the pad rather than sitting
+    # on top of it where the sill swallows half the arrow.
+    mark = triangle("JackMark", 0.095, (JACK_X, LAY["mark"], BODY_BOTTOM - 0.08),
                     material=mats["brand"], parent=car)
 
     rear = build_wheel("Rear", car, mats, rim_mat=mats["steel"])
@@ -422,19 +425,21 @@ def build_jack(mats, car):
     its own middle and buried half the jack in the tarmac.
     """
     root = empty("JackRoot", (JACK_PARK_X, 0, 0), parent=car)
-    plate("JackFoot", 0.30, 0.05, (0, LAY["jack"], 0.025),
+    plate("JackFoot", 0.36, 0.06, (0, LAY["jack"], 0.03),
           material=mats["brand_deep"], parent=root)
     lift = empty("JackLift", (0, 0, 0), parent=root)
-    plate("JackColumn", 0.11, 0.42, (0, LAY["jack"], 0.21),
+    plate("JackColumn", 0.12, 0.42, (0, LAY["jack"], 0.21),
           material=mats["brand_deep"], parent=lift)
-    plate("JackHead", 0.24, 0.08, (0, LAY["jack"], JACK_HEAD_Z),
+    plate("JackHead", 0.30, 0.08, (0, LAY["jack"], JACK_HEAD_Z),
           material=mats["brand"], parent=lift)
     return root, lift
 
 
 def build_brace(mats, car):
     root = empty("Brace", (0, 0, -3.0), parent=car)
-    disc("BraceSocket", 0.105, (0, LAY["brace"], 0), material=mats["brand"], parent=root)
+    # The socket sits behind the nut, not over it, so the nut it is working
+    # stays visible and the socket reads as a ring round that one nut.
+    disc("BraceSocket", 0.105, (0, LAY["socket"], 0), material=mats["brand"], parent=root)
     plate("BraceBar", BRACE_LEN - 0.08, 0.07,
           (0.08 + (BRACE_LEN - 0.08) / 2, LAY["brace"], 0),
           material=mats["text"], parent=root)
@@ -505,6 +510,15 @@ def animate(rig, jack_root, jack_lift, brace, lines, cam, nut_positions):
     frame_at(F["lower"], WIDE)
     frame_at(F["star"], CLOSE)
 
+    # --- the starting state, keyed explicitly. A value an object was merely
+    # built with is overwritten the moment it gets a keyframe anywhere, since
+    # the first key extrapolates backwards to frame one: without these the
+    # brace was already on the wheel, and the nuts already loose, during the
+    # opening beat.
+    key(brace, 1, loc=(0, 0, -3.0), interp="CONSTANT")
+    for nut in nuts:
+        key_colour(nut.data.materials[0], 1, INK)
+
     # --- secure: the chock goes in behind the rear wheel.
     key(chock, F["secure"], loc=(-3.50, LAY["chock"], 0.12), interp="LINEAR")
     key(chock, F["secure"] + 11, loc=(-3.50, LAY["chock"], 0.12))
@@ -536,6 +550,9 @@ def animate(rig, jack_root, jack_lift, brace, lines, cam, nut_positions):
 
     key(jack_root, F["jack"] + 16, loc=(JACK_PARK_X, 0, 0), interp="LINEAR")
     key(jack_root, F["jack"] + 34, loc=(JACK_X, 0, 0))
+    # The mark goes once the jack is standing on it: both are brand blue and
+    # at the same x, so leaving it on just smears the two shapes together.
+    key(mark, F["jack"] + 34, scale=(0, 0, 0), interp="CONSTANT")
     key(jack_lift, F["jack"] + 36, scale=(1, 1, 1))
     key(jack_lift, F["jack"] + 57, scale=(1, 1, LIFT_SCALE))
     key(pivot, F["jack"] + 36, rot=(0, 0, 0))
@@ -577,7 +594,6 @@ def animate(rig, jack_root, jack_lift, brace, lines, cam, nut_positions):
     key(pivot, F["lower"] + 27, rot=(0, 0, 0))
     key(jack_root, F["lower"] + 28, loc=(JACK_X, 0, 0), interp="LINEAR")
     key(jack_root, F["lower"] + 35, loc=(JACK_PARK_X, 0, 0))
-    key(mark, F["lower"] + 35, scale=(0, 0, 0), interp="CONSTANT")
 
     # --- the star pattern, drawn as it is worked.
     step = 12

@@ -430,17 +430,25 @@ def build_hand():
     """A glove, near enough. It says "by hand", which is half the instruction.
 
     The guide is explicit that this is done with the engine off and nothing
-    turning, so the tool in every shot is a hand.
+    turning, so the tool in every shot is a hand. Built pointing along -X,
+    fingers first, and rotated into place: that way one glyph can hold the
+    chain, turn the wheel and press the lower run without being redrawn.
     """
     root = empty("Hand")
     m = flat("HandMat", HAND)
-    box("Palm", loc=(0, Y_HAND, 0), scale=(0.075, 0.004, 0.055),
+    box("Palm", loc=(0.030, Y_HAND, 0), scale=(0.080, 0.004, 0.082),
         material=m, parent=root)
-    box("Thumb", loc=(-0.030, Y_HAND, 0.042), rot=(0, math.radians(-28), 0),
-        scale=(0.055, 0.004, 0.022), material=m, parent=root)
-    box("Cuff", loc=(0.056, Y_HAND, -0.006), scale=(0.045, 0.004, 0.070),
+    for i, dz in enumerate((0.026, 0.0, -0.026)):
+        box("Finger%d" % i, loc=(-0.036, Y_HAND, dz),
+            scale=(0.052, 0.004, 0.018), material=m, parent=root)
+    box("Thumb", loc=(-0.012, Y_HAND, 0.050), rot=(0, math.radians(26), 0),
+        scale=(0.050, 0.004, 0.020), material=m, parent=root)
+    box("Cuff", loc=(0.084, Y_HAND, 0), scale=(0.042, 0.004, 0.092),
         material=m, parent=root)
     return root
+
+
+HAND_REACH = 0.062   # from the hand's origin to its fingertips
 
 
 def build_arrow():
@@ -455,9 +463,9 @@ def build_arrow():
         box("ArrowSeg%d" % i,
             loc=(math.cos(a) * r, Y_ARROW, math.sin(a) * r),
             rot=(0, math.atan2(math.cos(a), -math.sin(a)), 0),
-            scale=(0.030, 0.004, 0.009), material=m, parent=root)
-    head = math.radians(151)
-    bpy.ops.mesh.primitive_cone_add(radius1=0.026, depth=0.055, vertices=3)
+            scale=(0.038, 0.004, 0.013), material=m, parent=root)
+    head = math.radians(152)
+    bpy.ops.mesh.primitive_cone_add(radius1=0.032, depth=0.066, vertices=3)
     c = bpy.context.object
     c.name = "ArrowHead"
     # The cone points along its own +Z; aim that down the tangent, which at
@@ -468,7 +476,7 @@ def build_arrow():
     return root
 
 
-def build_marks(belt):
+def build_marks():
     """Two ticks either side of the lower run, at the point it is checked.
 
     Deliberately without a scale on them. The amount of free play is a figure
@@ -477,9 +485,7 @@ def build_marks(belt):
     stops there.
     """
     root = empty("Marks")
-    mid_s = belt.s2 + belt.lt / 2
-    x, z, _, _ = belt.at(mid_s)
-    root.location = (x, 0, z)
+    root.location = (CHECK_X, 0, CHECK_Z)
     m = flat("MarkMat", MARK)
     for i, dz in enumerate((SAG_SWING + 0.012, -SAG_SWING - 0.012)):
         box("Mark%d" % i, loc=(0, Y_ARROW, dz), scale=(0.075, 0.004, 0.007),
@@ -548,38 +554,48 @@ def state(f: int):
 
 
 def hand_at(f: int, st):
-    """Where the hand is, and whether it is in shot at all.
+    """Where the hand is, how it is turned, and whether it is in shot at all.
 
     Three visits: lift the chain over the sprocket, roll the wheel, then press
-    the lower run to see how much play it has.
+    the lower run to see how much play it has. It always enters and leaves
+    past the right edge of frame, so it never fades in over the machine.
     """
-    if F_HAND_IN <= f <= F_HAND_OUT + 6:
+    park = (0.62, -0.34)
+
+    if F_HAND_IN <= f <= F_HAND_OUT + 8:
         enter = ease(seg(f, F_HAND_IN, F_LIFT_A))
-        out = ease(seg(f, F_HAND_OUT, F_HAND_OUT + 6))
+        out = ease(seg(f, F_HAND_OUT, F_HAND_OUT + 8))
         cx, cz = st["centre"]
-        # Rides with the loop it is carrying, a little below and behind it.
-        x = mix(0.44, cx + 0.105, enter)
-        z = mix(-0.34, cz - 0.070, enter)
-        return (mix(x, 0.46, out), mix(z, -0.30, out)), 1.0 - out * 0.9
+        # Fingertips on the outside of the loop, so the hand is holding the
+        # chain rather than hovering near it.
+        x = mix(park[0], cx + st["radius"] + HAND_REACH + 0.012, enter)
+        z = mix(park[1], cz, enter)
+        return (mix(x, park[0], out), mix(z, park[1], out)), 0.0, 1.0 - out
 
-    if F_STAND_UP + 2 <= f <= F_ROLL_END + 10:
+    if F_STAND_UP + 2 <= f <= F_ROLL_END + 12:
         enter = ease(seg(f, F_STAND_UP + 2, F_ROLL_START))
-        out = ease(seg(f, F_ROLL_END, F_ROLL_END + 10))
-        # On the tyre, sweeping up its rear face: a wheel rolled forwards has
-        # its back edge coming up, so that is the way the hand goes.
+        out = ease(seg(f, F_ROLL_END, F_ROLL_END + 12))
+        # On the tyre, sweeping up and over its rear face: a wheel rolled
+        # forwards has its back edge coming up, so that is the way the hand
+        # goes, and it goes twice because state() pushes the wheel twice.
         u = seg(f, F_ROLL_START, F_ROLL_END)
-        a = math.radians(-24 + 92 * (0.5 * ease(seg(u, 0.0, 0.44))
-                                     + 0.5 * ease(seg(u, 0.50, 0.96))))
-        tx = math.cos(a) * (WHEEL_R + 0.055)
-        tz = math.sin(a) * (WHEEL_R + 0.055)
-        return (mix(0.52, tx, enter) + out * 0.22,
-                mix(-0.34, tz, enter)), 1.0 - out * 0.9
+        a = math.radians(6 + 94 * (0.5 * ease(seg(u, 0.0, 0.44))
+                                   + 0.5 * ease(seg(u, 0.50, 0.96))))
+        grip = WHEEL_R - 0.015
+        tx, tz = math.cos(a) * grip, math.sin(a) * grip
+        x = mix(park[0], tx, enter)
+        z = mix(park[1], tz, enter)
+        # Fingers point at the hub, which is what a hand on a tyre looks like.
+        return (mix(x, park[0], out), mix(z, park[1], out)), -a, 1.0 - out
 
-    if F_SLACK_IN - 10 <= f:
-        enter = ease(seg(f, F_SLACK_IN - 10, F_SLACK_IN + 8))
-        return (-0.26, mix(-0.34, -0.085 - st["sag"] - 0.040, enter)), enter
+    if F_SLACK_IN - 12 <= f:
+        enter = ease(seg(f, F_SLACK_IN - 12, F_SLACK_IN + 6))
+        # Under the lower run, fingers up, riding with it as it is pushed.
+        z = CHECK_Z - st["sag"] - HAND_REACH - 0.016
+        return ((mix(park[0], CHECK_X, enter), mix(park[1], z, enter)),
+                math.pi / 2, enter)
 
-    return (0.6, -0.4), 0.0
+    return park, 0.0, 0.0
 
 
 # ---------------------------------------------------------------- animation
@@ -633,10 +649,12 @@ def animate(objs, n_links):
             objs["stand"].rotation_euler = Euler((0, st["stand"], 0))
             objs["stand"].keyframe_insert("rotation_euler", frame=f)
 
-            (hx, hz), hv = hand_at(f, st)
+            (hx, hz), ha, hv = hand_at(f, st)
             objs["hand"].location = (hx, 0, hz)
+            objs["hand"].rotation_euler = Euler((0, ha, 0))
             objs["hand"].scale = (max(hv, 0.001),) * 3
             objs["hand"].keyframe_insert("location", frame=f)
+            objs["hand"].keyframe_insert("rotation_euler", frame=f)
             objs["hand"].keyframe_insert("scale", frame=f)
 
             for key in ("arrow", "marks"):
@@ -701,13 +719,10 @@ def main() -> int:
     rear_sprocket = build_sprocket("RearSprocket", REAR_C, R_REAR, TEETH_REAR, m_steel)
     front_sprocket = build_sprocket("FrontSprocket", FRONT_C, R_FRONT, TEETH_FRONT, m_steel)
 
-    seated = Belt(FRONT_C, R_FRONT, REAR_C, R_REAR)
-    n_links = int(round(seated.length / PITCH))
-    links = build_chain(n_links)
-
+    links = build_chain(N_LINKS)
     hand = build_hand()
     arrow = build_arrow()
-    marks = build_marks(seated)
+    marks = build_marks()
 
     cam_data = bpy.data.cameras.new("Cam")
     cam_data.type = "ORTHO"
@@ -725,11 +740,11 @@ def main() -> int:
         "rear_sprocket": rear_sprocket, "front_sprocket": front_sprocket,
         "dashes": dashes, "stand": stand, "hand": hand, "arrow": arrow,
         "marks": marks, "cam": cam, "ign": m_ign, "neu": m_neu,
-    }, n_links)
+    }, N_LINKS)
 
     setup_render(scene)
     print("CHAIN %d links, loop %.0f mm, rear r %.1f mm, front r %.1f mm"
-          % (n_links, seated.length * 1000, R_REAR * 1000, R_FRONT * 1000))
+          % (N_LINKS, SEATED.length * 1000, R_REAR * 1000, R_FRONT * 1000))
 
     if still is not None:
         os.makedirs(STILL_DIR, exist_ok=True)
