@@ -667,6 +667,47 @@ export function CrashWatch({
         Show me what happens in a crash
       </button>
 
+      {/* Above the testing tools, and a button rather than a line of
+          underlined 12px text.
+
+          This is the most load-bearing setup step in the app: everything
+          the crash alert does afterwards is sent to the people named here,
+          and with none saved the thirty-second countdown ends by texting
+          nobody. It used to sit below a section called "Testing and demo
+          tools", which is the worst place in the screen for the one thing
+          a rider has to do before their first ride — someone setting the
+          app up alone did not find it.
+
+          With none saved it says so in amber rather than inviting. Not an
+          error, because nothing has gone wrong yet; a warning, because
+          something will. */}
+      <button
+        type="button"
+        onClick={() => setSetupOpen((o) => !o)}
+        className={`mt-2 w-full rounded-xl px-4 py-3.5 text-left text-sm font-bold ring-1 ${
+          contacts.length
+            ? 'bg-flag-green/10 text-flag-green ring-flag-green/25'
+            : 'bg-amber-50 text-amber-900 ring-amber-300'
+        }`}
+      >
+        {contacts.length ? `People to alert · ${contacts.length} saved` : 'Add someone to alert'}
+        <span className="mt-0.5 block text-[11px] font-medium leading-relaxed opacity-80">
+          {contacts.length
+            ? 'Texted your location automatically if you do not answer a crash alert.'
+            : 'Nobody is saved yet, so a crash alert would have nobody to text. Takes a minute.'}
+        </span>
+      </button>
+
+      {setupOpen && (
+        <ContactEditor
+          contacts={contacts}
+          onChange={(next) => {
+            setContacts(next)
+            writeContacts(next)
+          }}
+        />
+      )}
+
       {/* Neither of these is for a rider. One proves the buzzer works on
           this handset, the other pairs the phone to a laptop for a
           demonstration — both worth having, neither worth meeting on the way
@@ -684,24 +725,6 @@ export function CrashWatch({
         />
         <BuzzSelfTest />
       </Details>
-
-      <button
-        type="button"
-        onClick={() => setSetupOpen((o) => !o)}
-        className="mt-2 w-full text-xs font-semibold text-brand-deep underline"
-      >
-        {contacts.length ? `People to alert (${contacts.length})` : 'Add someone to alert'}
-      </button>
-
-      {setupOpen && (
-        <ContactEditor
-          contacts={contacts}
-          onChange={(next) => {
-            setContacts(next)
-            writeContacts(next)
-          }}
-        />
-      )}
 
       {/* Directly under the contacts, because the two are the same job: who
           hears about it, and what they need to be told. It is on this page

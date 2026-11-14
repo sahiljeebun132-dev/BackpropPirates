@@ -19,7 +19,7 @@ Do these in order. None of them takes longer than a minute, and three of them
 are things only you can do.
 
 - [ ] **Install the APK on the demo phone.** `backprop-pirates.vercel.app/zetway.apk`
-      — the live file is sha `7f99c06f` / 18.6 MB. **Reinstall even if you
+      — the live file is sha `475b31ff` / 18.6 MB. **Reinstall even if you
       already installed one today:** the earlier build had a broken
       report-a-hazard screen and a map missing two thirds of its roads. The web
       link works on any phone, but only the Android app can read the
