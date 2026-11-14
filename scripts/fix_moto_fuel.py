@@ -111,6 +111,7 @@ LAY = {
     "lever": 0.50,
     "case": 0.54,       # the instrument housing
     "tap": 0.58,
+    "fill": 0.60,       # fuel inside a pipe, in front of the pipe
     "pipe": 0.62,       # standpipes, pump, fuel line
     "outline": 0.66,    # the tank wall in the head-on section
     "fluid": 0.70,      # fuel, wherever it is
@@ -159,7 +160,6 @@ PIPE_SHORT_TOP = 0.480
 # Three detents round the tap. ON and RES are at the two ends of the sweep so
 # that turning one to the other never passes through OFF, which is how a tap
 # with a sixty degree throw is actually arranged.
-DET_R = 0.048
 GLYPH_R = 0.098
 A_OFF = math.radians(210)
 A_ON = math.radians(270)
@@ -170,12 +170,13 @@ LINE_X1 = -0.520                   # where it turns down for the carburettor
 CARB_C = (-0.490, 0.312)
 CARB_W, CARB_H = 0.110, 0.085
 
-CLUSTER_C = (-1.080, 0.735)
-LAMP_FUEL = (-1.116, 0.735)
-LAMP_RUN = (-1.044, 0.735)
-LAMP_R = 0.021
-BARREL_C = (-1.195, 0.700)
-BARREL_R = 0.026
+CLUSTER_C = (-1.090, 0.738)
+CLUSTER_W, CLUSTER_H = 0.215, 0.082
+LAMP_FUEL = (-1.158, 0.738)
+LAMP_RUN = (-1.100, 0.738)
+LAMP_R = 0.020
+BARREL_C = (-1.035, 0.738)       # the key lives in the console, where most
+BARREL_R = 0.026                 # of the bikes this guide is for keep it
 
 STAND_PIVOT = (-0.660, 0.010)
 STAND_FOLD = math.radians(-104)
@@ -191,7 +192,7 @@ PUSH_DX = -0.34                    # and how far it is pushed at the end
 # half of the bike, not the side elevation turned ninety degrees.
 STAGE_X = 6.00
 STAGE_GZ = -0.120
-LEAN = math.radians(-15)           # a side stand holds a bike about this far
+LEAN = math.radians(-16)           # a side stand holds a bike about this far
                                    # over; negative leans it to the left
 STAND_FOOT_X = -0.255              # where the foot meets the road, at lean
 
@@ -201,12 +202,19 @@ T2_TUN_W, T2_TUN_H = 0.110, 0.055  # the tunnel the frame runs through
 T2_WALL = 0.014
 T2_NECK_W = 0.084                  # the filler, open: the cap is off to look
 T2_NECK_H = 0.032
+# What is left, as a height in the tank's own frame. It has to be below the
+# tunnel roof, and that is the whole mechanism of this beat: with the fuel
+# below the roof the two lobes are separate basins, so leaning empties one of
+# them into the other. Were the fuel over the roof the tank would be one
+# basin, and leaning a symmetric basin cannot change its depth at the centre
+# at all - the first cut of this clip drew exactly that and said nothing.
+T2_LEVEL = -0.043
 
 WIDE = ((-0.78, 0.24), 2.60)
 TAP_VIEW = ((-0.76, 0.450), 0.82)
-LAMP_VIEW = ((-1.00, 0.62), 0.86)
-FRONT_VIEW = ((STAGE_X, 0.175), 1.22)
-PRIME_VIEW = ((-0.828 + PUSH_DX, 0.522), 0.98)
+LAMP_VIEW = ((-0.898, 0.600), 0.72)
+FRONT_VIEW = ((STAGE_X, 0.185), 1.16)
+PRIME_VIEW = ((-0.816 + PUSH_DX, 0.524), 0.94)
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(_REPO, "public", "guides")
@@ -417,43 +425,72 @@ def build_wheel(name, centre, mats, parent):
     """A wheel that can be seen to turn. The spokes are the whole point: a
     plain disc rolls invisibly."""
     hub = empty(name, (centre[0], 0, centre[1]), parent=parent)
-    ring(name + "Tyre", WHEEL_R, 0.023, (0, LAY["wheel"], 0),
+    ring(name + "Tyre", WHEEL_R - 0.034, 0.034, (0, LAY["wheel"], 0),
          material=mats["machine"], parent=hub)
-    ring(name + "Rim", WHEEL_R - 0.046, 0.008, (0, LAY["wheel"], 0),
+    ring(name + "Rim", WHEEL_R - 0.080, 0.010, (0, LAY["wheel"], 0),
          material=mats["dim"], parent=hub)
     for i in range(5):
         a = i * 2 * math.pi / 5
-        r0, r1 = 0.030, WHEEL_R - 0.046
+        r0, r1 = 0.030, WHEEL_R - 0.080
         bar("%sSpoke%d" % (name, i),
             (math.cos(a) * r0, math.sin(a) * r0),
             (math.cos(a) * r1, math.sin(a) * r1),
-            0.016, LAY["wheel"], mats["dim"], parent=hub)
-    disc(name + "Hub", 0.036, (0, LAY["wheel"] - 0.004, 0),
+            0.030, LAY["wheel"], mats["dim"], parent=hub)
+    disc(name + "Hub", 0.044, (0, LAY["wheel"] - 0.004, 0),
          material=mats["machine"], parent=hub)
     return hub
 
 
+def arc(name, centre, r, a0, a1, segs, w, y, material, parent):
+    """A curved member, drawn as a few tangent bars. The front mudguard is
+    the cheapest shape there is for stopping a two-wheeler reading as a
+    bicycle, and it needs this."""
+    for i in range(segs):
+        t0 = a0 + (a1 - a0) * i / segs
+        t1 = a0 + (a1 - a0) * (i + 1) / segs
+        bar("%s%d" % (name, i),
+            (centre[0] + r * math.cos(t0), centre[1] + r * math.sin(t0)),
+            (centre[0] + r * math.cos(t1), centre[1] + r * math.sin(t1)),
+            w, y, material, parent=parent)
+
+
 def build_bike(mats):
-    """The frame, the engine and the wheels: the few members that say
-    'motorcycle', and nothing that competes with the tank."""
+    """The frame, the engine and the wheels.
+
+    Enough machine that the opening shot is unmistakably a motorcycle - a
+    dark engine mass low between fat tyres, a mudguard, a headlight - and
+    nothing at all in the gap under the tank, which is where the tap and its
+    three positions have to be legible a beat later.
+    """
     root = empty("Bike", (0, 0, 0))
 
-    plate("Engine", 0.380, 0.280, (-0.610, LAY["engine"], 0.140),
-          material=mats["dim"], parent=root)
-    bar("Swingarm", PIVOT_C, REAR_C, 0.024, LAY["bike"], mats["machine"], parent=root)
-    bar("Shock", (-0.260, 0.010), (-0.360, 0.400), 0.016, LAY["bike"],
-        mats["dim"], parent=root)
-    bar("Exhaust", (-0.450, 0.100), (0.050, 0.160), 0.040, LAY["bike"] - 0.01,
-        mats["dim"], parent=root)
-    bar("Spine", HEAD, (-0.600, 0.480), 0.020, LAY["bike"], mats["machine"], parent=root)
-    bar("DownTube", (-1.160, 0.520), (-0.820, 0.250), 0.018, LAY["bike"],
-        mats["machine"], parent=root)
-    plate("Seat", 0.440, 0.100, (-0.380, LAY["bike"] - 0.004, 0.505),
+    plate("Engine", 0.430, 0.280, (-0.625, LAY["engine"], 0.150),
           material=mats["machine"], parent=root)
-    plate("Tail", 0.260, 0.070, (-0.230, LAY["bike"] - 0.002, 0.440),
-          material=mats["dim"], parent=root)
-    bar("Fork", FRONT_AXLE, HEAD, 0.020, LAY["bike"], mats["machine"], parent=root)
-    bar("Bars", (-1.260, 0.620), (-1.020, 0.665), 0.016, LAY["bike"],
+    plate("Cylinder", 0.150, 0.115, (-0.915, LAY["engine"], 0.342),
+          material=mats["machine"], parent=root)
+    bar("Silencer", (-0.330, 0.140), (0.090, 0.195), 0.058, LAY["bike"] - 0.01,
+        mats["dim"], parent=root)
+    bar("Swingarm", PIVOT_C, REAR_C, 0.028, LAY["bike"], mats["machine"], parent=root)
+    bar("Shock", (-0.260, 0.010), (-0.370, 0.455), 0.018, LAY["bike"],
+        mats["dim"], parent=root)
+    bar("Subframe", (-0.600, 0.472), (-0.140, 0.452), 0.022, LAY["bike"],
+        mats["machine"], parent=root)
+    bar("Spine", HEAD, (-0.600, 0.480), 0.022, LAY["bike"], mats["machine"],
+        parent=root)
+    bar("DownTube", (-1.160, 0.520), (-0.960, 0.370), 0.020, LAY["bike"],
+        mats["machine"], parent=root)
+    plate("Seat", 0.430, 0.095, (-0.400, LAY["bike"] - 0.004, 0.512),
+          material=mats["machine"], parent=root)
+    plate("Tail", 0.200, 0.072, (-0.150, LAY["bike"] - 0.002, 0.500),
+          material=mats["machine"], parent=root)
+    bar("Fork", FRONT_AXLE, HEAD, 0.030, LAY["bike"], mats["machine"], parent=root)
+    disc("Headlight", 0.075, (-1.272, LAY["bike"], 0.460),
+         material=mats["machine"], parent=root)
+    arc("Mudguard", FRONT_AXLE, 0.340, math.radians(52), math.radians(142), 5,
+        0.026, LAY["bike"], mats["machine"], root)
+    bar("Bars", (-1.260, 0.618), (-1.020, 0.665), 0.018, LAY["bike"],
+        mats["machine"], parent=root)
+    bar("ClusterStem", (-1.090, 0.640), (-1.090, 0.712), 0.020, LAY["bike"],
         mats["machine"], parent=root)
 
     rear = build_wheel("RearWheel", REAR_C, mats, root)
@@ -479,7 +516,7 @@ def build_bike(mats):
           material=mats["fuel"], parent=pour)
 
     stand = empty("Stand", (STAND_PIVOT[0], 0, STAND_PIVOT[1]), parent=root)
-    bar("StandLeg", (0, 0), (-0.130, -0.310), 0.016, LAY["bike"],
+    bar("StandLeg", (0, 0), (-0.130, -0.310), 0.018, LAY["bike"],
         mats["machine"], parent=stand)
     plate("StandFoot", 0.070, 0.012, (-0.140, LAY["bike"], -0.316),
           material=mats["machine"], parent=stand, spin=math.radians(22))
@@ -514,13 +551,14 @@ def build_tap(mats, parent):
     disc("TapBody", TAP_R, (TAP_C[0], LAY["tap"], TAP_C[1]),
          material=mats["steel"], parent=group)
 
+    glyphs = empty("Glyphs", parent=group)
     for name, a, mat in (("Off", A_OFF, mats["g_off"]),
                          ("On", A_ON, mats["g_on"]),
                          ("Res", A_RES, mats["g_res"])):
         g = empty("Glyph" + name,
                   (TAP_C[0] + GLYPH_R * math.cos(a), 0,
                    TAP_C[1] + GLYPH_R * math.sin(a)),
-                  parent=group)
+                  parent=glyphs)
         # A common baseline under all three, so "tall" and "short" read as a
         # comparison rather than as two unrelated marks.
         plate("Base" + name, 0.054, 0.010, (0, LAY["tap"], -0.021),
@@ -543,7 +581,7 @@ def build_tap(mats, parent):
     disc("LeverKnob", 0.013, (0.068, LAY["lever"] - 0.01, 0),
          material=mats["steel"], parent=lever)
 
-    return dict(group=group, lever=lever)
+    return dict(group=group, lever=lever, glyphs=glyphs)
 
 
 def build_pump(mats, parent):
@@ -571,13 +609,13 @@ def build_fuel_line(mats, parent):
           material=mats["steel"], parent=group)
 
     flat_fill = empty("FlatFill", (TAP_C[0], 0, LINE_Z), parent=group)
-    plate("FlatFillBar", run, 0.007, (run / 2, LAY["fluid"], 0),
+    plate("FlatFillBar", run, 0.007, (run / 2, LAY["fill"], 0),
           material=mats["fuel"], parent=flat_fill)
     drop_fill = empty("DropFill", (LINE_X1, 0, LINE_Z), parent=group)
-    plate("DropFillBar", 0.007, drop_h, (0, LAY["fluid"], -drop_h / 2),
+    plate("DropFillBar", 0.007, drop_h, (0, LAY["fill"], -drop_h / 2),
           material=mats["fuel"], parent=drop_fill)
     bowl = empty("Bowl", (CARB_C[0], 0, CARB_C[1] - CARB_H / 2 + 0.008), parent=group)
-    plate("BowlFill", CARB_W - 0.030, 0.050, (0, LAY["fluid"], 0.025),
+    plate("BowlFill", CARB_W - 0.030, 0.050, (0, LAY["fill"], 0.025),
           material=mats["fuel"], parent=bowl)
 
     return dict(group=group, flat=flat_fill, drop=drop_fill, bowl=bowl)
@@ -586,7 +624,8 @@ def build_fuel_line(mats, parent):
 def build_cluster(mats, parent):
     """Two lamps and an ignition barrel. This is how "the light has been on"
     and "cycle the ignition" get said without a word of text."""
-    plate("ClusterCase", 0.150, 0.080, (CLUSTER_C[0], LAY["case"], CLUSTER_C[1]),
+    plate("ClusterCase", CLUSTER_W, CLUSTER_H,
+          (CLUSTER_C[0], LAY["case"], CLUSTER_C[1]),
           material=mats["dim"], parent=parent)
     disc("LampFuel", LAMP_R, (LAMP_FUEL[0], LAY["lamp"], LAMP_FUEL[1]),
          material=mats["lamp_fuel"], parent=parent)
@@ -600,10 +639,10 @@ def build_cluster(mats, parent):
           material=mats["machine"], parent=slot)
 
     ring_lamp = empty("RingLampRoot", (LAMP_FUEL[0], 0, LAMP_FUEL[1]), parent=parent)
-    ring("RingLamp", 0.040, 0.005, (0, LAY["glyph"], 0),
+    ring("RingLamp", 0.032, 0.005, (0, LAY["glyph"], 0),
          material=mats["brand"], parent=ring_lamp)
     ring_key = empty("RingKeyRoot", (BARREL_C[0], 0, BARREL_C[1]), parent=parent)
-    ring("RingKey", 0.044, 0.005, (0, LAY["glyph"], 0),
+    ring("RingKey", 0.040, 0.005, (0, LAY["glyph"], 0),
          material=mats["brand"], parent=ring_key)
 
     return dict(slot=slot, ring_lamp=ring_lamp, ring_key=ring_key)
@@ -666,7 +705,7 @@ def _surface(theta, fraction, pts):
 def fuel_surfaces():
     """Where the surface sits upright and at full lean, for the same fuel."""
     pts = _tank_samples()
-    frac = sum(1 for _, z in pts if z <= 0.0) / float(len(pts))
+    frac = sum(1 for _, z in pts if z <= T2_LEVEL) / float(len(pts))
     return _surface(0.0, frac, pts), _surface(LEAN, frac, pts), frac
 
 
@@ -688,14 +727,16 @@ def build_front_stage(mats):
     plate("StageGround", 2.6, 0.012, (STAGE_X, s + 0.02, STAGE_GZ - 0.006),
           material=mats["dim"])
 
-    plate("StageBlock", 0.210, 0.150, (0, s + 0.02, 0.175),
+    plate("StageBlock", 0.230, 0.110, (0, s + 0.02, 0.120),
           material=mats["dim"], parent=lean)
-    plate("StageTyre", 0.100, 0.200, (0, s - 0.01, 0.100),
+    plate("StageTyre", 0.120, 0.170, (0, s - 0.01, 0.085),
           material=mats["machine"], parent=lean)
-    for i, x in enumerate((-0.175, 0.175)):
-        plate("StagePeg%d" % i, 0.070, 0.016, (x, s, 0.150),
+    for i, x in enumerate((-0.180, 0.180)):
+        plate("StagePeg%d" % i, 0.075, 0.018, (x, s, 0.115),
               material=mats["machine"], parent=lean)
-    plate("StageTail", 0.270, 0.120, (0, s, 0.250),
+    plate("StageGuard", 0.200, 0.075, (0, s, 0.2075),
+          material=mats["machine"], parent=lean)
+    plate("StageTail", 0.265, 0.065, (0, s, 0.2775),
           material=mats["machine"], parent=lean)
 
     # The tank, in section: walls, floor either side of the tunnel the frame
@@ -750,19 +791,27 @@ def build_front_stage(mats):
           material=mats["bg"], parent=lean)
     plate("MaskTunnel", T2_TUN_W, T2_TUN_H,
           (0, LAY["mask"], t_z - T2_IN_H / 2 + T2_TUN_H / 2),
-          material=mats["bg"], parent=lean)
+          material=mats["machine"], parent=lean)
 
     fuel = plate("FrontFuel", 0.72, 0.60, (STAGE_X, LAY["fuelfront"], 0.0),
                  material=mats["fuel"])
 
-    # Where you look, and down which axis: the line leans with the filler,
+    # What looking in actually shows: not one line straight down, but the
+    # two lobes either side of the tunnel. Both of them lean with the filler,
     # because looking into a leaning tank is looking down a leaning neck.
     sight = empty("Sight", parent=lean)
-    triangle("SightTip", 0.022, (0, LAY["sight"], 0.596),
+    triangle("SightTip", 0.020, (0, LAY["sight"], 0.578),
              material=mats["brand"], parent=sight, spin=math.pi)
-    for i in range(4):
-        plate("SightDash%d" % i, 0.012, 0.022, (0, LAY["sight"], 0.425 + i * 0.040),
-              material=mats["brand"], parent=sight)
+    for side in (-1, 1):
+        p0 = (0.0, 0.545)
+        p1 = (side * 0.100, 0.380)
+        for i in range(4):
+            u0 = (i * 2 + 0.0) / 7.0
+            u1 = (i * 2 + 1.0) / 7.0
+            bar("SightDash%d_%d" % (side + 1, i),
+                (p0[0] + (p1[0] - p0[0]) * u0, p0[1] + (p1[1] - p0[1]) * u0),
+                (p0[0] + (p1[0] - p0[0]) * u1, p0[1] + (p1[1] - p0[1]) * u1),
+                0.012, LAY["sight"], mats["brand"], parent=sight)
 
     return dict(lean=lean, fuel=fuel, sight=sight)
 
@@ -791,6 +840,7 @@ def animate(rig, tap, pump, line, cluster, rider, stage, cam, mats, surf):
     key(rig["fuel"], 1, scale=(1, 1, LEVEL_CARB), interp="CONSTANT")
     key(tap["lever"], 1, rot=(0, -A_ON, 0), interp="CONSTANT")
     show(tap["group"], 1, True)
+    show(tap["glyphs"], 1, False)
     show(pump, 1, False)
     show(line["flat"], 1, False)
     show(line["drop"], 1, False)
@@ -835,6 +885,7 @@ def animate(rig, tap, pump, line, cluster, rider, stage, cam, mats, surf):
     # above the short pipe's mouth and below the tall one's, which is the
     # whole of why a reserve exists.
     s = F["reserve"]
+    show(tap["glyphs"], s + 4, True)
     key(tap["lever"], s + 16, rot=(0, -A_ON, 0))
     key(tap["lever"], s + 34, rot=(0, -A_RES, 0))
     key_colour(mats["g_on"], s + 34, MACHINE_DIM)

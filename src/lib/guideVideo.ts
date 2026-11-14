@@ -81,6 +81,14 @@ export function hasVideo(guideId: string): boolean {
 const CLIP: Record<string, { src: string; seconds: number }> = {
   'flat-tyre': { src: '/guides/fix-tyre.mp4', seconds: 17 },
   'moto-chain': { src: '/guides/fix-chain.mp4', seconds: 15 },
+  'moto-dropped': { src: '/guides/fix-moto-dropped.mp4', seconds: 18 },
+  'moto-lights': { src: '/guides/fix-moto-lights.mp4', seconds: 17 },
+  'moto-puncture': { src: '/guides/fix-moto-puncture.mp4', seconds: 18 },
+  'moto-wont-start': { src: '/guides/fix-moto-start.mp4', seconds: 16 },
+  'out-of-fuel': { src: '/guides/fix-out-of-fuel.mp4', seconds: 17 },
+  'overheating': { src: '/guides/fix-overheating.mp4', seconds: 18 },
+  'warning-light': { src: '/guides/fix-warning-light.mp4', seconds: 18 },
+  'wont-start': { src: '/guides/fix-jump-start.mp4', seconds: 19 },
 }
 
 export function localClip(guideId: string): { src: string; seconds: number } | null {

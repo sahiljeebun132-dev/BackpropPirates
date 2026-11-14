@@ -864,8 +864,16 @@ def animate(rig, bay, gauge, clock, hand, no_bonnet, no_cap, bottle, stream,
     show(bay["root"], open_at - 1, False)
     show(bay["root"], open_at, True)
 
-    # --- the cut into the close framing moves the two glyphs that are in both.
+    # --- the cut into the close framing moves the three glyphs that are in
+    # both. Each is pinned on the frame before the cut as well as on it: a
+    # curve with nothing between frame 93 and frame 173 does not sit still for
+    # eighty frames, it slides, and the hand was drifting into the wide shot
+    # during the wait with nothing to do there.
     cut = F["no_cap"]
+    key(hand, cut - 1, loc=(HAND_PARK_WIDE[0], 0, HAND_PARK_WIDE[1]), rot=(0, 0, 0),
+        scale=(WIDE_GLYPH, WIDE_GLYPH, WIDE_GLYPH), interp="CONSTANT")
+    key(bottle, cut - 1, loc=(BOTTLE_PARK[0], 0, BOTTLE_PARK[1]), rot=(0, 0, 0),
+        interp="CONSTANT")
     key(clock["place"], cut - 1, loc=(CLOCK_WIDE[0], 0, CLOCK_WIDE[1]),
         scale=(1, 1, 1), interp="CONSTANT")
     key(clock["place"], cut, loc=(CLOCK_CLOSE[0], 0, CLOCK_CLOSE[1]),
