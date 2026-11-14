@@ -137,7 +137,7 @@ export function InstallApp() {
           Download the Android app
         </a>
         <p className="text-[11px] leading-relaxed text-slate-500">
-          About 17 MB. Android will warn you it is from an <strong>unverified developer</strong> and
+          About 18 MB. Android will warn you it is from an <strong>unverified developer</strong> and
           ask you to allow installs from your browser — that is what an unsigned student build
           looks like, and you have to accept it to continue.
           {platform === 'ios' && ' This is an Android file; an iPhone cannot open it.'}
