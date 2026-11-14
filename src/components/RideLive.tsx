@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { BEAT_MS, beat, forgetSession, lookOnly, type Rider } from '../lib/presence'
-import type { AppData, Report } from '../lib/types'
+import type { HazardReport } from '../lib/reports'
+import type { AppData } from '../lib/types'
 import { LiveMap, type Hazard } from './LiveMap'
 import { Card, CardTitle, Details, PageHeader } from './ui'
 
@@ -34,7 +35,7 @@ export function RideLive({
   onBack,
 }: {
   data: AppData
-  reports: Report[]
+  reports: HazardReport[]
   position: { lat: number; lon: number } | null
   onUseGps: () => void
   onBack: () => void
