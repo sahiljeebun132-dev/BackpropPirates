@@ -148,7 +148,17 @@
   var $ = function (id) { return document.getElementById(id) }
   var room = '', poll = null, lastSeq = -1, audio = null, osc = null, silenced = false
 
+  /* The short link is a server-side rewrite, so the address bar still reads
+     /w/CODE and location.search is empty. Read the path too, or the one URL
+     built for people to type is the one that loses the code. */
+  function codeFromPath() {
+    var m = location.pathname.match(/^\/[wc]\/([A-Za-z0-9]{3,8})\/?$/)
+    return m ? m[1].toUpperCase() : ''
+  }
+
   function params() {
+    var fromPath = codeFromPath()
+    if (fromPath) return fromPath
     try { return new URLSearchParams(location.search).get('room') || '' } catch (e) { return '' }
   }
   function saved() { try { return localStorage.getItem('zetway.watch.room') || '' } catch (e) { return '' } }
@@ -304,6 +314,14 @@
 
   var initial = params() || saved()
   if (initial) { $('room').value = initial }
+
+  // A judge who followed a link already said yes to watching. Make them tap
+  // once all the same: browsers will not let a page make noise until someone
+  // has interacted with it, and an alarm that cannot sound is worse than an
+  // extra tap. The button is pre-filled and says what it will do.
+  if (params()) {
+    $('go').textContent = 'Watch room ' + params() + ' \u2014 turn the volume up'
+  }
   show('join')
 })()
 </script>
