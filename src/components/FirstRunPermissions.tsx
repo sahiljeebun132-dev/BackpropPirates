@@ -1,9 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { requestCrashPermissions } from '../lib/nativeCrash'
+import { nativeReadiness, openAppSettings, requestCrashPermissions } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
 
-const ASKED_KEY = 'zetway.permissions.asked'
+/**
+ * Dismissed for this run only, and deliberately not written down.
+ *
+ * This used to set a flag in localStorage the first time the card was seen,
+ * so a single "Not now" silenced it for good — on a phone that still could
+ * not text anybody after a crash. The card is not an onboarding step to get
+ * through; it is a statement about whether the thing works. It comes back
+ * every launch until it is true, and goes away by itself the moment it is.
+ */
+let dismissedThisRun = false
 
 /**
  * Asks for everything the crash response needs, once, when the app opens.
@@ -24,36 +33,64 @@ const ASKED_KEY = 'zetway.permissions.asked'
  * first use, which is the browser's business and not ours to pre-empt.
  */
 export function FirstRunPermissions() {
-  const [show, setShow] = useState(() => {
-    if (!isNative()) return false
-    try {
-      return localStorage.getItem(ASKED_KEY) !== 'yes'
-    } catch {
-      // Private mode or blocked storage: better to ask than to skip silently.
-      return true
-    }
-  })
+  const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
+  /** True once Android has stopped showing the dialog, so the only way
+   *  left is the settings screen. */
+  const [stuck, setStuck] = useState(false)
+
+  // Driven by what is actually granted, not by whether the card has been
+  // seen before. Re-checked whenever the app comes back to the foreground,
+  // because that is exactly when somebody has returned from settings.
+  useEffect(() => {
+    if (!isNative()) return
+    let alive = true
+    const check = async () => {
+      if (dismissedThisRun) return
+      const r = await nativeReadiness()
+      if (!alive) return
+      setShow(!(r.sms && r.phone && r.location && r.notifications))
+    }
+    void check()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void check()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [])
 
   if (!show) return null
 
-  const remember = () => {
-    try {
-      localStorage.setItem(ASKED_KEY, 'yes')
-    } catch {
-      // Asking again next launch is a far smaller problem than not asking.
+  const allow = async () => {
+    setBusy(true)
+    const before = await nativeReadiness()
+    const after = await requestCrashPermissions()
+    setBusy(false)
+
+    const missing = !(after.sms && after.phone && after.location && after.notifications)
+    const unchanged =
+      before.sms === after.sms &&
+      before.phone === after.phone &&
+      before.location === after.location &&
+      before.notifications === after.notifications
+
+    if (!missing) {
+      setShow(false)
+      return
+    }
+    // Asking did nothing and something is still missing: Android has given
+    // up on the dialog, so take them where the switch actually is.
+    if (unchanged) {
+      setStuck(true)
+      await openAppSettings()
     }
   }
 
-  const allow = async () => {
-    setBusy(true)
-    await requestCrashPermissions()
-    remember()
-    setShow(false)
-  }
-
   const later = () => {
-    remember()
+    dismissedThisRun = true
     setShow(false)
   }
 
@@ -64,6 +101,13 @@ export function FirstRunPermissions() {
         If you crash and cannot answer your phone, Zetway does these for you. Android has to be
         asked now, because after a crash there is nobody free to tap “Allow”.
       </p>
+      {stuck && (
+        <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-900 ring-1 ring-amber-200">
+          Android has stopped showing the dialog, so that opened your settings
+          instead. Turn on SMS, Phone, Location and Notifications there, then
+          come back — this card disappears by itself once they are on.
+        </p>
+      )}
       <ul className="mt-3 space-y-2">
         {[
           ['Send a text', 'So your contacts get your location without you touching anything.'],
