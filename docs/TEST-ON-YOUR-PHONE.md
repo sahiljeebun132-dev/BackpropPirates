@@ -92,7 +92,7 @@ shouting is the half that has to survive a dead spot.
 
 | # | Do this | Should happen |
 |---|---|---|
-| C13 | Laptop: **backprop-pirates.vercel.app/c/ZETW14**. Phone: Crash watch → *Pair with a demo screen* →  | Laptop lists one phone. The fire button only enables once it does, on purpose |
+| C13 | Laptop: **backprop-pirates.vercel.app/c/ZETW14**. Phone: Crash watch → *Pair with a demo screen* → `ZETW14` | Laptop lists one phone. The fire button only enables once it does, on purpose |
 | C14 | Another phone: **backprop-pirates.vercel.app/w/ZETW14** → tap to watch, volume up | “Connected, all quiet” |
 | C15 | Laptop: **Simulate impact** | Phone: red screen, countdown, buzz. Watcher: alarm, your coordinates, a map link. Say **“I am fine”** without touching the phone and it stands down. **Reset room** on the laptop before running it again |
 
