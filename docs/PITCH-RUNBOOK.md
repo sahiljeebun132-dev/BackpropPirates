@@ -98,8 +98,17 @@ Not "everyone in Mauritius". One rider.
 | Plan a trip → Grand Baie → Port Louis → Motorcycle → **19:30**, road **not lit** | "One rider, one corridor, one moment." |
 | Read the score: **31** | "Thirty-one out of a hundred, from the government's own tables." |
 | Tap the time-of-day factor | "Tap any factor and it shows you the figures and names the table. 8.2% of casualties are fatal on an unlit road against 3.7% in daylight." |
-| Tap **leave at 17:00** → **46** | "Same road, same bike, a couple of hours earlier. That is the whole product: not a warning, a decision you can act on." |
+| Tap **leave at 17:00** → **46** | "Same road, same bike, a couple of hours earlier — thirty-one to forty-six. Still severe, because this corridor is dangerous at any hour and the app will not pretend otherwise. That is the product: not a warning, a decision you can act on." |
 | Open the live map, let it follow | "The roads are geometry stored in the app. No tiles, no requests — so it does not go blank in a dead spot." |
+
+> **Do not promise the badge will change.** Both 31 and 46 are labelled
+> "Severe risk", because the band threshold is 50 and this corridor does not
+> clear it at any hour. If the Speaker says "and now it's safe" while the screen
+> still says Severe, the demo contradicts itself on the slide the whole pitch
+> rests on. Say the number moved and the band did not, and say why — that is a
+> stronger answer to a sceptical judge than a badge turning green, and it is the
+> same argument as the calibration story on slide 5. The score is an exposure
+> indicator, not a verdict on whether the trip is acceptable.
 
 **Needs a second phone:** on the second phone, report a hazard by voice — speak
 it, confirm it, send it. It appears on the first phone within seconds.
@@ -297,6 +306,16 @@ screen, and never leaves the handset. Hand-held phone use while driving is an
 offence, so everything the app asks of a rider happens before they set off or
 after they have stopped. There is a panel in the app that says all of this, and
 says we are students and not lawyers.
+
+**"It says Severe either way — so what has the rider actually gained?"**
+Forty-six is still severe, and that is the honest output: this corridor is
+dangerous at every hour, and an app that turned green at 46 would be lying to
+sell itself. What moved is the exposure — riding it in daylight instead of unlit
+darkness takes the fatal share from 8.2% to 3.7%. The band is a label; the
+number is the measurement, and the rider is choosing between two versions of a
+trip they are going to make anyway. *If they push:* tap into the breakdown and
+the app says it in its own words — "The score shows recorded exposure, not a
+prediction about today."
 
 **"Could you prove the scoring isn't tuned to your demo route?"**
 `scripts/check_score_spread.mjs` scores all 5,200 combinations and is in the
