@@ -740,8 +740,13 @@ def animate(rig, car, cam, mats):
     frame_at(F["oil"] + 34, CLUSTER)
     key(tacho, F["oil"] + 36, rot=needle_rot(TACHO_CRUISE))
     key(speedo, F["oil"] + 36, rot=needle_rot(SPEEDO_CRUISE))
-    key(tacho, F["oil"] + 52, rot=needle_rot(NEEDLE_REST))
-    key(speedo, F["oil"] + 52, rot=needle_rot(NEEDLE_REST))
+    # CONSTANT, because a key's interpolation governs the segment that
+    # FOLLOWS it. Left on the default bezier these two owned frames 197-209
+    # and eased the needles back up to cruise over eleven frames that are
+    # all on screen -- the cut to AMBER_CLOSE does not happen until 209, so
+    # the "unseen" return the comment below describes was being watched.
+    key(tacho, F["oil"] + 52, rot=needle_rot(NEEDLE_REST), interp="CONSTANT")
+    key(speedo, F["oil"] + 52, rot=needle_rot(NEEDLE_REST), interp="CONSTANT")
     key_colour(reds[0], F["oil"] + 53, SLATE)
 
     # --- amber: four lamps, in the order the guide names them. The car is

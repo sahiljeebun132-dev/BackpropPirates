@@ -251,6 +251,23 @@ numbers the deck quotes. The "road not lit" toggle is what makes the night trip
 laptop and is the whole demo, already recorded. Play it, narrate over it, and do
 not mention that it was the backup.
 
+**If a judge asks to see a roadside guide, pick one of these four.** An
+adversarial pass over the clips frame by frame cleared *Car won't start*,
+*Motorcycle won't start*, *Motorcycle dropped* and *Ran out of fuel* — every
+beat checked against the written step it illustrates.
+
+Avoid two. *Dashboard warning light* lets the needles climb back to cruise on
+screen during step 2, where the car is supposed to be switched off; the one-line
+cause is fixed in the script but the clip may not be re-rendered before you
+pitch, so check the date on `public/guides/fix-warning-light.mp4` before
+trusting it. *Motorcycle puncture* has a nail that passes through the road
+surface for about a third of a second, and an air hose that detaches from the
+valve and floats. Neither is fatal if it plays, and neither is new — but do not
+choose them yourself.
+
+The remaining clips have not been reviewed to that standard. They are not known
+to be wrong; nobody has checked them frame by frame.
+
 ---
 
 ## Questions you will get
