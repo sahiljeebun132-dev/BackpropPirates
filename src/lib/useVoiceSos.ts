@@ -59,6 +59,12 @@ function speakingMs(text: string): number {
  *  one raised. */
 const VERDICT_LOCK_MS = 2000
 
+/** A measured shout has to be at least this far above the room before the
+ *  measurement is believed. Below it, either the microphone is not working
+ *  or nobody actually shouted, and both deserve the same answer: keep the
+ *  default and say so. */
+const MIN_USEFUL_GAP = 1.0
+
 export type VoicePhase = 'off' | 'armed' | 'counting' | 'firing' | 'degraded'
 
 export type VoiceSos = {
@@ -387,6 +393,20 @@ export function useVoiceSos(options: {
 
     const quiet = median(quietSamples)
     const shout = high(shoutSamples)
+
+    // A phone whose microphone returns flat or silent audio measures a gap
+    // of zero, which the clamp would turn into the MINIMUM threshold and
+    // store as though it were a measurement — leaving the trigger firing on
+    // everything, on the one phone that cannot hear. Refusing is the honest
+    // outcome: the default at least errs the safe way.
+    if (shout - quiet < MIN_USEFUL_GAP) {
+      setReason(
+        'Could not tell your shout apart from the room. The default threshold is still in use.',
+      )
+      say('I could not hear the difference. Leaving it as it was.')
+      return
+    }
+
     const next: Calibration = {
       quiet,
       gap: Math.max(0, shout - quiet),
