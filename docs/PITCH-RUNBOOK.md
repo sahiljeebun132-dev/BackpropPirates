@@ -19,7 +19,7 @@ Do these in order. None of them takes longer than a minute, and three of them
 are things only you can do.
 
 - [ ] **Install the APK on the demo phone.** `backprop-pirates.vercel.app/zetway.apk`
-      — the live file is sha `d1209426` / 18.6 MB. **Reinstall even if you
+      — the live file is sha `8a0b4ea9` / 18.6 MB. **Reinstall even if you
       already installed one today:** the earlier build had a broken
       report-a-hazard screen and a map missing two thirds of its roads. The web
       link works on any phone, but only the Android app can read the
@@ -256,14 +256,15 @@ adversarial pass over the clips frame by frame cleared *Car won't start*,
 *Motorcycle won't start*, *Motorcycle dropped* and *Ran out of fuel* — every
 beat checked against the written step it illustrates.
 
-Avoid two. *Dashboard warning light* lets the needles climb back to cruise on
-screen during step 2, where the car is supposed to be switched off; the one-line
-cause is fixed in the script but the clip may not be re-rendered before you
-pitch, so check the date on `public/guides/fix-warning-light.mp4` before
-trusting it. *Motorcycle puncture* has a nail that passes through the road
-surface for about a third of a second, and an air hose that detaches from the
-valve and floats. Neither is fatal if it plays, and neither is new — but do not
-choose them yourself.
+*Dashboard warning light* was a third defect and is now fixed: its needles used
+to climb back to cruise on screen during step 2, where the car is supposed to be
+switched off. Re-rendered and checked at the frame that was worst — both needles
+now hold on their stops with the cluster dark. It is safe to show.
+
+Avoid one. *Motorcycle puncture* has a nail that passes through the road surface
+for about a third of a second, and an air hose that detaches from the valve and
+floats. Neither is fatal if it plays, and neither is new — but do not choose it
+yourself.
 
 The remaining clips have not been reviewed to that standard. They are not known
 to be wrong; nobody has checked them frame by frame.
