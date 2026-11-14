@@ -48,6 +48,12 @@ const TTL_MINUTES = 180
  *  sees a quiet room rather than replaying an alarm from an hour ago. */
 const TRIGGER_TTL_SECONDS = 180
 const MAX_DEVICES = 12
+/** A phone heartbeats every twenty seconds, so one that has not checked in
+ *  for ninety is gone: closed, asleep, or carried out of the room. It must
+ *  stop being listed, because the control page enables its fire button on
+ *  the device count and a stale entry means the button looks ready while
+ *  nothing is listening — which is the worst moment to find out. */
+const DEVICE_TTL_SECONDS = 90
 
 type Phase = 'idle' | 'triggered' | 'alerting' | 'stood-down'
 
@@ -132,11 +138,15 @@ function fromRow(row: Record<string, unknown>): Room {
 /** A trigger nobody acted on goes quiet by itself. Without this a judge
  *  opening the page after the demo gets an alarm for a crash that is over. */
 function fresh(room: Room): Room {
-  if (room.firedAt && room.phase !== 'stood-down') {
-    const age = (Date.now() - Date.parse(room.firedAt)) / 1000
-    if (age > TRIGGER_TTL_SECONDS) return { ...room, phase: 'stood-down' }
+  const live = room.devices.filter(
+    (d) => (Date.now() - Date.parse(d.at)) / 1000 <= DEVICE_TTL_SECONDS,
+  )
+  const out = live.length === room.devices.length ? room : { ...room, devices: live }
+  if (out.firedAt && out.phase !== 'stood-down') {
+    const age = (Date.now() - Date.parse(out.firedAt)) / 1000
+    if (age > TRIGGER_TTL_SECONDS) return { ...out, phase: 'stood-down' }
   }
-  return room
+  return out
 }
 
 async function read(room: string): Promise<Room | null> {
@@ -221,7 +231,7 @@ export async function POST(request: Request): Promise<Response> {
         at: now,
       }
       await write(next)
-      return json(next)
+      return json(fresh(next))
     }
 
     if (action === 'alert') {
@@ -247,19 +257,22 @@ export async function POST(request: Request): Promise<Response> {
         at: now,
       }
       await write(next)
-      return json(next)
+      return json(fresh(next))
     }
 
     if (action === 'stand-down') {
       const next: Room = { ...existing, phase: 'stood-down', at: now }
       await write(next)
-      return json(next)
+      return json(fresh(next))
     }
 
     if (action === 'reset') {
-      const next: Room = { ...emptyRoom(room), devices: existing.devices, at: now }
+      // Reset forgets the phones as well. Anything still running will say
+      // hello again within twenty seconds, and anything that will not was
+      // never going to.
+      const next: Room = { ...emptyRoom(room), at: now }
       await write(next)
-      return json(next)
+      return json(fresh(next))
     }
 
     return json({ error: `unknown action ${action}` }, 400)
