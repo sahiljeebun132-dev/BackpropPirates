@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
+import { loadRoads, loadedRoads, type Roads } from '../lib/roads'
+import { routeBetween } from '../lib/route'
 import type { AppData, Hotspot, Place } from '../lib/types'
 
 type OnCorridor = Hotspot & { detourKm: number }
@@ -81,6 +83,19 @@ function boundsFor(points: [number, number][]): Bounds {
   return { minLat, maxLat, minLon, maxLon }
 }
 
+/**
+ * The route, when the road network can supply one.
+ *
+ * Drawn as the real path along the roads rather than a line between two
+ * dots. On an island with one motorway and a mountain in the middle, a
+ * straight line from Bon Accueil to Rose Belle crosses country nobody
+ * drives through — it is 26 km on the map and 41 km on the road.
+ *
+ * The line is kept as the fallback, because the score is still computed
+ * from a corridor around it and a map that disagreed with the number
+ * underneath it would be worse than a plain line. The route is the shape of
+ * the journey; the corridor is what was measured.
+ */
 export function CorridorMap({
   data,
   origin,
@@ -95,6 +110,18 @@ export function CorridorMap({
   emergency: { hospitals: { lat: number; lon: number; name: string }[]; police: { lat: number; lon: number; name: string }[] }
 }) {
   const [picked, setPicked] = useState<string | null>(null)
+  const [roads, setRoads] = useState<Roads | null>(() => loadedRoads())
+
+  // Fetched once and cached; the map draws the straight line until it lands
+  // rather than waiting on it.
+  useEffect(() => {
+    void loadRoads().then(setRoads)
+  }, [])
+
+  const route = useMemo(
+    () => routeBetween(roads, origin, destination),
+    [roads, origin, destination],
+  )
 
   const all = data.hotspots.hotspots
   const onCorridor = useMemo(() => new Set(hotspots.map((h) => h.id)), [hotspots])
@@ -170,12 +197,38 @@ export function CorridorMap({
             return <circle key={p.id} cx={x} cy={y} r={4.5} fill="#94a3b8" />
           })}
 
-          {/* The trip itself. A straight line, which is what it is: the app
-              says so here and in the sources panel. */}
-          <line
-            x1={ox} y1={oy} x2={dx} y2={dy}
-            stroke="#0e6fa3" strokeWidth={6} strokeDasharray="14 11" opacity={0.85}
-          />
+          {/* The trip. The road where the network can supply one, and the
+              straight line where it cannot — dashed in that case, because a
+              dashed line reads as an approximation and a solid one does not.
+
+              The score is still measured in a corridor around the direct
+              line, so when a route is drawn the line stays underneath it,
+              faintly. A map that quietly disagreed with the number printed
+              beside it would be the worst kind of wrong. */}
+          {route ? (
+            <>
+              <line
+                x1={ox} y1={oy} x2={dx} y2={dy}
+                stroke="#0e6fa3" strokeWidth={3} strokeDasharray="8 10" opacity={0.28}
+              />
+              <path
+                d={route.points
+                  .map((pt: [number, number], i: number) => `${i ? 'L' : 'M'}${to(pt[0], pt[1]).map((n) => n.toFixed(1)).join(' ')}`)
+                  .join(' ')}
+                fill="none"
+                stroke="#0e6fa3"
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.92}
+              />
+            </>
+          ) : (
+            <line
+              x1={ox} y1={oy} x2={dx} y2={dy}
+              stroke="#0e6fa3" strokeWidth={6} strokeDasharray="14 11" opacity={0.85}
+            />
+          )}
 
           {/* Hospitals and police stations near the route. */}
           {emergency.hospitals.slice(0, 4).map((p) => {
