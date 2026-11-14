@@ -50,12 +50,19 @@ export function IslandMap({ data }: { data: AppData }) {
   const path = (pts: [number, number][]) =>
     pts.map((p, i) => `${i ? 'L' : 'M'}${to(p[0], p[1]).map((n) => n.toFixed(1)).join(' ')}`).join(' ')
 
-  // Only the bigger classes at island scale; everything else is a smudge.
+  // Every class, drawn in two passes, because the island has no coastline
+  // anywhere in the data. Its shape can only come from the road network, and
+  // keeping just the trunk roads threw away 2,721 of 4,408 ways -- which left
+  // not a map but a handful of lines floating in a rectangle. The minor roads
+  // ARE the land: at island scale they read as texture, and the coast appears
+  // where they stop. Pale and hair-thin underneath, the big roads over them,
+  // so the hierarchy a rider needs still reads at a glance.
+  const minor = useMemo(() => (roads?.ways ?? []).filter((w) => w.c < 2), [roads])
   const ways = useMemo(() => (roads?.ways ?? []).filter((w) => w.c >= 2), [roads])
 
   const ink = night
-    ? { bg: '#0B1018', road: '#273448', spot: '#FF5A5F', town: '#6E819A', edge: '#1C2636' }
-    : { bg: '#F4F7FA', road: '#9FB0C4', spot: '#D7263D', town: '#7C8EA6', edge: '#DCE3EB' }
+    ? { bg: '#0B1018', road: '#273448', minor: '#18212E', spot: '#FF5A5F', town: '#6E819A', edge: '#1C2636' }
+    : { bg: '#F4F7FA', road: '#9FB0C4', minor: '#C8D4E0', spot: '#D7263D', town: '#7C8EA6', edge: '#DCE3EB' }
 
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -96,6 +103,18 @@ export function IslandMap({ data }: { data: AppData }) {
         role="img"
         aria-label={`Mauritius with all ${data.hotspots.hotspots.length} designated accident-prone stretches`}
       >
+        {minor.map((w, i) => (
+          <path
+            key={`m${i}`}
+            d={path(w.p as [number, number][])}
+            fill="none"
+            stroke={ink.minor}
+            strokeWidth={0.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+
         {ways.map((w, i) => (
           <path
             key={`r${i}`}

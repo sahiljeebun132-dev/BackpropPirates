@@ -43,6 +43,7 @@ export function ReportByVoice({
   const [transcript, setTranscript] = useState<string>('')
   const [language, setLanguage] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const [pick, setPick] = useState<keyof typeof KIND_LABEL | null>(null)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [done, setDone] = useState(false)
@@ -102,12 +103,15 @@ export function ReportByVoice({
       ? { lat: position.lat, lon: position.lon }
       : null
 
+  // Either source: what it heard, or what the rider tapped.
+  const kind = heard?.kind ?? pick
+
   const send = async () => {
-    if (!heard || !at) return
+    if (!kind || !at) return
     setBusy(true)
     setProblem(null)
     try {
-      await submitReport({ kind: heard.kind, lat: at.lat, lon: at.lon, note: note.slice(0, 140) })
+      await submitReport({ kind, lat: at.lat, lon: at.lon, note: note.slice(0, 140) })
       stop()
       setDone(true)
       onPosted()
@@ -224,6 +228,72 @@ export function ReportByVoice({
                 who will act on it, so the app does not get to decide on its own
                 that it understood you.
               </p>
+            </Card>
+          )}
+
+          {/* Always here, not only when the microphone worked. This screen
+              used to promise "type it instead" and then offer nothing to
+              type into: with nothing heard there was no kind, no note and
+              no send button, so a rider whose phone would not listen could
+              not file a hazard at all. Measured on the deployed build, the
+              dead end was real -- no text input and no send button on the
+              page. A warning that needs a working microphone is a warning
+              that fails in the rain, in traffic, and on any phone that
+              declined the permission. */}
+          {!heard && (
+            <Card>
+              <CardTitle>Or tap what you saw</CardTitle>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                {listening
+                  ? 'Still listening \u2014 but you do not have to wait for it.'
+                  : 'This phone would not listen. Tap it instead and the warning still gets out.'}
+              </p>
+
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {(Object.keys(KIND_LABEL) as (keyof typeof KIND_LABEL)[]).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setPick(k)}
+                    className={`rounded-xl px-3 py-2.5 text-xs font-bold transition-colors ${
+                      pick === k ? 'bg-flag-red text-white' : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {KIND_LABEL[k]}
+                  </button>
+                ))}
+              </div>
+
+              {pick && (
+                <>
+                  <label className="mt-3 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Note other riders will read
+                  </label>
+                  <input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    maxLength={140}
+                    placeholder="Where it is, and what to expect"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void send()}
+                    disabled={busy || !at}
+                    className="mt-3 w-full rounded-2xl bg-flag-red px-4 py-4 text-base font-bold text-white disabled:opacity-50"
+                  >
+                    {busy
+                      ? 'Sending\u2026'
+                      : at
+                        ? 'Warn riders near here'
+                        : 'Turn location on to send this'}
+                  </button>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                    It expires in four hours, because a hazard nobody has
+                    confirmed since lunchtime is not news.
+                  </p>
+                </>
+              )}
             </Card>
           )}
 
