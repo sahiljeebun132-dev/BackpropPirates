@@ -514,26 +514,9 @@ function GuideView({
               right answer is to get away from the vehicle. */}
           {/* Our own clip where we have drawn one: it plays inside the APK
               with no signal, which the linked video cannot. */}
-          {localClip(guide.id) && (isNative() || online) && (
-            <section className="overflow-hidden rounded-[20px] bg-white shadow-sm ring-1 ring-edge">
-              <video
-                src={localClip(guide.id)!.src}
-                controls
-                playsInline
-                muted
-                loop
-                preload="metadata"
-                className="block w-full bg-[#F8FAFC]"
-                aria-label={`Animation showing ${guide.label.toLowerCase()}`}
-              />
-              <p className="px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
-                Drawn by us and stored in the app, so it plays with no signal. The written
-                steps below are the ones to follow — where the two differ, the text is right.
-              </p>
-            </section>
-          )}
+          <GuideClip guide={guide} online={online} />
 
-          {!localClip(guide.id) && hasVideo(guide.id) && (
+          {(!localClip(guide.id) || clipBroken(guide.id)) && hasVideo(guide.id) && (
             <a
               href={videoSearchUrl(guide.id) ?? '#'}
               target="_blank"
@@ -672,6 +655,64 @@ function NearestHelpCard({
       <p className="mt-2 text-[11px] text-slate-500">
         Straight-line distance. Hospitals, health centres and police stations from Open Data
         Mauritius.
+      </p>
+    </section>
+  )
+}
+
+/**
+ * Clips that would not play on this device, remembered for the session.
+ *
+ * A registered clip suppresses the link out to a video search, which is the
+ * right trade when the clip plays and the wrong one when it does not: the
+ * rider gets a dead black rectangle and no way to watch anything. A file can
+ * be missing from a deploy, truncated by a bad download, or in a codec this
+ * particular phone will not decode, and none of those are visible until the
+ * element tries.
+ *
+ * Module scope rather than state, so one failure is not rediscovered every
+ * time the guide is reopened.
+ */
+const brokenClips = new Set<string>()
+
+function clipBroken(guideId: string): boolean {
+  return brokenClips.has(guideId)
+}
+
+/** Our own animation, where there is one and it plays. */
+function GuideClip({
+  guide,
+  online,
+}: {
+  guide: { id: string; label: string }
+  online: boolean
+}) {
+  const clip = localClip(guide.id)
+  const [failed, setFailed] = useState(() => clipBroken(guide.id))
+
+  if (!clip || failed) return null
+  if (!isNative() && !online) return null
+
+  return (
+    <section className="overflow-hidden rounded-[20px] bg-white shadow-sm ring-1 ring-edge">
+      <video
+        src={clip.src}
+        controls
+        playsInline
+        muted
+        loop
+        preload="metadata"
+        className="block w-full bg-[#F8FAFC]"
+        aria-label={`Animation showing ${guide.label.toLowerCase()}`}
+        onError={() => {
+          // Fall back to the link out rather than leaving a dead player.
+          brokenClips.add(guide.id)
+          setFailed(true)
+        }}
+      />
+      <p className="px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
+        Drawn by us and stored in the app, so it plays with no signal. The written
+        steps below are the ones to follow — where the two differ, the text is right.
       </p>
     </section>
   )
