@@ -27,6 +27,7 @@ export function HomeDashboard({
   onRoadside,
   onAsk,
   onListen,
+  onLive,
 }: {
   vigilance: string | null
   planner: ReactNode
@@ -36,6 +37,7 @@ export function HomeDashboard({
   onRoadside: () => void
   onAsk: () => void
   onListen: () => void
+  onLive: () => void
 }) {
   return (
     <>
@@ -55,7 +57,14 @@ export function HomeDashboard({
           scan and skip. The split is by when you reach for it: planning a
           trip, something has gone wrong, or it runs by itself. */}
       <Section title="Check the road">
-        <div className="grid grid-cols-2 gap-3.5">
+        <Row
+          accent="blue"
+          icon={Icon.road('h-4 w-4')}
+          title="On the road"
+          subtitle="Live map that follows you, and who else is out there"
+          onClick={onLive}
+        />
+        <div className="mt-3 grid grid-cols-2 gap-3.5">
           <Tile
             accent="red"
             icon={Icon.shieldAlert()}

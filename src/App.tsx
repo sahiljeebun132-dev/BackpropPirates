@@ -14,6 +14,7 @@ import { LiveConditionsPanel, LiveUnavailable } from './components/LiveCondition
 import { HotspotList } from './components/HotspotList'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
+import { RideLive } from './components/RideLive'
 import { RoadScanner } from './components/RoadScanner'
 import { RouteResult } from './components/RouteResult'
 import { SourcesPanel } from './components/SourcesPanel'
@@ -40,6 +41,7 @@ type View =
   | 'ask'
   | 'scanner'
   | 'listen'
+  | 'live'
 
 export default function App() {
   const state = useAppData()
@@ -212,6 +214,14 @@ export default function App() {
             setView(t.view)
           }}
         />
+      ) : view === 'live' ? (
+        <RideLive
+          data={appData}
+          reports={reports.reports}
+          position={gps.position}
+          onUseGps={gps.request}
+          onBack={() => setView('plan')}
+        />
       ) : view === 'listen' ? (
         <HandsFree onBack={() => setView('plan')} />
       ) : view === 'scanner' ? (
@@ -272,6 +282,7 @@ export default function App() {
             onRoadside={() => setView('help')}
             onAsk={() => setView('ask')}
             onListen={() => setView('listen')}
+            onLive={() => setView('live')}
             planner={
               <PlanForm
                 places={appData.places.places}
