@@ -19,10 +19,16 @@ Do these in order. None of them takes longer than a minute, and three of them
 are things only you can do.
 
 - [ ] **Install the APK on the demo phone.** `backprop-pirates.vercel.app/zetway.apk`
-      — the live file is sha `65282be6` / 16.9 MB. The web link works on any
-      phone, but only the Android app can read the accelerometer with the screen
-      off, text without a tap, and sound at alarm priority. Demo the app, not
-      the link.
+      — the live file is sha `d1209426` / 18.6 MB. **Reinstall even if you
+      already installed one today:** the earlier build had a broken
+      report-a-hazard screen and a map missing two thirds of its roads. The web
+      link works on any phone, but only the Android app can read the
+      accelerometer with the screen off, text without a tap, and sound at alarm
+      priority. Demo the app, not the link.
+- [ ] **Turn location on before you demo Report a hazard.** Without a position
+      the send button reads "Turn location on to send this" and stays disabled
+      — correct, because a hazard with no location is useless, but it looks
+      broken on stage. The location pill is in the header.
 - [ ] **Save emergency contacts** in the app: your teammates, and any judge who
       is willing. An empty contact list makes the crash beat do nothing.
 - [ ] **Tap "Measure my shout"** — *in the pitch room, with people in it.* It
