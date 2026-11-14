@@ -330,8 +330,33 @@ export function helpMessage(
 export const smsLink = (phone: string, body: string): string =>
   `sms:${phone.replace(/\s+/g, '')}?&body=${encodeURIComponent(body)}`
 
+/**
+ * wa.me wants one thing and it is not what people save in their contacts.
+ *
+ * The number has to be full international with no plus and no spaces.
+ * Stripping to digits is not enough: a Mauritian mobile is eight digits and
+ * gets saved as "5789 1234", which strips to 57891234 and makes WhatsApp
+ * answer "phone number shared via url is invalid" -- on the one screen where
+ * nobody is going to debug it. So a local-length number gets the country
+ * code, and anything already carrying one is left alone.
+ *
+ * +230 is assumed for short numbers because this app is for Mauritius and
+ * the alternative is guessing from the dialling context, which a crashed
+ * phone has no way to do.
+ */
+const MU = '230'
+
+export function waNumber(phone: string): string {
+  const trimmed = phone.trim()
+  const intl = trimmed.startsWith('+')
+  let digits = trimmed.replace(/[^\d]/g, '')
+  if (!intl && digits.startsWith('00')) digits = digits.slice(2)
+  else if (!intl && digits.length <= 8) digits = MU + digits
+  return digits
+}
+
 export const whatsappLink = (phone: string, body: string): string =>
-  `https://wa.me/${phone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(body)}`
+  `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(body)}`
 
 /**
  * The impact, in the words a rider can check against what just happened.

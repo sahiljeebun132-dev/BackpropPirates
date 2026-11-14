@@ -19,7 +19,7 @@ Do these in order. None of them takes longer than a minute, and three of them
 are things only you can do.
 
 - [ ] **Install the APK on the demo phone.** `backprop-pirates.vercel.app/zetway.apk`
-      — the live file is sha `8a0b4ea9` / 18.6 MB. **Reinstall even if you
+      — the live file is sha `82fa04ad` / 18.6 MB. **Reinstall even if you
       already installed one today:** the earlier build had a broken
       report-a-hazard screen and a map missing two thirds of its roads. The web
       link works on any phone, but only the Android app can read the
@@ -138,6 +138,14 @@ This is your strongest two minutes. Slow down.
 | Let the countdown speak, then say **"I am fine"** | "It does not dial on hearing a noise. It opens a spoken countdown you can stop, because a false alarm costs a real crew a real call-out." |
 | Shout again, then say **"help"** | "And during that countdown, 'help' escalates immediately instead of waiting." |
 | Say **"anbilans"** | "In English, French or Kreol. This one goes straight to the dialler with 114 in it." |
+
+**Optional, and the strongest way into this beat if the room is big:** play
+`docs/pitch-assets/zetway-sos.mp4` first, on the laptop, before you touch the
+phone. Thirteen seconds, no sound: the car on its roof, the driver hanging in
+the belt, and the phone on the tarmac out of reach with the real app counting
+down on it. It makes the next ninety seconds obvious instead of abstract. Say
+"this is a drawing, the crash physics clip is the simulated one" if a judge
+asks — it is a diorama and the repo says so.
 
 Then the chamber. **On the laptop, press the trigger on `/c/ZETW14`.**
 
@@ -358,5 +366,6 @@ repo. That is how we found the first version was wrong.
 | Demo route | Grand Baie → Port Louis, Motorcycle: **19:30 unlit → 31**, **17:00 → 46** |
 | Sunset today | 18:25 — daylight band ends 18:00, night begins 18:50 |
 | Backup video | `docs/pitch-assets/zetway-demo.mp4` |
+| Aftermath film | `docs/pitch-assets/zetway-sos.mp4` — 13s, no sound needed |
 | Crash physics clip | `docs/pitch-assets/zetway-crash.mp4` |
 | Deck | `docs/Zetway-Pitch.pptx` — 6 slides, full speaker notes |
