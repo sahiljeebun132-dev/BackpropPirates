@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { BEAT_MS, beat, forgetSession, lookOnly, type Rider } from '../lib/presence'
 import type { HazardReport } from '../lib/reports'
 import type { AppData } from '../lib/types'
+import { loadRoads, loadedRoads, type Roads } from '../lib/roads'
 import { LiveMap, type Hazard } from './LiveMap'
 import { Card, CardTitle, Details, PageHeader } from './ui'
 
@@ -46,6 +47,13 @@ export function RideLive({
   const [heading, setHeading] = useState<number | null>(null)
   const [reachable, setReachable] = useState<boolean | null>(null)
   const previous = useRef<{ lat: number; lon: number } | null>(null)
+  const [roads, setRoads] = useState<Roads | null>(() => loadedRoads())
+
+  // Fetched once, when a map is actually wanted, and kept by the service
+  // worker afterwards. The map draws without it rather than waiting.
+  useEffect(() => {
+    void loadRoads().then(setRoads)
+  }, [])
 
   // Heading from successive fixes rather than the compass: a phone in a tank
   // bag points wherever the bag points, but two positions a few seconds
@@ -114,6 +122,7 @@ export function RideLive({
             riders={riders}
             hazards={hazards}
             radiusKm={radiusKm}
+            roads={roads}
           />
 
           <div className="flex gap-2">
@@ -206,10 +215,12 @@ export function RideLive({
           </Card>
 
           <p className="px-1 text-[11px] leading-relaxed text-slate-500">
-            Red lines are the 48 officially designated accident-prone stretches,
-            drawn from geometry stored in the app. Green dots are hospitals and
-            police stations. Amber is a hazard another rider reported. None of
-            it needs a signal — only the blue dots do.
+            Grey is the classified road network and red is the 48 officially
+            designated accident-prone stretches, both drawn from geometry
+            stored in the app. Green dots are hospitals and police stations.
+            Amber is a hazard another rider reported. None of it needs a
+            signal — only the blue dots do.
+            {roads?.source ? ` Roads: ${roads.source}.` : ''}
           </p>
         </>
       )}

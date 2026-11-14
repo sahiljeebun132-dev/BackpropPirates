@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import type { AppData } from '../lib/types'
 import type { Rider } from '../lib/presence'
+import type { Roads } from '../lib/roads'
 
 /**
  * The road around you, as you move through it.
@@ -38,6 +39,7 @@ export function LiveMap({
   riders,
   hazards,
   radiusKm,
+  roads,
 }: {
   data: AppData
   position: { lat: number; lon: number }
@@ -46,8 +48,10 @@ export function LiveMap({
   riders: Rider[]
   hazards: Hazard[]
   radiusKm: number
+  /** The classified network, or null until it has loaded. */
+  roads: Roads | null
 }) {
-  const { to, segments, towns, places } = useMemo(() => {
+  const { to, ways, segments, towns, places } = useMemo(() => {
     // Half the viewport covers radiusKm, so the full frame is a diameter.
     const scale = CENTRE / radiusKm
     const to = (lat: number, lon: number): [number, number] => [
@@ -63,8 +67,17 @@ export function LiveMap({
     const inBox = (lat: number, lon: number) =>
       Math.abs(lat - position.lat) <= dLat && Math.abs(lon - position.lon) <= dLon
 
+    // Minor roads are dropped as the frame widens: at five kilometres a
+    // tertiary road is a hairline among hundreds and reads as noise, while
+    // at one kilometre it is the street you are actually on.
+    const floor = radiusKm >= 4 ? 2 : radiusKm >= 2 ? 1 : 0
+    const ways = (roads?.ways ?? []).filter(
+      (w) => w.c >= floor && w.p.some((p) => inBox(p[0], p[1])),
+    )
+
     return {
       to,
+      ways,
       segments: data.hotspots.hotspots.filter((h) =>
         (h.points as [number, number][]).some((p) => inBox(p[0], p[1])),
       ),
@@ -75,7 +88,7 @@ export function LiveMap({
           .slice(0, 12),
       ],
     }
-  }, [data, position.lat, position.lon, radiusKm])
+  }, [data, position.lat, position.lon, radiusKm, roads])
 
   const path = (points: [number, number][]) =>
     points
@@ -115,6 +128,21 @@ export function LiveMap({
             fill="none"
             stroke="#1E2A3C"
             strokeWidth="1"
+          />
+        ))}
+
+        {/* The road network, under everything else. Thicker and paler as
+            the class rises, which is most of what makes a tangle of lines
+            read as roads rather than as scribble. */}
+        {ways.map((w, i) => (
+          <path
+            key={`w${i}`}
+            d={path(w.p)}
+            fill="none"
+            stroke={w.c >= 3 ? '#44536B' : w.c === 2 ? '#36435A' : '#2A3547'}
+            strokeWidth={w.c >= 4 ? 3.4 : w.c === 3 ? 2.6 : w.c === 2 ? 1.9 : 1.2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         ))}
 
