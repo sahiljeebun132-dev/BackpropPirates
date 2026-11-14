@@ -45,7 +45,12 @@ deliberate:
     mistake.
   - Step 8 reads "drive for at least twenty minutes... remove the leads in
     the reverse order". The clip removes the leads first and then drives off,
-    because that is the order the two things actually happen in.
+    because that is the order the two things actually happen in. It drives
+    off backwards, which the step does not mention and which is not a slip:
+    two cars parked nose to nose leave the revived one no forward path, so
+    backing out is genuinely its first move, and sending it the other way
+    would need twice the distance across the wide framing in the same
+    second. Watched at speed it reads as leaving, not as reversing.
 
 Two conveniences that are not deviations, only hard cuts doing their job.
 The engine bay is a permanent cutaway panel in the bodywork, not a bonnet

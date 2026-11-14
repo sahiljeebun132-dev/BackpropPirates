@@ -61,6 +61,15 @@ on this build, so interpolation is set on keyframe_points after insertion;
 Action.fcurves is empty for some IDs, so the curves are walked out of the
 slotted action's layers/strips/channelbags; and every animated object gets an
 explicit frame-1 key, because the first key extrapolates backwards.
+
+One more, learned here: a default bezier key has auto-clamped handles, and
+those read the key on the far side of it. Every prop in this clip is taken
+off screen by teleporting it to a parking spot two metres to the right, and
+that parked key tilted the handle of the key before it hard enough to turn
+the move in front of it into a crawl and then a whip. Any move whose next key
+is a teleport is keyed LINEAR here, and so is anything whose timing something
+else is counted against - the glove's sweep across the radiator is linear so
+that the mud can be timed against the frame its fingertips arrive.
 """
 
 from __future__ import annotations
@@ -84,7 +93,7 @@ BEATS = (
     ("wait", 76),     # half a clock face, steam, and a cap not being opened
     ("fork", 54),     # air-cooled or liquid-cooled: only one has a level
     ("level", 58),    # the reservoir, not the radiator, and it is low
-    ("look", 50),     # a packed core cleared; a fan that never came on
+    ("look", 62),     # a packed core cleared; a fan that never came on
     ("topup", 52),    # right coolant in, level between the marks
     ("ride", 56),     # gently, moving, airflow through the core, gauge watched
 )
@@ -211,6 +220,12 @@ DASH_Z = -0.26
 # Out of the tail of the can, up and back, in clear air: the nearest point of
 # this path is 0.49 m from the rear axle and the tyre's outer edge is 0.32 m.
 PUFF_OUT = (-1.06, 0.70)
+
+# The two heights the airflow chevrons run at, above the front tyre and into
+# the top of the core. Far enough apart that the two Vs never touch: at 0.10
+# apart, with arms 0.055 either side of the line, the pair met in the middle
+# and rendered as one zigzag.
+AIR_Z = (0.665, 0.785)
 
 ARRIVE_FROM = -2.60   # where the bike enters from, off the left of the wide
 RIDE_ROLL = 2.60      # how far the road runs under it while it is "under way"
@@ -532,13 +547,14 @@ def build_bike(mats):
     plate("Headlight", 0.12, 0.15, (0.655, LAY["body"], 0.855),
           material=mats["machine"], parent=root)
 
-    # A high pipe: the header climbs behind the cylinder and the can runs back
-    # in the wedge between the top of the rear tyre and the side cover. Every
-    # point of it is further from the rear axle than the tyre's outer edge, so
-    # it never crosses the wheel. Two lower routes were drawn first and both
-    # failed the same way - a grey bar lying across a spoked wheel reads as a
-    # bar through the wheel, and the exhaust puffs then left the can from
-    # somewhere inside the tyre.
+    # A high pipe: the header climbs behind the cylinder and the can runs
+    # back over the top of the rear tyre. It overlaps the wheel, the way a can
+    # on this side of a bike does, and it is drawn in front of it because
+    # that is where it sits. What had to be bought is the tail: it ends 0.09 m
+    # clear of the tyre, so the exhaust puffs leave in open air. Two lower
+    # routes were drawn first and both put the puffs inside the wheel, where
+    # a grey disc crossing the spokes reads as a smudge on the drawing rather
+    # than as smoke.
     bar("Header", (0.08, 0.30), (-0.36, 0.49), 0.030, LAY["pipe"], mats["steel"],
         parent=root)
     bar("Muffler", (-0.34, 0.48), (-0.98, 0.66), 0.095, LAY["pipe"], mats["steel"],
@@ -720,9 +736,9 @@ def build_airflow(mats):
     that reaches a radiator has come past.
     """
     arrows = []
-    for i, z in enumerate((0.645, 0.745)):
+    for i, z in enumerate(AIR_Z):
         root = empty("Air%d" % i, (1.20, 0, z))
-        for j, dz in enumerate((0.055, -0.055)):
+        for j, dz in enumerate((0.042, -0.042)):
             bar("AirBar%d_%d" % (i, j), (0.07, dz), (0.0, 0.0), 0.022,
                 LAY["mark"], mats["brand"], parent=root)
         arrows.append(root)
@@ -955,9 +971,11 @@ def animate(scene_objs, mats, cam):
     # cap, which is the whole of step 1.
     reach_to = (CAP_C[0] + 0.14 + HAND_REACH, 0, CAP_C[1] - 0.10)
     key(hand, w0 + 26, loc=reach_to)
-    key(hand, w0 + 32, loc=reach_to)
+    # Linear out, for the reason given in the look beat: with the parking
+    # teleport as the next key, the withdrawal crawled and then snapped.
+    key(hand, w0 + 32, loc=reach_to, interp="LINEAR")
     show(cap_no, w0 + 29, True)
-    key(hand, w0 + 46, loc=(1.32, 0, 0.58))
+    key(hand, w0 + 46, loc=(1.32, 0, 0.58), interp="LINEAR")
     key(hand, w0 + 47, loc=(HAND_PARK[0], 0, HAND_PARK[1]), interp="CONSTANT")
 
     # The needle falls while the clock runs: the engine going cold is the only
@@ -989,36 +1007,53 @@ def animate(scene_objs, mats, cam):
     o0 = F["look"]
     show(cap_no, o0, False)          # hidden on the cut, so nothing is seen to go
     show(insp_res, o0, False)
+    # The ring on the core goes up, comes away before the glove arrives, and
+    # comes back green once the core is clear. Left up through the sweep it
+    # was a brand-blue ring under a brand-blue glove and the two merged into
+    # one shape; drawn amber instead, it merged with the amber mud it was
+    # pointing at. Three statements in sequence beat two shapes on top of
+    # each other.
     key(insp_face, o0 + 2, scale=(0.0, 0.0, 0.0), interp="CONSTANT")
     key(insp_face, o0 + 8, scale=(1.0, 1.0, 1.0))
+    key(insp_face, o0 + 13, scale=(1.0, 1.0, 1.0))
+    # Away by o0+17, which is the frame the glove's fingertips reach it.
+    show(insp_face, o0 + 17, False)
     key(hand, o0 + 6, loc=(0.86, 0, 0.465), rot=(0, 0, 0), interp="CONSTANT")
-    key(hand, o0 + 8, loc=(0.86, 0, 0.465))
+    # Linear, both ways. Blender's auto-clamped handles read the key after
+    # the one they are on, and the key after the sweep is the teleport out to
+    # the parking spot at x 2.60: that slope bent the whole return into a
+    # crawl followed by a whip, and it left the glove sitting on the core for
+    # the frames where the ring says the core is clear. It also keeps the
+    # fingertips' x a straight function of the frame, which is what the grit
+    # below is timed against.
+    key(hand, o0 + 8, loc=(0.86, 0, 0.465), interp="LINEAR")
     # The sweep stops at 0.14 rather than 0.02: the fingertips are past the
     # last blob by then, and going further only walks the hand off the left
     # edge of this framing, where half of it is a blue shape leaving frame.
     SWEEP_END = 0.14
-    key(hand, o0 + 26, loc=(SWEEP_END, 0, 0.465))
+    key(hand, o0 + 26, loc=(SWEEP_END, 0, 0.465), interp="LINEAR")
     for i, blob in enumerate(grit):
         # Each blob goes as the fingertips reach its x, so the sweep is doing
         # the clearing rather than happening next to it.
         gx = blob.location[0]
         t = (0.86 - HAND_REACH - gx) / (0.86 - SWEEP_END)
         show(blob, o0 + 8 + int(round(18 * max(0.0, min(1.0, t)))), False)
-    key(hand, o0 + 28, loc=(SWEEP_END, 0, 0.465))
-    key(hand, o0 + 36, loc=(0.86, 0, 0.465))
-    key(hand, o0 + 37, loc=(HAND_PARK[0], 0, HAND_PARK[1]), interp="CONSTANT")
-    # Amber, not brand blue, and for two reasons. A packed core is a fault
-    # found rather than a place to look, which is what amber means everywhere
-    # else in this clip; and the hand sweeping it clean is brand blue, so a
-    # blue ring and a blue glove met in the middle of the frame and merged
-    # into one shape. It goes green when the core is clear.
-    key_colour(mats["inspect_face"], 1, YELLOW)
+    key(hand, o0 + 28, loc=(SWEEP_END, 0, 0.465), interp="LINEAR")
+    key(hand, o0 + 34, loc=(0.86, 0, 0.465), interp="LINEAR")
+    key(hand, o0 + 35, loc=(HAND_PARK[0], 0, HAND_PARK[1]), interp="CONSTANT")
+    key_colour(mats["inspect_face"], 1, BRAND)
+    # Recoloured while it is hidden, so the change is never seen happening,
+    # and back on screen only once the glove is clear of it again.
     key_colour(mats["inspect_face"], o0 + 30, GREEN)
-    show(insp_face, o0 + 38, False)
-    key(insp_fan, o0 + 38, scale=(0.0, 0.0, 0.0), interp="CONSTANT")
-    key(insp_fan, o0 + 43, scale=(1.0, 1.0, 1.0))
+    show(insp_face, o0 + 34, True)
+    show(insp_face, o0 + 43, False)
+    # The fan gets the back of the beat to itself. Step 3 names two things to
+    # look at, and in the first cut of this the second one held the screen
+    # for three frames.
+    key(insp_fan, o0 + 44, scale=(0.0, 0.0, 0.0), interp="CONSTANT")
+    key(insp_fan, o0 + 49, scale=(1.0, 1.0, 1.0))
     key_colour(mats["inspect_fan"], 1, BRAND)
-    key_colour(mats["inspect_fan"], o0 + 47, YELLOW)
+    key_colour(mats["inspect_fan"], o0 + 52, YELLOW)
 
     # --- top up: cap off, bottle in, level up between the two marks.
     t0 = F["topup"]
@@ -1030,7 +1065,10 @@ def animate(scene_objs, mats, cam):
         interp="CONSTANT")
     key(bottle, t0 + 8, loc=(BOTTLE_IN[0], 0, BOTTLE_IN[1]), rot=(0, 0, 0))
     key(bottle, t0 + 20, loc=(POUR[0], 0, POUR[1]), rot=(0, POUR_TILT, 0))
-    key(bottle, t0 + 40, loc=(POUR[0], 0, POUR[1]), rot=(0, POUR_TILT, 0))
+    # Linear away, same reason again: the key after this one takes the bottle
+    # off to its parking spot at x 2.60.
+    key(bottle, t0 + 40, loc=(POUR[0], 0, POUR[1]), rot=(0, POUR_TILT, 0),
+        interp="LINEAR")
     for i, drop in enumerate(drops):
         s = t0 + 21 + i * 5
         key(drop, s, loc=(POUR[0] - 0.01, LAY["bottle"] - 0.02, POUR[1] - 0.03),
@@ -1042,7 +1080,8 @@ def animate(scene_objs, mats, cam):
     key(res["fluid"], t0 + 20, scale=(1.0, 1.0, LEVEL_LOW - RES_BOT))
     key(res["fluid"], t0 + 42, scale=(1.0, 1.0, LEVEL_OK - RES_BOT))
     key_colour(mats["min"], t0 + 42, BG)
-    key(bottle, t0 + 46, loc=(BOTTLE_IN[0], 0, BOTTLE_IN[1]), rot=(0, 0, 0))
+    key(bottle, t0 + 46, loc=(BOTTLE_IN[0], 0, BOTTLE_IN[1]), rot=(0, 0, 0),
+        interp="LINEAR")
     key(bottle, t0 + 47, loc=(BOTTLE_PARK[0], 0, BOTTLE_PARK[1]), interp="CONSTANT")
     key(fill_tick, t0 + 42, scale=(0.0, 0.0, 0.0), interp="CONSTANT")
     key(fill_tick, t0 + 48, scale=(1.0, 1.0, 1.0))
@@ -1082,7 +1121,7 @@ def animate(scene_objs, mats, cam):
     for i, arrow in enumerate(airflow):
         for pass_no in range(2):
             s = r0 + 6 + pass_no * 12 + i * 4
-            z = (0.645, 0.745)[i]
+            z = AIR_Z[i]
             key(arrow, s, loc=(1.16, 0, z), scale=(0.0, 0.0, 0.0), interp="CONSTANT")
             key(arrow, s + 2, scale=(1.0, 1.0, 1.0), interp="LINEAR")
             key(arrow, s + 11, loc=(RAD_C[0] + RAD_W / 2 + 0.03, 0, z),
@@ -1149,7 +1188,7 @@ def main() -> int:
         "warn": flat("WarnDot", RED),
         "ign": flat("IgnDot", YELLOW),
         "min": flat("MinMark", BG),
-        "inspect_face": flat("InspectFaceMat", YELLOW),
+        "inspect_face": flat("InspectFaceMat", BRAND),
         "inspect_fan": flat("InspectFanMat", BRAND),
         "inspect_res": flat("InspectResMat", BRAND),
         "inspect_gauge": flat("InspectGaugeMat", BRAND),

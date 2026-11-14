@@ -53,6 +53,16 @@ to be VIDEO before FFMPEG can be assigned, the output path must be absolute
 or the render lands next to the .blend, Action.fcurves is not where the
 curves live any more, and keyframe_new_interpolation_type does nothing — the
 interpolation is corrected on the keys after they are inserted.
+
+One more, found here and worth the next script knowing: a key inserted into
+a curve whose previous key is CONSTANT is itself born CONSTANT. Correcting
+only the keys that want CONSTANT therefore is not enough, because the hold
+leaks forward into every key after it and quietly turns the rest of that
+object's animation into a slideshow. It cost this clip three moves before
+anyone looked closely — the oil never reached the drain pan, the grit never
+faded up and the pointer never swept, and all three still rendered, just
+frozen. So _set_interp forces BEZIER as explicitly as it forces CONSTANT,
+and it only touches the properties the calling key() actually wrote.
 """
 
 from __future__ import annotations
@@ -205,7 +215,7 @@ RAG_PARK = (E + 1.85, 1.75)
 # the tight framing rather than outside it. The beat that follows is the
 # stick sitting still in its tube, and an empty right-hand half makes that
 # deliberate stillness look like a video that has stopped.
-RAG_REST = (E + 0.98, 1.30)
+RAG_REST = (E + 0.92, 1.36)
 BOTTLE_PARK = (E + 0.035, 2.45)
 BOTTLE_POUR = (E + 0.035, 1.760)
 BOTTLE_TIP = -2.20
@@ -711,12 +721,12 @@ def animate(mats, bubble, eng, mac, cam):
     key(eng["rag"], 1, loc=(RAG_PARK[0], 0, RAG_PARK[1]), interp="CONSTANT")
     key(eng["bottle"], 1, loc=(BOTTLE_PARK[0], 0, BOTTLE_PARK[1]),
         rot=(0, 0, 0), interp="CONSTANT")
-    key(eng["stream"], 1, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(eng["stream"], 1, scale=(1, 1, 0.0), interp="CONSTANT")
     key(eng["cap"], 1, loc=(FILLER_X, LAY["fcap"], CAP_Z), interp="CONSTANT")
     key(eng["plug"], 1, loc=(PLUG[0], LAY["acc"], PLUG[1]), interp="CONSTANT")
     key(eng["pan"], 1, loc=(PAN_PARK_X, 0, 0.10), interp="CONSTANT")
-    key(eng["pan_oil"], 1, scale=(1, 1, 0.001), interp="CONSTANT")
-    key(eng["drain"], 1, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(eng["pan_oil"], 1, scale=(1, 1, 0.0), interp="CONSTANT")
+    key(eng["drain"], 1, scale=(1, 1, 0.0), interp="CONSTANT")
     key(clock, 1, loc=(CLOCK_FULL[0], 0, CLOCK_FULL[1]), scale=(0, 0, 0),
         interp="CONSTANT")
     key(hand, 1, rot=(0, 0, 0), interp="CONSTANT")
@@ -800,11 +810,11 @@ def animate(mats, bubble, eng, mac, cam):
 
     # The film goes with the rag, not before or after it.
     key(film, 112, scale=(1, 1, SMEAR), interp="LINEAR")
-    key(film, 130, scale=(1, 1, 0.001), interp="LINEAR")
+    key(film, 130, scale=(1, 1, 0.0), interp="LINEAR")
     # Keyed while the blade is inside the tube and nothing can be seen: the
     # second pull comes out carrying the reading the guide wants read.
     key(film, 194, scale=(1, 1, TRUE_S), interp="CONSTANT")
-    key(film, 211, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(film, 211, scale=(1, 1, 0.0), interp="CONSTANT")
 
     # ================================================ 3. read where it ends
     # The blade arrives on the cut still carrying the tilt it had in the
@@ -853,10 +863,10 @@ def animate(mats, bubble, eng, mac, cam):
 
     # Six frames of oil. "A little at a time" is a quantity, and the only way
     # to draw a quantity of pour is to stop it early.
-    key(eng["stream"], 322, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(eng["stream"], 322, scale=(1, 1, 0.0), interp="CONSTANT")
     key(eng["stream"], 323, scale=(1, 1, 1.0))
     key(eng["stream"], 329, scale=(1, 1, 1.0))
-    key(eng["stream"], 333, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(eng["stream"], 333, scale=(1, 1, 0.0), interp="CONSTANT")
 
     # "Give it a minute to drain down between top-ups": the same clock, a
     # shorter sweep, moved to where this framing can see it.
@@ -889,13 +899,13 @@ def animate(mats, bubble, eng, mac, cam):
     # front of everything it contains, so a plug dropped inside it is a plug
     # the viewer watches disappear.
     key(eng["plug"], 414, loc=(E - 0.30, LAY["acc"], 0.16))
-    key(eng["drain"], 412, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(eng["drain"], 412, scale=(1, 1, 0.0), interp="CONSTANT")
     key(eng["drain"], 419, scale=(1, 1, 1.0))
     key(eng["drain"], 428, scale=(1, 1, 1.0))
-    key(eng["drain"], 433, scale=(1, 1, 0.001))
+    key(eng["drain"], 433, scale=(1, 1, 0.0))
     key(eng["oil"], 413, scale=(1, 1, OIL_FULL))
     key(eng["oil"], 430, scale=(1, 1, 0.06))
-    key(eng["pan_oil"], 413, scale=(1, 1, 0.001), interp="CONSTANT")
+    key(eng["pan_oil"], 413, scale=(1, 1, 0.0), interp="CONSTANT")
     key(eng["pan_oil"], 416, scale=(1, 1, 0.04))
     key(eng["pan_oil"], 430, scale=(1, 1, 0.90))
 
