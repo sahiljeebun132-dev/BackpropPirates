@@ -58,18 +58,26 @@ export function AppShell({ children, location = null }: Props) {
        *  height instead of letting the page grow past it. */}
       <div className="zw-page relative flex h-dvh w-full flex-col overflow-hidden sm:h-[min(915px,calc(100dvh-2rem))] sm:w-[412px] sm:rounded-[34px] sm:border sm:border-slate-200/90 sm:shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
         <header className="z-30 shrink-0 border-b border-slate-200/70 bg-white/95 backdrop-blur-md">
-          <div className="flex items-center justify-between gap-2 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
-            <div className="flex min-w-0 items-center gap-2.5">
+          {/* Three columns rather than two, so the lockup sits in the real
+              middle of the bar instead of wherever the location pill leaves
+              it. The outer columns are the same width and the left one is
+              empty, which is the cheapest way to centre something next to a
+              control that comes and goes. */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
+            <span aria-hidden="true" />
+            <div className="flex min-w-0 items-center justify-center gap-2.5">
               <img src={mark} alt="" width={298} height={298} className="h-8 w-8 shrink-0" />
-              <div className="min-w-0">
+              <div className="min-w-0 text-center">
                 <span className="block font-display text-base font-extrabold leading-none tracking-tight text-slate-900">
                   Zetway
                 </span>
-                <span className="mt-0.5 block text-[10.5px] leading-tight text-slate-500">
+                <span className="mt-0.5 block truncate text-[10.5px] leading-tight text-slate-500">
                   Know the road before you go
                 </span>
               </div>
             </div>
+
+            <div className="flex justify-end">
 
             {location && (
               <button
@@ -106,6 +114,7 @@ export function AppShell({ children, location = null }: Props) {
                 <span className="max-w-[125px] truncate">{location.label}</span>
               </button>
             )}
+            </div>
           </div>
         </header>
 

@@ -27,4 +27,38 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
     }
+
+    /**
+     * Back goes back, rather than straight out of the app.
+     *
+     * Without this the system back button closed Zetway from whatever
+     * screen the rider was on, which on a phone is the single most jarring
+     * thing an app can do: every other app on the device treats back as
+     * "up one level", so the one that quits feels broken rather than
+     * minimal.
+     *
+     * The web layer owns the navigation, so it decides. __zetwayBack
+     * returns true when it handled the press by going up a screen, and
+     * false when there is nowhere left to go — only then does the activity
+     * behave the way it used to.
+     *
+     * Done here rather than with @capacitor/app because adding an npm
+     * dependency hours before a demonstration is a worse trade than twenty
+     * lines of Java.
+     */
+    @Override
+    public void onBackPressed() {
+        if (bridge == null || bridge.getWebView() == null) {
+            super.onBackPressed();
+            return;
+        }
+        bridge.getWebView().evaluateJavascript(
+            "(function(){try{return !!(window.__zetwayBack && window.__zetwayBack())}catch(e){return false}})()",
+            value -> {
+                if (!"true".equals(value)) {
+                    runOnUiThread(MainActivity.super::onBackPressed);
+                }
+            }
+        );
+    }
 }

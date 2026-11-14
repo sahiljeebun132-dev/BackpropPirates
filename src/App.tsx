@@ -15,6 +15,7 @@ import { LiveConditionsPanel, LiveUnavailable } from './components/LiveCondition
 import { HotspotList } from './components/HotspotList'
 import { IslandContext } from './components/IslandContext'
 import { PlanForm } from './components/PlanForm'
+import { ReportByVoice } from './components/ReportByVoice'
 import { RideLive } from './components/RideLive'
 import { RoadScanner } from './components/RoadScanner'
 import { RouteResult } from './components/RouteResult'
@@ -43,6 +44,7 @@ type View =
   | 'scanner'
   | 'listen'
   | 'live'
+  | 'speak'
 
 export default function App() {
   const state = useAppData()
@@ -73,6 +75,23 @@ export default function App() {
   // the one thing that says where you are — off screen above you.
   useEffect(() => {
     document.querySelector('main')?.scrollTo({ top: 0 })
+  }, [view])
+
+  // The system back button goes up a screen rather than out of the app.
+  // MainActivity calls this and only closes the activity when it returns
+  // false, which is to say when there is nowhere left to go.
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>
+    w.__zetwayBack = () => {
+      if (view !== 'plan') {
+        setView('plan')
+        return true
+      }
+      return false
+    }
+    return () => {
+      delete w.__zetwayBack
+    }
   }, [view])
 
   const data = state.status === 'ready' ? state.data : null
@@ -215,6 +234,13 @@ export default function App() {
             setView(t.view)
           }}
         />
+      ) : view === 'speak' ? (
+        <ReportByVoice
+          data={appData}
+          position={gps.position}
+          onPosted={() => reports.refresh()}
+          onClose={() => setView('plan')}
+        />
       ) : view === 'live' ? (
         <RideLive
           data={appData}
@@ -282,7 +308,7 @@ export default function App() {
             vigilance={vigilance}
             onAccidents={() => setView('accidents')}
             onClimate={() => setView('climate')}
-            onReport={() => setView('result')}
+            onReport={() => setView('speak')}
             onRoadside={() => setView('help')}
             onAsk={() => setView('ask')}
             onListen={() => setView('listen')}

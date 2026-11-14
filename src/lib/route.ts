@@ -135,6 +135,10 @@ export function routeBetween(
   roads: Roads | null,
   from: { lat: number; lon: number },
   to: { lat: number; lon: number },
+  /** Points to route away from. An edge ending near one costs several times
+   *  as much, which bends the route around them where there is an
+   *  alternative and lets it through where there is not. */
+  avoid?: [number, number][],
 ): Route | null {
   const note = (why: string) => {
     if (typeof window !== 'undefined') {
@@ -149,6 +153,27 @@ export function routeBetween(
   if (start === null || goal === null || start === goal) { note(`snap start=${start} goal=${goal}`); return null }
 
   const h = (n: NodeId) => km(g.lat[n], g.lon[n], g.lat[goal], g.lon[goal])
+
+  // Nodes to steer around, worked out once. A coarse grid keyed to about
+  // two hundred metres, so the per-edge check is a lookup rather than a
+  // scan across a few thousand coordinates.
+  const avoidCells = new Set<string>()
+  if (avoid) {
+    for (const [la, lo] of avoid) {
+      avoidCells.add(`${Math.round(la / 0.002)},${Math.round(lo / 0.002)}`)
+    }
+  }
+  const nearAvoid = (la: number, lo: number): boolean => {
+    if (avoidCells.size === 0) return false
+    const r = Math.round(la / 0.002)
+    const c = Math.round(lo / 0.002)
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (avoidCells.has(`${r + dr},${c + dc}`)) return true
+      }
+    }
+    return false
+  }
 
   const cameFrom = new Map<NodeId, NodeId>()
   const cost = new Map<NodeId, number>([[start, 0]])
@@ -167,7 +192,8 @@ export function routeBetween(
 
     for (const [next, d] of g.edges.get(current) ?? []) {
       if (done.has(next)) continue
-      const tentative = (cost.get(current) ?? Infinity) + d
+      const tentative =
+        (cost.get(current) ?? Infinity) + d * (nearAvoid(g.lat[next], g.lon[next]) ? 6 : 1)
       if (tentative < (cost.get(next) ?? Infinity)) {
         cost.set(next, tentative)
         cameFrom.set(next, current)
@@ -317,4 +343,91 @@ export function nextHazardAhead(
   }
 
   return found
+}
+
+// -------------------------------------------------------- avoiding trouble
+
+/**
+ * The same journey, routed away from the designated stretches.
+ *
+ * Not a different algorithm — the same A*, with the cost of any edge that
+ * runs near an officially designated accident-prone stretch multiplied. A
+ * multiplier rather than a prohibition, because on an island with one
+ * motorway some of those stretches have no alternative at all, and a router
+ * that returns nothing is less use than one that returns the best available
+ * compromise and says what it cost.
+ *
+ * The multiplier is six, set in routeBetween: high enough that a kilometre
+ * of detour is worth taking to avoid a hundred metres of black spot, and low
+ * enough that it will still route through one when the only other option is
+ * twenty kilometres round.
+ */
+/** How close to a designated stretch counts as on it. */
+const AVOID_KM = 0.25
+
+export type Comparison = {
+  direct: Route
+  safer: Route | null
+  /** Designated stretches each route passes within AVOID_KM of. */
+  directSpots: number
+  saferSpots: number
+  /** Extra distance the safer one costs. */
+  extraKm: number
+}
+
+/** How many designated stretches a route runs through. */
+export function spotsOn(
+  route: Route,
+  hotspots: { points: unknown }[],
+  nearKm = AVOID_KM,
+): number {
+  let n = 0
+  for (const h of hotspots) {
+    const pts = h.points as [number, number][]
+    if (!Array.isArray(pts) || pts.length === 0) continue
+    const hit = route.points.some((r) =>
+      pts.some((p) => km(r[0], r[1], p[0], p[1]) <= nearKm),
+    )
+    if (hit) n++
+  }
+  return n
+}
+
+/**
+ * Both routes, and what the safer one costs.
+ *
+ * Returns the safer route as null when it is the same road, which on this
+ * island is often the honest answer and is worth saying out loud rather
+ * than dressing a duplicate up as an alternative.
+ */
+export function compareRoutes(
+  roads: Roads | null,
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number },
+  hotspots: { points: unknown }[],
+): Comparison | null {
+  const direct = routeBetween(roads, from, to)
+  if (!direct || !roads) return null
+
+  const avoidPoints: [number, number][] = []
+  for (const h of hotspots) {
+    const pts = h.points as [number, number][]
+    if (Array.isArray(pts)) avoidPoints.push(...pts)
+  }
+
+  const safer = routeBetween(roads, from, to, avoidPoints)
+  const directSpots = spotsOn(direct, hotspots)
+  const saferSpots = safer ? spotsOn(safer, hotspots) : directSpots
+
+  const same =
+    !safer ||
+    (Math.abs(safer.km - direct.km) < 0.15 && saferSpots >= directSpots)
+
+  return {
+    direct,
+    safer: same ? null : safer,
+    directSpots,
+    saferSpots,
+    extraKm: safer ? Math.round((safer.km - direct.km) * 10) / 10 : 0,
+  }
 }
