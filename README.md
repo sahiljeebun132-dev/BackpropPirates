@@ -84,8 +84,14 @@ Pick origin, destination, travel mode and time of day. It returns:
 
 ## Data sources
 
-Eleven official tables, all from [data.govmu.org](https://data.govmu.org), all CC-BY-SA 4.0,
-published by the Mauritius Digital Promotion Agency and Statistics Mauritius.
+Twelve official tables were downloaded, all from [data.govmu.org](https://data.govmu.org), all
+CC-BY-SA 4.0, published by the Mauritius Digital Promotion Agency and Statistics Mauritius. **Ten
+of them power a feature**, and those are the ten below.
+
+The other two — `accident_rates.json` and `drivers_riders_involved.json` — are committed in
+`data/raw/json` with the rest rather than deleted. We fetched them, found nothing in the app that
+honestly needed them, and left them where anyone can check that for themselves. A table that only
+appeared on a slide would be exactly the thing rule 4 rules out.
 
 | Dataset | What it powers |
 |---|---|
