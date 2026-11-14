@@ -205,7 +205,7 @@ export function useVoiceSos(options: {
         })
       }, 1000)
     },
-    [clearTimer, say, setPhaseBoth],
+    [clearTimer, immediate, say, setPhaseBoth],
   )
 
   // One set of listeners for the life of the component. They are registered
