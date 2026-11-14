@@ -311,10 +311,17 @@ every push, so a working laptop is never the only way to get one.
 
 The official data is static JSON in `public/data`, and the weather forecast needs no key.
 
-Hazard reports need a Vercel Blob store. `vercel blob create-store zetway-reports --access private`
-links it to the project and sets `BLOB_READ_WRITE_TOKEN` automatically. The token stays on the
-server: the browser only ever talks to `/api/reports`, which decides what may be written. Without
-the store the rest of the app works unchanged and the reports panel says it is unavailable.
+Hazard reports, nearby-rider presence and the demo room are three small functions over a Supabase
+Postgres database, reached through PostgREST with plain `fetch` and no SDK. **Nothing to set up to
+run this repo**: the project URL and the anonymous key are in `api/`, where they are meant to be.
+The anon key is a public identifier, not a secret — row-level security decides what may be read
+and written, so the browser can hold it and still not be able to do anything the policies forbid.
+
+It was a Vercel Blob store until that store was suspended at the account level mid-build, which
+had silently broken hazard reports in production. The migration is why the three routes share one
+shape. If the database is unreachable the rest of the app is unaffected: the score, the black
+spots, the guides and the emergency numbers are all computed on the device, and the reports panel
+says it is unavailable rather than showing an empty list as though nothing had been reported.
 
 ## What we have not done
 
