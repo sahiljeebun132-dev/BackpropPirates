@@ -11,7 +11,6 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
 import java.util.ArrayList;
-import java.util.Locale;
 
 /**
  * Listening for someone who cannot reach their phone.
@@ -57,6 +56,14 @@ class VoiceSos {
          *  recogniser's own metering. Drives the no-language trigger. */
         void onLevel(float level);
 
+        /** The engine or language in use changed. What this feature can
+         *  understand depends on both, so the screen states them. */
+        void onConfig(String language, boolean onDevice);
+
+        /** Words are no longer possible, but loudness still is: the shout
+         *  trigger is live and the word trigger is not. */
+        void onPartlyDegraded(String reason);
+
         /** Listening stopped and will not resume: no recogniser on the device,
          *  permission refused, or too many failures in a row. The screen says
          *  so rather than sitting there looking like it is listening. */
@@ -72,6 +79,22 @@ class VoiceSos {
      *  gap in coverage is smaller than the gap between two shouts. */
     private static final long RESTART_DELAY_MS = 350L;
 
+    /**
+     * Languages to try, best first, ending in the phone's own default.
+     *
+     * French leads because Kreol is French-lexified and that is the only way
+     * "oskour" is ever going to match. But a phone with no French pack is not
+     * a phone that cannot help: English still catches "help", "ambulance" and
+     * "I can't move", and English is the pack most likely to be installed.
+     * Null means "whatever this phone is set to", which is the last resort
+     * and still better than silence.
+     *
+     * This ladder exists because the first device this ran on had no French
+     * pack at all: the recogniser returned LANGUAGE_NOT_SUPPORTED forever
+     * while the app sat there looking like it was listening.
+     */
+    private static final String[] LANGUAGES = { "fr-FR", "en-US", null };
+
     private final Context context;
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -79,7 +102,11 @@ class VoiceSos {
     private SpeechRecognizer recognizer;
     private boolean listening = false;
     private boolean onDevice = false;
+    private boolean triedCloud = false;
+    private boolean wordsAvailable = true;
+    private int langIndex = 0;
     private int consecutiveErrors = 0;
+    private ShoutWatch shout;
 
     VoiceSos(Context context, Listener listener) {
         this.context = context;
@@ -96,16 +123,35 @@ class VoiceSos {
         return listening;
     }
 
+    /** False once recognition has been given up on and only the shout
+     *  trigger remains. The screen says so rather than inviting the rider to
+     *  say a word nothing is listening for. */
+    boolean hasWords() {
+        return wordsAvailable;
+    }
+
+    /** The language tag actually in use, or "default" when the phone's own
+     *  setting is being relied on. Printed on screen, because what the app
+     *  can understand depends entirely on it. */
+    String language() {
+        String tag = LANGUAGES[Math.min(langIndex, LANGUAGES.length - 1)];
+        return tag == null ? "default" : tag;
+    }
+
     /** Begin. Safe to call twice; the second call is ignored. */
     void start() {
         if (listening) return;
         listening = true;
         consecutiveErrors = 0;
+        langIndex = 0;
+        triedCloud = false;
+        wordsAvailable = true;
         main.post(this::openRecognizer);
     }
 
     void stop() {
         listening = false;
+        if (shout != null) shout.stop();
         main.post(() -> {
             main.removeCallbacksAndMessages(null);
             closeRecognizer();
@@ -124,7 +170,9 @@ class VoiceSos {
         // the flag, so the screen can say which one it got rather than
         // claiming offline support it may not have.
         try {
-            if (Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            if (!triedCloud
+                && Build.VERSION.SDK_INT >= 33
+                && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
                 recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
                 onDevice = true;
             } else if (SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -140,7 +188,12 @@ class VoiceSos {
         }
 
         recognizer.setRecognitionListener(new RecognitionListener() {
-            @Override public void onReadyForSpeech(Bundle params) { consecutiveErrors = 0; }
+            // Deliberately does NOT clear the error count. A recogniser with
+            // no language pack happily reports itself ready and then fails,
+            // every single time, so treating readiness as success turned a
+            // dead configuration into an endless retry loop that never told
+            // anybody. Only actual words count as working.
+            @Override public void onReadyForSpeech(Bundle params) { }
             @Override public void onBeginningOfSpeech() { }
             @Override public void onBufferReceived(byte[] buffer) { }
             @Override public void onEndOfSpeech() { }
@@ -175,6 +228,37 @@ class VoiceSos {
                 boolean benign =
                     error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         || error == SpeechRecognizer.ERROR_NO_MATCH;
+
+                // A missing language pack is not a broken phone, it is the
+                // wrong language. Step down the ladder rather than counting
+                // it as a failure: French, then English, then whatever this
+                // phone is set to, and only then the cloud.
+                boolean wrongLanguage =
+                    error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED
+                        || error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE;
+
+                if (wrongLanguage) {
+                    if (langIndex < LANGUAGES.length - 1) {
+                        langIndex++;
+                        restart();
+                        return;
+                    }
+                    // Out of languages on this engine. The on-device
+                    // recogniser is preferred because it needs no signal, but
+                    // a cloud recogniser that works beats an offline one that
+                    // does not, so try that before giving up — and say which
+                    // one was settled on, because it decides whether this
+                    // feature works in a dead spot.
+                    if (!triedCloud && SpeechRecognizer.isRecognitionAvailable(context)) {
+                        triedCloud = true;
+                        langIndex = 0;
+                        restart();
+                        return;
+                    }
+                    fail(describe(error));
+                    return;
+                }
+
                 if (!benign) consecutiveErrors++;
 
                 if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
@@ -184,6 +268,8 @@ class VoiceSos {
                 restart();
             }
         });
+
+        listener.onConfig(language(), onDevice);
 
         try {
             recognizer.startListening(buildIntent());
@@ -206,7 +292,10 @@ class VoiceSos {
         // French, because Kreol is French-lexified and no phone ships a
         // Morisyen model. "Oskour" comes back close enough to "au secours" to
         // match on a root; "help" survives in any model because it is short.
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.FRENCH.toLanguageTag());
+        String tag = LANGUAGES[Math.min(langIndex, LANGUAGES.length - 1)];
+        if (tag != null) {
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag);
+        }
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
@@ -222,6 +311,8 @@ class VoiceSos {
         ArrayList<String> matches =
             bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches == null || matches.isEmpty()) return;
+        // Words came back, so this configuration works.
+        consecutiveErrors = 0;
         // Every alternative is passed up, not just the best one. A slurred
         // shout often lands in the second or third candidate, and the matcher
         // above is cheap enough to look at all of them.
@@ -238,22 +329,67 @@ class VoiceSos {
         main.postDelayed(this::openRecognizer, RESTART_DELAY_MS);
     }
 
+    /**
+     * Words are no longer possible. Loudness still is.
+     *
+     * This is the whole point of having two triggers. Recognition needs a
+     * language pack and often a signal; a shout needs neither. So a failure
+     * here is a step down rather than a stop, and the rider is told which of
+     * the two they still have rather than being left to guess.
+     */
     private void fail(String reason) {
-        listening = false;
         closeRecognizer();
+
+        if (!listening) {
+            listener.onDegraded(reason);
+            return;
+        }
+
+        if (shout == null) {
+            shout = new ShoutWatch(new ShoutWatch.Listener() {
+                @Override
+                public void onLevel(float level) {
+                    listener.onLevel(level);
+                }
+
+                @Override
+                public void onFailed(String why) {
+                    listening = false;
+                    listener.onDegraded(why);
+                }
+            });
+        }
+
+        shout.start();
+        if (shout.isRunning()) {
+            wordsAvailable = false;
+            listener.onConfig("shout-only", onDevice);
+            listener.onPartlyDegraded(reason);
+            return;
+        }
+
+        listening = false;
         listener.onDegraded(reason);
     }
 
     private void closeRecognizer() {
         if (recognizer == null) return;
+        SpeechRecognizer doomed = recognizer;
+        recognizer = null;
         try {
-            recognizer.cancel();
-            recognizer.destroy();
+            // Detach first. cancel() makes the recogniser report ERROR_CLIENT
+            // to whoever is listening, and since the restart loop closes the
+            // old session before opening the next one, every single restart
+            // was counting its own teardown as a failure. Six restarts later
+            // the circuit breaker tripped and hands-free help switched itself
+            // off — on a working phone, for no reason at all.
+            doomed.setRecognitionListener(null);
+            doomed.cancel();
+            doomed.destroy();
         } catch (Throwable ignored) {
             // Destroying a recogniser that already died is not worth a crash
             // in the one code path that exists for emergencies.
         }
-        recognizer = null;
     }
 
     /** Android's error codes, in words that can go on a screen. */

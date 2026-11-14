@@ -143,6 +143,14 @@ type CrashResponsePlugin = {
     event: 'hearStopped',
     handler: (data: { reason: string }) => void,
   ): Promise<PluginListenerHandle>
+  addListener(
+    event: 'hearWordsLost',
+    handler: (data: { reason: string }) => void,
+  ): Promise<PluginListenerHandle>
+  addListener(
+    event: 'hearConfig',
+    handler: (data: { language: string; onDevice: boolean }) => void,
+  ): Promise<PluginListenerHandle>
 }
 
 /** What this particular phone can hear and say.
@@ -165,6 +173,13 @@ export type VoiceStatus = {
   onDeviceAvailable: boolean
   /** The speech engine woke up and can speak. */
   canSpeak: boolean
+  /** False once word recognition has been given up on and only the shout
+   *  trigger remains live. */
+  words: boolean
+  /** The language tag actually in use, or 'default'. Worth showing: a phone
+   *  with no French pack falls back to English, which still catches "help"
+   *  but will not catch "oskour". */
+  language: string
 }
 
 const plugin = registerPlugin<CrashResponsePlugin>('CrashResponse')
@@ -468,6 +483,8 @@ export async function nativeVoiceStatus(): Promise<VoiceStatus> {
     recognizerAvailable: false,
     onDeviceAvailable: false,
     canSpeak: false,
+    language: 'default',
+    words: false,
   }
   if (!isNative()) return none
   try {
@@ -498,6 +515,35 @@ export async function onHearLevel(
   if (!isNative()) return () => {}
   try {
     const handle = await plugin.addListener('hearLevel', (d) => handler(d.level))
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+/** Recognition gave up but the microphone is still open: shouting still
+ *  works, words no longer do. Deliberately not the same event as stopping,
+ *  because a rider told listening had stopped would stop shouting. */
+export async function onHearWordsLost(
+  handler: (reason: string) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('hearWordsLost', (d) => handler(d.reason))
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+/** The engine or language actually in use changed under us — the phone had
+ *  no French pack, say, and listening stepped down to English. */
+export async function onHearConfig(
+  handler: (config: { language: string; onDevice: boolean }) => void,
+): Promise<() => void> {
+  if (!isNative()) return () => {}
+  try {
+    const handle = await plugin.addListener('hearConfig', handler)
     return () => void handle.remove()
   } catch {
     return () => {}

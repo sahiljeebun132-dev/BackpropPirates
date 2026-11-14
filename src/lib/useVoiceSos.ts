@@ -6,7 +6,9 @@ import {
   nativeStopListening,
   nativeStopSpeaking,
   nativeVoiceStatus,
+  onHearConfig,
   onHearLevel,
+  onHearWordsLost,
   onHearStopped,
   onHeard,
   type VoiceStatus,
@@ -63,6 +65,14 @@ export type VoiceSos = {
   quiet: number | null
   /** What this phone can actually do, asked of the OS rather than assumed. */
   status: VoiceStatus | null
+  /** The language listening actually settled on, which may not be the one
+   *  asked for. Null until a session has opened. */
+  language: string | null
+  /** Whether that session runs on the phone, so it works with no signal. */
+  offline: boolean
+  /** False when only the shout trigger is left. The screen stops inviting
+   *  the rider to say a word that nothing is listening for. */
+  words: boolean
   arm: () => Promise<void>
   disarm: () => Promise<void>
   /** Stop a running countdown — the on-screen equivalent of saying "stop". */
@@ -73,11 +83,22 @@ export function useVoiceSos(options: {
   /** Run when a countdown completes. This is where calls and texts happen;
    *  the hook deliberately knows nothing about them. */
   onFire: () => void
+  /** Run when a cancel word is heard. The standalone screen only needs to
+   *  stop its own countdown, but the crash overlay has a whole alert to
+   *  stand down, and that is its business rather than this hook's. */
+  onCancel?: () => void
   /** Spoken aloud. Off for the crash overlay, which does its own talking and
    *  must not have two voices counting different numbers at once. */
   speak?: boolean
+  /** Act the instant a distress word is heard, with no countdown of this
+   *  hook's own. Set by the crash overlay, where a thirty-second countdown is
+   *  already running: a rider who manages to say "help" through it has given
+   *  the clearest answer there is, and making them wait out a second,
+   *  nested countdown would be absurd. Shouting still gets a countdown even
+   *  here, because shouting is the trigger a horn can fake. */
+  immediate?: boolean
 }): VoiceSos {
-  const { onFire, speak = true } = options
+  const { onFire, onCancel, speak = true, immediate = false } = options
 
   const [phase, setPhase] = useState<VoicePhase>('off')
   const [reason, setReason] = useState<string | null>(null)
@@ -88,6 +109,9 @@ export function useVoiceSos(options: {
   const [level, setLevel] = useState(0)
   const [quiet, setQuiet] = useState<number | null>(null)
   const [status, setStatus] = useState<VoiceStatus | null>(null)
+  const [language, setLanguage] = useState<string | null>(null)
+  const [offline, setOffline] = useState(false)
+  const [words, setWords] = useState(true)
 
   const detector = useRef(new ShoutDetector())
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -95,10 +119,12 @@ export function useVoiceSos(options: {
   // has to live somewhere those callbacks can see the current value.
   const phaseRef = useRef<VoicePhase>('off')
   const onFireRef = useRef(onFire)
+  const onCancelRef = useRef(onCancel)
 
   useEffect(() => {
     onFireRef.current = onFire
-  }, [onFire])
+    onCancelRef.current = onCancel
+  }, [onFire, onCancel])
 
   const setPhaseBoth = useCallback((p: VoicePhase) => {
     phaseRef.current = p
@@ -129,6 +155,7 @@ export function useVoiceSos(options: {
       say('Cancelled. Still listening.')
       setPhaseBoth('armed')
     }
+    onCancelRef.current?.()
   }, [clearTimer, say, setPhaseBoth])
 
   const begin = useCallback(
@@ -137,6 +164,15 @@ export function useVoiceSos(options: {
       // Someone shouting repeatedly should not keep pushing their own rescue
       // further away.
       if (phaseRef.current !== 'armed') return
+
+      // No countdown of our own where one is already running above us.
+      if (immediate && kind === 'word') {
+        setTrigger(kind)
+        setHeardWord(word)
+        setPhaseBoth('firing')
+        onFireRef.current()
+        return
+      }
 
       const total = kind === 'word' ? WORD_COUNTDOWN : SHOUT_COUNTDOWN
       setTrigger(kind)
@@ -206,6 +242,20 @@ export function useVoiceSos(options: {
         if (fired) begin('shout', null)
       })
 
+      const offConfig = await onHearConfig(({ language: lang, onDevice }) => {
+        if (!alive) return
+        setLanguage(lang)
+        setOffline(onDevice)
+      })
+
+      const offWordsLost = await onHearWordsLost((r) => {
+        if (!alive) return
+        setWords(false)
+        setReason(r)
+        // Still armed, deliberately. The microphone is open and a shout will
+        // still be heard; only the words are gone.
+      })
+
       const offStopped = await onHearStopped((r) => {
         if (!alive) return
         setReason(r)
@@ -215,10 +265,12 @@ export function useVoiceSos(options: {
       if (!alive) {
         offHeard()
         offLevel()
+        offConfig()
+        offWordsLost()
         offStopped()
         return
       }
-      unsubs.push(offHeard, offLevel, offStopped)
+      unsubs.push(offHeard, offLevel, offConfig, offWordsLost, offStopped)
     })()
 
     return () => {
@@ -233,6 +285,7 @@ export function useVoiceSos(options: {
     detector.current.reset()
     setTranscript([])
     setReason(null)
+    setWords(true)
 
     const started = await nativeStartListening()
     if (!started.ok) {
@@ -282,6 +335,9 @@ export function useVoiceSos(options: {
     level,
     quiet,
     status,
+    language,
+    offline,
+    words,
     arm,
     disarm,
     cancel,

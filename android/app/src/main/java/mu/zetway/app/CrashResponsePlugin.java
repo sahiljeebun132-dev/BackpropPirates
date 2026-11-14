@@ -818,6 +818,23 @@ public class CrashResponsePlugin extends Plugin {
                 }
 
                 @Override
+                public void onConfig(String language, boolean onDevice) {
+                    JSObject data = new JSObject();
+                    data.put("language", language);
+                    data.put("onDevice", onDevice);
+                    notifyListeners("hearConfig", data, true);
+                }
+
+                @Override
+                public void onPartlyDegraded(String reason) {
+                    // Not "stopped": the shout trigger is still live, and a
+                    // rider told listening had stopped would stop shouting.
+                    JSObject data = new JSObject();
+                    data.put("reason", reason);
+                    notifyListeners("hearWordsLost", data, true);
+                }
+
+                @Override
                 public void onDegraded(String reason) {
                     JSObject data = new JSObject();
                     data.put("reason", reason);
@@ -845,6 +862,8 @@ public class CrashResponsePlugin extends Plugin {
         out.put("microphone", getPermissionState("microphone") == PermissionState.GRANTED);
         out.put("listening", voice != null && voice.isListening());
         out.put("onDevice", voice != null && voice.isOnDevice());
+        out.put("language", voice == null ? "fr-FR" : voice.language());
+        out.put("words", voice == null || voice.hasWords());
         out.put(
             "recognizerAvailable",
             android.speech.SpeechRecognizer.isRecognitionAvailable(getContext())

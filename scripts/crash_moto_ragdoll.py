@@ -2,7 +2,7 @@
 
 Run:
     blender --background --factory-startup --python scripts/crash_moto_ragdoll.py -- --render
-    blender --background --factory-startup --python scripts/crash_moto_ragdoll.py -- --still 96
+    blender --background --factory-startup --python scripts/crash_moto_ragdoll.py -- --still 1,86,122,192
     blender --background --factory-startup --python scripts/crash_moto_ragdoll.py -- --render --crf LOW
     blender --background --factory-startup --python scripts/crash_moto_ragdoll.py -- --probe
 
@@ -115,6 +115,13 @@ CAR_L, CAR_W = 4.3, 1.8
 # shin starts the clip inside the peg, wider and the rider is doing the
 # splits. Worked out against the engine's half-width, not guessed.
 PEG_X = 0.30
+
+# A tyre's outer radius is the torus's major radius PLUS its minor radius,
+# and forgetting that buried both wheels 85 mm in the tarmac for the whole
+# clip. WHEEL_R is the outer radius - the number that has to equal the axle
+# height - and the torus is built inward from it.
+WHEEL_R = 0.32
+TYRE_SECTION = 0.085
 
 # Every constrained pair, with the distance between the two bodies at build
 # time. A 6DOF constraint in Bullet is a strong suggestion, not a weld: under
@@ -379,18 +386,21 @@ def two_bone(root: Vector, tip: Vector, l1: float, l2: float,
 
 
 def bone(name, a: Vector, b: Vector, radius, material, *, mass, shrink=0.0):
-    """A limb segment: a cylinder from a to b, as a capsule rigid body.
+    """A limb segment: a cylinder from a to b, as a rigid body.
 
-    CAPSULE takes its axis from the object's local Z, which is why the
-    cylinder is built along Z and then rotated into place rather than being
-    positioned directly.
+    CONVEX_HULL rather than CAPSULE, although a capsule is the obvious choice
+    and cheaper. Blender inscribes the capsule in the mesh's bounding box, so
+    its rounded cap pulls away from the cylinder's flat end and the drawn rim
+    hangs a full radius past anything the solver knows about - measured at
+    24 mm of shin below the road. The hull is the drawn shape exactly, which
+    is the only version of "not clipping" the audience can check.
     """
     d = b - a
     length = max(d.length - shrink, 0.05)
     rot = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
     o = cyl(name, radius, length, tuple((a + b) / 2.0),
             rot=(rot.x, rot.y, rot.z), material=material)
-    rb(o, "ACTIVE", shape="CAPSULE", mass=mass)
+    rb(o, "ACTIVE", shape="CONVEX_HULL", mass=mass)
     return o
 
 
@@ -472,9 +482,10 @@ def build_bike():
     y0 = Y_RELEASE
     parts = []
     for nm, dy in (("WheelRear", -0.68), ("WheelFront", 0.68)):
-        parts.append(torus(nm, 0.32, 0.085, (0, y0 + dy, 0.32),
-                           (0, R(90), 0), dark_m))
-        parts.append(cyl(nm + "Rim", 0.15, 0.08, (0, y0 + dy, 0.32),
+        parts.append(torus(nm, WHEEL_R - TYRE_SECTION, TYRE_SECTION,
+                           (0, y0 + dy, WHEEL_R), (0, R(90), 0), dark_m))
+        parts.append(cyl(nm + "Rim", WHEEL_R - 2 * TYRE_SECTION, 0.08,
+                         (0, y0 + dy, WHEEL_R),
                          rot=(0, R(90), 0), material=body_m))
     # The engine and tank are kept narrow, and the pegs wide, so the rider's
     # shins clear the machine. Limbs that start a frame inside the bike are
@@ -942,7 +953,7 @@ def aim_camera(scene, cam, target, anchor, bike, pelvis, head):
 
 
 # -------------------------------------------------------------------- render
-def setup_render(scene, samples=24):
+def setup_render(scene, samples=48):
     scene.render.engine = "BLENDER_EEVEE"      # 5.2 calls it this again
     scene.render.resolution_x, scene.render.resolution_y = 1280, 720
     scene.render.resolution_percentage = 100
@@ -970,7 +981,7 @@ def main() -> int:
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     stills = ([int(n) for n in argv[argv.index("--still") + 1].split(",")]
               if "--still" in argv else [])
-    crf = argv[argv.index("--crf") + 1] if "--crf" in argv else "MEDIUM"
+    crf = argv[argv.index("--crf") + 1] if "--crf" in argv else "HIGH"
     do_render = "--render" in argv
     do_save = "--save" in argv
     do_probe = "--probe" in argv
@@ -1046,6 +1057,11 @@ def main() -> int:
         scene.render.image_settings.file_format = "FFMPEG"
         scene.render.ffmpeg.format = "MPEG4"
         scene.render.ffmpeg.codec = "H264"
+        # HIGH, not MEDIUM, and 48 samples not 24. At MEDIUM this clip came
+        # out at 0.44 MB against a 2.5 MB budget, and the subject is hard
+        # edges on flat colour - exactly what shows sampling noise on a
+        # tumbling limb and mosquito artefacts along a silhouette. The
+        # headroom is worth more in the picture than on disk.
         scene.render.ffmpeg.constant_rate_factor = crf
         scene.render.ffmpeg.ffmpeg_preset = "GOOD"
         scene.render.ffmpeg.audio_codec = "NONE"

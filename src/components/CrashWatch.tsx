@@ -8,13 +8,15 @@ import {
 } from '../lib/crashWatch'
 import { escalate, type EscalationStep } from '../lib/escalate'
 import {
-  consumePendingImpact, nativeReadiness, nativeStartWatching, nativeStopVibration,
+  consumePendingImpact, nativeReadiness, nativeSpeak, nativeStartWatching,
+  nativeStopSpeaking, nativeStopVibration,
   nativeStopWatching, nativeVibrate, onNativeImpact, onNativeImpactEvidence,
   openAppSettings, openLockScreenSettings, requestCrashPermissions, requestUnrestricted,
   explainNoBuzz, vibrationDiagnostics, type ImpactEvidence, type Readiness,
   type VibrationReport,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
+import { useVoiceSos } from '../lib/useVoiceSos'
 import { MedicalIdCard } from './MedicalIdCard'
 import { Icon, PageHeader } from './ui'
 
@@ -332,6 +334,58 @@ export function CrashWatch({
     startWatching(testMode) // watchForImpact fires once, so re-attach
   }
 
+  /**
+   * The countdown, answered out loud.
+   *
+   * This is the case the whole feature was built for and the reason it is not
+   * merely a screen of its own: a rider pinned under the machine cannot reach
+   * the "I'm OK" button and cannot reach "I need help" either. During the
+   * thirty seconds they can now say either one.
+   *
+   * A distress word acts at once rather than starting another countdown —
+   * thirty seconds are already running, and someone who gets the word "help"
+   * out through that has answered as clearly as anyone can. A shout still
+   * gets a short countdown of its own, because a shout is the trigger a
+   * lorry's horn can imitate.
+   *
+   * It listens only while the question is on screen. The moment the alert
+   * starts acting it stands down, because the next thing that happens is
+   * recordAudio opening the same microphone, and two things holding one
+   * microphone means neither of them works.
+   */
+  const voice = useVoiceSos({
+    immediate: true,
+    // The overlay does its own talking below. Two voices counting different
+    // numbers over each other would be worse than silence.
+    speak: false,
+    onFire: () => helpNow(),
+    onCancel: () => imOk(),
+  })
+
+  const voiceArmed = voice.phase !== 'off' && voice.phase !== 'degraded'
+  useEffect(() => {
+    if (phase === 'asking' && !voiceArmed) {
+      void voice.arm()
+      return
+    }
+    if (phase !== 'asking' && voiceArmed) {
+      void voice.disarm()
+    }
+  }, [phase, voiceArmed, voice])
+
+  // Said once, when the question appears. A phone face-down in the gravel is
+  // a phone whose screen nobody is reading, and this is the only way the
+  // rider learns that saying something would work.
+  useEffect(() => {
+    if (phase !== 'asking') return
+    void nativeSpeak(
+      'Zetway detected a heavy impact. Say "I am OK" to cancel, or say "help" to call for help now.',
+    )
+    return () => {
+      void nativeStopSpeaking()
+    }
+  }, [phase])
+
   if (phase === 'asking' || phase === 'alerting') {
     return (
       <AlertOverlay
@@ -349,6 +403,9 @@ export function CrashWatch({
         onHelpNow={helpNow}
         onCallEmergency={callEmergencyNow}
         onStandDown={standDown}
+        voiceListening={voice.phase === 'armed' || voice.phase === 'counting'}
+        voiceShout={voice.phase === 'counting' ? voice.secondsLeft : null}
+        voiceReason={voice.phase === 'degraded' ? voice.reason : null}
       />
     )
   }
@@ -768,10 +825,17 @@ function AlertOverlay(props: {
   onHelpNow: () => void
   onCallEmergency: () => void
   onStandDown: () => void
+  /** The microphone is open and a word would be acted on. */
+  voiceListening: boolean
+  /** Seconds left on a shout-triggered countdown, or null. */
+  voiceShout: number | null
+  /** Why listening is not available, when it is not. */
+  voiceReason: string | null
 }) {
   const {
     phase, left, peak, evidence, position, contacts, recording, recordingNow, notice,
     autoSteps, onImOk, onHelpNow, onCallEmergency, onStandDown,
+    voiceListening, voiceShout, voiceReason,
   } = props
   const message = helpMessage(position, peak)
   const sensed = evidenceLines(evidence)
@@ -817,6 +881,33 @@ function AlertOverlay(props: {
               Are you alright? If you do not answer, this screen will help you call for help.
               You have {left} seconds.
             </p>
+            {/* Said before the buttons, because the rider this matters most
+                to is the one who cannot reach a button at all. */}
+            {voiceListening && (
+              <div
+                aria-live="polite"
+                className="rounded-2xl bg-white/15 px-4 py-3 text-center ring-1 ring-white/30"
+              >
+                {voiceShout !== null ? (
+                  <p className="text-base font-bold">
+                    Heard shouting &mdash; getting help in {voiceShout}s. Say
+                    &ldquo;stop&rdquo; to cancel.
+                  </p>
+                ) : (
+                  <p className="text-sm font-semibold leading-snug">
+                    Listening. Say <span className="underline">&ldquo;I&rsquo;m OK&rdquo;</span>{' '}
+                    to cancel, or <span className="underline">&ldquo;help&rdquo;</span> to call
+                    now. Shouting works too.
+                  </p>
+                )}
+              </div>
+            )}
+            {voiceReason && (
+              <p className="text-center text-xs leading-snug text-white/70">
+                Not listening: {voiceReason} Use the buttons below.
+              </p>
+            )}
+
             <button
               ref={firstAction}
               type="button"

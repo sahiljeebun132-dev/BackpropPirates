@@ -124,7 +124,7 @@ BG = "#dde8f2"        # sky, seen by camera rays only
 AMBIENT = "#8fa6bd"   # what the sky actually lights the scene with
 ROAD = "#8b97a6"
 VERGE = "#9aa897"
-CAR_SHELL = "#d4dde7"
+CAR_SHELL = "#c3cfdd"
 CAR_DARK = "#4a5768"
 SEAT = "#6b7889"      # lighter than the figure, so the figure reads against it
 GLASS = "#93aac1"
@@ -148,6 +148,27 @@ def rgba(hex_string: str, alpha: float = 1.0):
 # ------------------------------------------------------------------ plumbing
 def clear() -> None:
     bpy.ops.wm.read_factory_settings(use_empty=True)
+
+
+def glazing(name: str, hex_string: str, alpha=0.26):
+    """Glass that is actually see-through.
+
+    The windscreen started as an opaque plate and, from a camera low enough
+    to see into the cabin at all, it covered the occupant - which defeats the
+    whole point of cutting the car away. On this build transparency needs
+    surface_render_method set to BLENDED; the default DITHERED turns a low
+    alpha into a mesh of holes rather than a tint.
+    """
+    m = matte(name, hex_string, rough=0.2)
+    m.node_tree.nodes["Principled BSDF"].inputs["Alpha"].default_value = alpha
+    m.surface_render_method = "BLENDED"
+    # Shadows from a pane of glass would put a grey rectangle across the
+    # occupant, which is exactly the thing being avoided.
+    try:
+        m.use_transparent_shadow = True
+    except AttributeError:
+        pass
+    return m
 
 
 def matte(name: str, hex_string: str, *, rough=0.85, metal=0.0):
@@ -351,7 +372,7 @@ DRIVER_X = 0.38
 def build_car():
     shell = matte("CarShell", CAR_SHELL, rough=0.78)
     dark = matte("CarDark", CAR_DARK, rough=0.8)
-    glass = matte("CarGlass", GLASS, rough=0.5)
+    glass = glazing("CarGlass", GLASS)
     tyre = matte("Tyre", TYRE, rough=0.95)
 
     # The collider is a single box the size of the car, hidden from the
@@ -381,13 +402,13 @@ def build_car():
     # occupant - the entire subject of the clip - would be invisible.
     panel("Floor", (CAR_WID, 3.0, 0.06), (0, -0.10, 0.26))
     panel("FarSide", (0.07, CAR_LEN - 0.3, 1.00), (0.855, -0.05, 0.72))
-    panel("Roof", (CAR_WID, 1.95, 0.06), (0, -0.38, 1.55))
+    panel("Roof", (CAR_WID, 1.95, 0.06), (0, -0.38, 1.67))
     panel("Bonnet", (CAR_WID, 1.35, 0.52), (0, 1.47, 0.60))
     panel("Boot", (CAR_WID, 0.75, 0.70), (0, -1.77, 0.62))
     panel("Dash", (CAR_WID, 0.22, 0.42), (0, 0.66, 0.70), material=dark)
-    panel("Windscreen", (CAR_WID - 0.1, 0.06, 0.95), (0, 0.72, 1.08),
+    panel("Windscreen", (CAR_WID - 0.1, 0.06, 1.05), (0, 0.72, 1.16),
           rot=(R(-26), 0, 0), material=glass)
-    panel("RearGlass", (CAR_WID - 0.1, 0.05, 0.72), (0, -1.38, 1.22),
+    panel("RearGlass", (CAR_WID - 0.1, 0.05, 0.80), (0, -1.38, 1.30),
           rot=(R(28), 0, 0), material=glass)
     # The near side carries a sill and nothing else. It first had an A-pillar,
     # a B-pillar and a roof rail as well, on the theory that an outline would
@@ -399,8 +420,8 @@ def build_car():
     # The far side keeps its pillars, which is what the roof visibly stands
     # on once the near ones are gone.
     for name, dims, loc, rot in (
-        ("PillarAFar", (0.07, 0.11, 0.98), (0.855, 0.70, 1.07), (R(-26), 0, 0)),
-        ("PillarBFar", (0.07, 0.12, 1.18), (0.855, -1.30, 0.96), (R(22), 0, 0)),
+        ("PillarAFar", (0.07, 0.11, 1.10), (0.855, 0.70, 1.13), (R(-26), 0, 0)),
+        ("PillarBFar", (0.07, 0.12, 1.30), (0.855, -1.30, 1.02), (R(22), 0, 0)),
     ):
         panel(name, dims, loc, rot, material=dark)
 
@@ -549,9 +570,15 @@ def build_occupant():
     # 10 cm deep, laid on at the angle a sash actually runs. The first version
     # was a 26 by 42 cm plate on the near face, which from the camera side
     # read as a blue shield covering the whole torso.
-    sash = box("BeltSash", (0.40, 0.055, 0.10),
-               tuple(at("chest") + Vector((0.0, 0.135, 0.0))),
-               rot=(0, R(32), 0), material=belt_m)
+    # Laid across the front of the chest on the diagonal a sash actually
+    # runs: anchored at the occupant's outboard shoulder, which on a
+    # right-hand-drive car is the far one, down to the near hip. The angle
+    # matters for legibility as well as accuracy - the camera looks at this
+    # face almost along the body's left-right axis, so a strap set at the
+    # wrong tilt foreshortens into a blue block.
+    sash = box("BeltSash", (0.44, 0.05, 0.095),
+               tuple(at("chest") + Vector((0.0, 0.135, 0.005))),
+               rot=(0, R(-36), 0), material=belt_m)
     sash.parent = parts["chest"]
     sash.matrix_parent_inverse = parts["chest"].matrix_world.inverted()
 
@@ -655,7 +682,7 @@ def build_joints(parts, car):
     for side in ("L", "R"):
         constraint(f"J_shoulder{side}", parts["chest"], parts[f"upperArm{side}"],
                    at(f"shoulder{side}"),
-                   ang={"x": (-88, 70), "y": (-45, 45), "z": (-55, 55)})
+                   ang={"x": (-58, 38), "y": (-34, 34), "z": (-42, 42)})
         # Elbows and knees are hinges: one axis with a wide range, the other
         # two pinned. Without this the forearms counter-rotate on impact and
         # the figure looks broken rather than thrown.
@@ -744,22 +771,25 @@ def bake(scene):
 
 
 def sample(objs, frames):
-    """Read the simulated world position of each object, per frame.
+    """Read the simulated world position and orientation of each object.
 
     The camera is aimed from this rather than from guessed coordinates. Where
     the car and the occupant end up is an output of the solver, so framing
     them by hand would mean re-guessing every time a mass or a limit changes.
+
+    Returns two {name: {frame: value}} maps, positions and eulers.
     """
     scene = bpy.context.scene
-    out = {o.name: {} for o in objs}
+    where = {o.name: {} for o in objs}
+    facing = {o.name: {} for o in objs}
     for f in frames:
         scene.frame_set(f)
         dg = bpy.context.evaluated_depsgraph_get()
         for o in objs:
             m = o.evaluated_get(dg).matrix_world
-            out[o.name][f] = m.translation.copy()
-            out.setdefault("_rot", {}).setdefault(o.name, {})[f] = m.to_euler()
-    return out
+            where[o.name][f] = m.translation.copy()
+            facing[o.name][f] = m.to_euler()
+    return where, facing
 
 
 # -------------------------------------------------------------------- camera
@@ -787,7 +817,8 @@ def animate_camera(cam, target, car_track, chest_track, impact):
     means anything - would be invisible.
     """
     hold = F_END
-    push = impact + 26
+    descend = impact - 34
+    settle = impact + 26
     close = impact + 92
 
     # The camera stands past the barrier and to the left, looking back down
@@ -796,25 +827,34 @@ def animate_camera(cam, target, car_track, chest_track, impact):
     # first pass had the camera on the near side of the barrier looking the
     # other way, which framed a car driving across an empty road towards
     # nothing the audience could see.
+    #
+    # It then has to be DOWN below the roof line by the time the car arrives,
+    # and stay there. This is the constraint that shapes the whole move: the
+    # roof is at 1.52 m and the occupant's head at 1.38 m, so the sight line
+    # to the head has to be flatter than the sight line to the roof's leading
+    # edge or the head is behind a grey plate. At 4.4 m it was; at 2.3 m it
+    # still was, by about a degree; 1.8 m clears it with room to spare.
     key(cam, F_START, loc=(-11.2, 11.0, 3.9))
-    key(cam, impact, loc=(-8.6, 5.2, 4.4))
-    key(cam, push, loc=(-7.4, 2.4, 3.4))
-    key(cam, close, loc=(-4.4, -1.35, 1.95))
+    key(cam, descend, loc=(-9.6, 7.2, 3.0))
+    key(cam, impact, loc=(-6.9, 2.7, 1.88))
+    key(cam, settle, loc=(-5.6, 0.2, 1.78))
+    key(cam, close, loc=(-4.4, -1.35, 1.72))
     # Arrive before the end and hold. A push that runs to the last frame puts
     # the shot the whole clip builds to on screen for an instant.
-    key(cam, hold, loc=(-4.3, -1.42, 1.92))
+    key(cam, hold, loc=(-4.3, -1.42, 1.70))
 
     def aim(frame, vec):
         key(target, frame, loc=tuple(vec))
 
-    # Through the approach and impact, aim at the car. Afterwards, slide the
-    # aim onto the occupant's chest, which is where the story is.
-    for f in (F_START, impact - 24, impact, impact + 10):
+    # Aim at the car while it is still a car travelling towards something.
+    # From the impact frame on, aim at the chest: the occupant is the subject
+    # from the moment the car stops, and the lunge happens within a few
+    # frames of that, so the aim cannot arrive late.
+    for f in (F_START, descend):
         aim(f, car_track[f] + Vector((0, 0, 0.55)))
-    mid = impact + 40
-    aim(mid, (car_track[mid] + chest_track[mid]) / 2 + Vector((0, 0, 0.35)))
-    for f in (close, hold):
-        aim(f, chest_track[f] + Vector((0, 0, 0.02)))
+    aim(impact, (car_track[impact] + chest_track[impact]) / 2 + Vector((0, 0, 0.30)))
+    for f in (impact + 8, settle, close, hold):
+        aim(f, chest_track[f] + Vector((0, 0, 0.04)))
 
 
 # ------------------------------------------------------------------ lighting
@@ -827,14 +867,26 @@ def build_lighting(scene):
     bpy.context.collection.objects.link(so)
     so.rotation_euler = Euler((R(52), R(6), R(-128)))
 
-    fill = bpy.data.lights.new("Fill", type="AREA")
-    fill.energy = 450
-    fill.size = 14
-    fill.color = (0.90, 0.94, 1.0)
+    # A fill that reaches into the cabin from the open side. The cabin is a
+    # box with a roof on it, so the one surface the sun cannot reach is the
+    # occupant, and under a sky dim enough to keep the bodywork from blowing
+    # out the figure was a silhouette in a hole.
+    #
+    # A sun, not an area light, and with shadows off. An area light close
+    # enough to fill the cabin also laid a hard-edged bright trapezoid across
+    # the road and the verge in the wide shots, which reads as a rendering
+    # fault rather than as sunlight. A shadowless sun has no falloff to leave
+    # a pool, and passing through the roof is the point - that is what makes
+    # it a fill rather than a second key.
+    fill = bpy.data.lights.new("Fill", type="SUN")
+    fill.energy = 1.15
+    fill.color = (0.88, 0.93, 1.0)
+    fill.use_shadow = False
     fo = bpy.data.objects.new("FillObj", fill)
     bpy.context.collection.objects.link(fo)
-    fo.location = (-16, -12, 9)
-    fo.rotation_euler = Euler((R(52), 0, R(-52)))
+    fo.location = (-9, -2, 4)
+    # Pointing in +X and slightly -Y, i.e. in through the cut-away side.
+    fo.rotation_euler = Vector((0.93, -0.26, -0.26)).to_track_quat("-Z", "Y").to_euler()
 
     # The sky has two jobs that pull against each other: it is the backdrop,
     # which wants to be a light brand neutral, and it is the ambient fill,
@@ -945,7 +997,7 @@ def main() -> int:
 
     frames = list(range(F_START, F_END + 1))
     watched = [car] + ([parts["chest"], parts["head"], parts["pelvis"], parts["forearmR"]] if parts else [])
-    tracks = sample(watched, frames)
+    tracks, facing = sample(watched, frames)
     car_track = tracks["CarCollider"]
     chest_track = tracks["chest"] if parts else car_track
 
@@ -1003,7 +1055,7 @@ def main() -> int:
             ch = (tracks["chest"][f] - c) if parts else c * 0
             hd = (tracks["head"][f] - c) if parts else c * 0
             fr = (tracks["forearmR"][f] - c) if parts else c * 0
-            cr = tracks["_rot"]["CarCollider"][f]
+            cr = facing["CarCollider"][f]
             print(f"  {f:5d} | {c.y:7.2f} | {ch.y:8.3f} {ch.z:8.3f}   | "
                   f"{hd.y:8.3f} {hd.z:8.3f}   | {fr.y:7.3f} | car z={c.z:6.2f} "
                   f"rot=({math.degrees(cr.x):6.1f},{math.degrees(cr.y):6.1f},{math.degrees(cr.z):6.1f})")

@@ -8,6 +8,7 @@ import { LegalPanel } from './components/LegalPanel'
 import { OfflineBanner } from './components/OfflineBanner'
 import { FirstRunPermissions } from './components/FirstRunPermissions'
 import { InstallApp } from './components/InstallApp'
+import { HandsFree } from './components/HandsFree'
 import { HomeDashboard } from './components/HomeDashboard'
 import { LiveConditionsPanel, LiveUnavailable } from './components/LiveConditions'
 import { HotspotList } from './components/HotspotList'
@@ -29,7 +30,16 @@ import { useReports } from './lib/useReports'
 
 /** Which half of the app is on screen. Plain state rather than a router, so
  *  there is one less thing to break during a demo. */
-type View = 'plan' | 'result' | 'help' | 'accidents' | 'climate' | 'crash' | 'ask' | 'scanner'
+type View =
+  | 'plan'
+  | 'result'
+  | 'help'
+  | 'accidents'
+  | 'climate'
+  | 'crash'
+  | 'ask'
+  | 'scanner'
+  | 'listen'
 
 export default function App() {
   const state = useAppData()
@@ -194,6 +204,8 @@ export default function App() {
             setView(t.view)
           }}
         />
+      ) : view === 'listen' ? (
+        <HandsFree onBack={() => setView('plan')} />
       ) : view === 'scanner' ? (
         <RoadScanner
           reports={reports.reports}
@@ -251,6 +263,7 @@ export default function App() {
             onReport={() => setView('result')}
             onRoadside={() => setView('help')}
             onAsk={() => setView('ask')}
+            onListen={() => setView('listen')}
             planner={
               <PlanForm
                 places={appData.places.places}

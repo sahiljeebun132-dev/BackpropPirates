@@ -26,6 +26,7 @@ export function HomeDashboard({
   onReport,
   onRoadside,
   onAsk,
+  onListen,
 }: {
   vigilance: string | null
   planner: ReactNode
@@ -34,6 +35,7 @@ export function HomeDashboard({
   onReport: () => void
   onRoadside: () => void
   onAsk: () => void
+  onListen: () => void
 }) {
   return (
     <>
@@ -85,6 +87,13 @@ export function HomeDashboard({
           title="Report a hazard"
           subtitle="Warn other riders about something on the road"
           onClick={onReport}
+        />
+        <Row
+          accent="red"
+          icon={Icon.alertTriangle()}
+          title="Hands-free help"
+          subtitle="Shout for help when you cannot reach your phone"
+          onClick={onListen}
         />
         <Row
           accent="green"
