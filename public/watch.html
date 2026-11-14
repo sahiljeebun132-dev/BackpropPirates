@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zetway — live alert</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --edge: #e3e6ea;
+    --ink: #11161d; --dim: #68717d; --red: #d7263d; --green: #1a7f42;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --panel: #161b22; --edge: #2a323d; --ink: #e6edf3; --dim: #8b949e; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) 16px 48px;
+    transition: background .2s;
+  }
+  body.alarm { background: var(--red); color: #fff; }
+  .wrap { max-width: 460px; margin: 0 auto; }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  .sub { color: var(--dim); font-size: 13px; margin: 0 0 18px; }
+  body.alarm .sub, body.alarm .label { color: rgba(255,255,255,.8); }
+  .card {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+  }
+  body.alarm .card { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.28); }
+  .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--dim); font-weight: 700; margin: 0 0 6px;
+  }
+  input {
+    font: inherit; font-family: var(--mono); font-size: 32px; font-weight: 800;
+    letter-spacing: .2em; text-align: center; width: 100%;
+    padding: 12px 6px 12px 16px; border-radius: 12px;
+    border: 1px solid var(--edge); background: var(--bg); color: var(--ink);
+  }
+  button {
+    font: inherit; font-weight: 700; width: 100%; padding: 15px;
+    border-radius: 12px; border: 0; background: var(--ink); color: var(--bg);
+    cursor: pointer; margin-top: 10px;
+  }
+  body.alarm button { background: #fff; color: var(--red); }
+  .count { font-size: 68px; font-weight: 800; font-family: var(--mono); line-height: 1; margin: 4px 0 0; }
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--dim); font-size: 13px; }
+  body.alarm .muted { color: rgba(255,255,255,.85); }
+  ul { list-style: none; margin: 6px 0 0; padding: 0; }
+  li { padding: 7px 0; border-top: 1px solid var(--edge); font-size: 14px; display: flex; gap: 8px; }
+  body.alarm li { border-color: rgba(255,255,255,.25); }
+  li:first-child { border-top: 0; }
+  a { color: inherit; }
+  .maplink {
+    display: block; text-align: center; text-decoration: none; font-weight: 800;
+    padding: 15px; border-radius: 12px; background: var(--ink); color: var(--bg); margin-top: 10px;
+  }
+  body.alarm .maplink { background: #fff; color: var(--red); }
+  .pulse { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none } }
+  .disclaim {
+    font-size: 12px; line-height: 1.5; color: var(--dim);
+    border-left: 2px solid var(--edge); padding-left: 10px; margin-top: 16px;
+  }
+  body.alarm .disclaim { color: rgba(255,255,255,.85); border-color: rgba(255,255,255,.4); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="join">
+    <h1>Zetway — live alert</h1>
+    <p class="sub">Follow a rider&rsquo;s crash alert as it happens.</p>
+    <div class="card">
+      <p class="label">Room code</p>
+      <input id="room" maxlength="8" autocomplete="off" spellcheck="false" placeholder="ABCD"
+             inputmode="text" autocapitalize="characters">
+      <button id="go">Watch this room</button>
+      <p class="muted" style="margin:10px 0 0">
+        Your phone will sound an alarm and vibrate when the alert fires, so turn
+        the volume up and keep this page open.
+      </p>
+    </div>
+  </div>
+
+  <div id="waiting" style="display:none">
+    <h1>Watching room <span class="mono" id="roomlabel"></span></h1>
+    <p class="sub">Nothing has happened. This page will alarm if it does.</p>
+    <div class="card">
+      <p class="label">Status</p>
+      <p style="margin:0;font-weight:700" id="status">Connected, all quiet.</p>
+      <button id="test">Test this phone&rsquo;s alarm</button>
+      <button id="leave" style="background:transparent;color:var(--dim);border:1px solid var(--edge)">Leave</button>
+    </div>
+    <p class="disclaim">
+      This is a live feed from the rider&rsquo;s phone, not a text message. The
+      rider&rsquo;s own emergency contacts are texted directly by the handset and
+      one of them is called; a phone can only hold one call at a time, which is
+      the carrier&rsquo;s rule rather than the app&rsquo;s.
+    </p>
+  </div>
+
+  <div id="alert" style="display:none">
+    <h1 id="headline">Heavy impact detected</h1>
+    <p class="sub" id="when"></p>
+
+    <div class="card" id="countcard">
+      <p class="label">Rider has not answered</p>
+      <p class="count pulse" id="count">30</p>
+      <p class="muted" style="margin:6px 0 0">
+        If the countdown reaches zero the phone texts everyone saved on it.
+      </p>
+    </div>
+
+    <div class="card">
+      <p class="label">Where</p>
+      <p class="mono" id="pos" style="margin:0;font-size:17px;font-weight:700">waiting for a fix</p>
+      <p class="muted" id="acc" style="margin:4px 0 0"></p>
+      <a class="maplink" id="map" style="display:none" target="_blank" rel="noopener">Open on a map</a>
+    </div>
+
+    <div class="card">
+      <p class="label">Impact</p>
+      <p style="margin:0;font-size:17px;font-weight:700" class="mono" id="peak">&mdash;</p>
+    </div>
+
+    <div class="card">
+      <p class="label">What the rider&rsquo;s phone did</p>
+      <ul id="steps"><li class="muted">Countdown still running.</li></ul>
+    </div>
+
+    <button id="silence">Silence this phone</button>
+    <p class="disclaim">
+      Live feed from the rider&rsquo;s phone. The texts went to the rider&rsquo;s
+      own saved contacts, not to this page.
+    </p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id) }
+  var room = '', poll = null, lastSeq = -1, audio = null, osc = null, silenced = false
+
+  function params() {
+    try { return new URLSearchParams(location.search).get('room') || '' } catch (e) { return '' }
+  }
+  function saved() { try { return localStorage.getItem('zetway.watch.room') || '' } catch (e) { return '' } }
+  function save(v) { try { localStorage.setItem('zetway.watch.room', v) } catch (e) {} }
+
+  /* A two-tone alarm built in the browser rather than shipped as a file: it
+     starts instantly, needs no download on a conference wifi, and cannot be
+     the thing that fails. Browsers only allow it after a tap, which is what
+     the "watch this room" button is for. */
+  function startAlarm() {
+    if (silenced) return
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)()
+      if (audio.state === 'suspended') audio.resume()
+      if (osc) return
+      osc = audio.createOscillator()
+      var gain = audio.createGain()
+      osc.type = 'square'
+      gain.gain.value = 0.09
+      osc.connect(gain).connect(audio.destination)
+      var t = audio.currentTime
+      for (var i = 0; i < 300; i++) {
+        osc.frequency.setValueAtTime(i % 2 ? 660 : 990, t + i * 0.45)
+      }
+      osc.start()
+    } catch (e) {}
+    try { navigator.vibrate && navigator.vibrate([600, 250, 600, 250, 600]) } catch (e) {}
+  }
+
+  function stopAlarm() {
+    try { if (osc) { osc.stop(); osc.disconnect(); osc = null } } catch (e) { osc = null }
+    try { navigator.vibrate && navigator.vibrate(0) } catch (e) {}
+  }
+
+  function show(which) {
+    $('join').style.display = which === 'join' ? 'block' : 'none'
+    $('waiting').style.display = which === 'waiting' ? 'block' : 'none'
+    $('alert').style.display = which === 'alert' ? 'block' : 'none'
+    document.body.classList.toggle('alarm', which === 'alert')
+  }
+
+  function render(state) {
+    if (!state) { $('status').textContent = 'Cannot reach the server.'; return }
+
+    var live = state.phase === 'triggered' || state.phase === 'alerting'
+    if (!live) {
+      stopAlarm()
+      silenced = false
+      show('waiting')
+      $('status').textContent = state.phase === 'stood-down'
+        ? 'The rider stood the alert down. All clear.'
+        : 'Connected, all quiet.'
+      lastSeq = state.seq
+      return
+    }
+
+    if (state.seq !== lastSeq) { lastSeq = state.seq; silenced = false }
+    show('alert')
+    startAlarm()
+
+    var a = state.alert
+    var secs = a && a.secondsLeft
+    if (secs === null || secs === undefined) {
+      $('count').textContent = '—'
+      $('headline').textContent = 'Heavy impact detected'
+    } else if (secs > 0) {
+      $('count').textContent = secs
+      $('headline').textContent = 'Heavy impact detected'
+      $('countcard').style.display = 'block'
+    } else {
+      $('countcard').style.display = 'none'
+      $('headline').textContent = 'Calling for help now'
+    }
+
+    $('when').textContent = state.firedAt
+      ? 'Started ' + new Date(state.firedAt).toLocaleTimeString() : ''
+
+    if (a && a.lat !== null && a.lat !== undefined) {
+      $('pos').textContent = a.lat.toFixed(5) + ', ' + a.lon.toFixed(5)
+      $('acc').textContent = 'Taken by the rider’s own phone.'
+      var m = $('map')
+      m.href = 'https://www.google.com/maps?q=' + a.lat + ',' + a.lon
+      m.style.display = 'block'
+    } else {
+      $('pos').textContent = 'waiting for a fix'
+      $('acc').textContent = 'The phone has not got a position yet.'
+      $('map').style.display = 'none'
+    }
+
+    $('peak').textContent = a && a.peak ? (a.peak / 9.8).toFixed(1) + 'g' : 'not measured'
+
+    var ul = $('steps')
+    ul.innerHTML = ''
+    if (!a || !a.steps || !a.steps.length) {
+      ul.innerHTML = '<li class="muted">Countdown still running — nothing sent yet.</li>'
+    } else {
+      a.steps.forEach(function (raw) {
+        var i = raw.indexOf(': ')
+        var kind = i > 0 ? raw.slice(0, i) : 'manual'
+        var text = i > 0 ? raw.slice(i + 2) : raw
+        var li = document.createElement('li')
+        li.innerHTML = '<b>' + (kind === 'done' ? '✓' : kind === 'failed' ? '✕' : '•') + '</b><span>' + text + '</span>'
+        ul.appendChild(li)
+      })
+    }
+  }
+
+  async function tick() {
+    if (!room) return
+    try {
+      var res = await fetch('/api/sim?room=' + encodeURIComponent(room), { cache: 'no-store' })
+      render(await res.json())
+    } catch (e) {
+      render(null)
+    }
+  }
+
+  function enter(code) {
+    room = code
+    save(code)
+    $('roomlabel').textContent = code
+    show('waiting')
+    // Wake the audio context on this tap, so the alarm can sound later
+    // without another one. Browsers will not start audio unprompted.
+    try {
+      audio = new (window.AudioContext || window.webkitAudioContext)()
+      audio.resume()
+    } catch (e) {}
+    tick()
+    if (poll) clearInterval(poll)
+    poll = setInterval(tick, 1300)
+  }
+
+  $('room').addEventListener('input', function (e) {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+  })
+  $('go').addEventListener('click', function () {
+    var v = $('room').value.trim().toUpperCase()
+    if (v.length >= 3) enter(v)
+  })
+  $('test').addEventListener('click', function () {
+    startAlarm()
+    setTimeout(stopAlarm, 1800)
+  })
+  $('silence').addEventListener('click', function () { silenced = true; stopAlarm() })
+  $('leave').addEventListener('click', function () {
+    if (poll) clearInterval(poll)
+    room = ''
+    save('')
+    stopAlarm()
+    show('join')
+  })
+
+  var initial = params() || saved()
+  if (initial) { $('room').value = initial }
+  show('join')
+})()
+</script>
+</body>
+</html>
