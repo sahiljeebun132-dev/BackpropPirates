@@ -63,6 +63,11 @@ export type VoiceSos = {
   /** Live loudness 0–10, and the background it is being judged against. */
   level: number
   quiet: number | null
+  /** Loudest gap above the background since arming, and the gap a shout has
+   *  to clear. Shown on screen so a real shout can be measured rather than
+   *  guessed at. */
+  peakOver: number
+  margin: number
   /** What this phone can actually do, asked of the OS rather than assumed. */
   status: VoiceStatus | null
   /** The language listening actually settled on, which may not be the one
@@ -108,6 +113,7 @@ export function useVoiceSos(options: {
   const [transcript, setTranscript] = useState<string[]>([])
   const [level, setLevel] = useState(0)
   const [quiet, setQuiet] = useState<number | null>(null)
+  const [peakOver, setPeakOver] = useState(0)
   const [status, setStatus] = useState<VoiceStatus | null>(null)
   const [language, setLanguage] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)
@@ -239,6 +245,7 @@ export function useVoiceSos(options: {
         setLevel(l)
         const fired = detector.current.push(l, Date.now())
         setQuiet(detector.current.quietLevel)
+        setPeakOver(detector.current.peakOver)
         if (fired) begin('shout', null)
       })
 
@@ -283,6 +290,7 @@ export function useVoiceSos(options: {
     const before = await nativeVoiceStatus()
     setStatus(before)
     detector.current.reset()
+    setPeakOver(0)
     setTranscript([])
     setReason(null)
     setWords(true)
@@ -305,6 +313,7 @@ export function useVoiceSos(options: {
     setLevel(0)
     setQuiet(null)
     detector.current.reset()
+    setPeakOver(0)
     await nativeStopListening()
     void nativeStopSpeaking()
     setPhaseBoth('off')
@@ -334,6 +343,8 @@ export function useVoiceSos(options: {
     transcript,
     level,
     quiet,
+    peakOver,
+    margin: ShoutDetector.MARGIN,
     status,
     language,
     offline,

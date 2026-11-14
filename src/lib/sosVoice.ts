@@ -124,6 +124,15 @@ export class ShoutDetector {
 
   private baseline: number | null = null
   private loud: { at: number; level: number }[] = []
+  /** The largest gap above the background seen since arming.
+   *
+   *  This is here for calibration rather than for detection. MARGIN below is
+   *  the one constant in this feature that has never been measured against a
+   *  real microphone — the emulator has no audio hardware — and nobody can
+   *  read a live meter while they are shouting. Keeping the peak means a
+   *  tester can shout, stop, and then read what their shout was actually
+   *  worth. */
+  private peak = 0
   /** Null means never fired. It cannot be zero: zero is a real timestamp as
    *  far as the guard below is concerned, and treating "never" as "fired at
    *  the first instant" left the shout trigger dead for the first five
@@ -135,9 +144,16 @@ export class ShoutDetector {
     return this.baseline
   }
 
+  /** Loudest gap above the background since arming. Compare against MARGIN:
+   *  below it, no shout will ever fire on this phone in this room. */
+  get peakOver(): number {
+    return this.peak
+  }
+
   reset(): void {
     this.baseline = null
     this.loud = []
+    this.peak = 0
     this.firedAt = null
   }
 
@@ -154,6 +170,7 @@ export class ShoutDetector {
     }
 
     const over = level - this.baseline
+    if (over > this.peak) this.peak = over
     const shouting = over >= ShoutDetector.MARGIN
 
     if (shouting) {

@@ -116,9 +116,31 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
               />
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              A shout has to clear the background for about a second. A horn or
-              a door slam is too short.
+              A shout has to clear the background by{' '}
+              <span className="font-semibold tabular">{voice.margin.toFixed(1)}</span> for about a
+              second. A horn or a door slam is too short.
             </p>
+
+            {/* The number, kept, because nobody can read a moving meter while
+                they are shouting. If a real shout does not get this above the
+                figure beside it, the threshold is wrong for this phone and no
+                amount of shouting will help. */}
+            <div className="mt-2 flex items-baseline justify-between rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+              <span className="text-[11px] font-semibold text-slate-600">
+                Loudest shout so far
+              </span>
+              <span
+                className={[
+                  'tabular text-lg font-extrabold',
+                  voice.peakOver >= voice.margin ? 'text-emerald-600' : 'text-slate-400',
+                ].join(' ')}
+              >
+                {voice.peakOver.toFixed(1)}
+                <span className="ml-1 text-[11px] font-semibold text-slate-400">
+                  / {voice.margin.toFixed(1)} needed
+                </span>
+              </span>
+            </div>
           </div>
         )}
       </Card>
