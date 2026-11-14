@@ -323,6 +323,19 @@ def build() -> int:
            "so we say so on the screen rather than pretend otherwise.",
            d, size=24, y=0.25, channel=5, colour=DIM, wrap=0.78)
 
+    # ---------------------------------------------------------- on the road
+    # The live map. Placed before the crash, because this is what a rider is
+    # looking at in the second before one happens.
+    d = sec(10)
+    c = seg(d)
+    c.bg(d, colour=DEEP)
+    c.image("09-live.jpg", d)
+    c.label("The road around you, moving with you", d)
+    c.caption("Black spots, hospitals, and the riders near you.", d)
+    c.footnote("No map tiles. The roads are geometry stored in the app, so the one thing "
+               "that never goes blank is the hazard layer. Other riders are opt-in, "
+               "rounded to a hundred metres, and forgotten after two minutes.", d)
+
     # ----------------------------------------------------------- hands-free
     # The beat the video did not have, and the one the whole alert chain is
     # for: a rider who cannot reach the phone at all.

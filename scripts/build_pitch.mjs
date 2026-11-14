@@ -325,7 +325,7 @@ pres.addSection({ title: 'The app' })
       // The live-conditions bullet used to sit here. The capture beside it
       // already shows the LEAVING / LIGHT / RAIN panel saying the same thing,
       // and the room it frees is what the hands-free card below needs.
-      { text: 'Live hazard reports from other riders, within seconds, on this corridor.', options: { bullet: true } },
+      { text: 'Live hazard reports from other riders, within seconds, on this corridor — and a map that follows you, with the riders near you on it. No tiles: the roads are geometry stored in the app, so it does not go blank offline.', options: { bullet: true } },
     ],
     { isTextBox: true, x: tx, y: 1.5, w: tw, h: 1.95, margin: 0, fontSize: 13, color: C.text1,
       lineSpacing: 19, paraSpaceAfter: 9 },
