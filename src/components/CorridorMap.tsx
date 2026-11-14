@@ -126,7 +126,7 @@ export function CorridorMap({
   const all = data.hotspots.hotspots
   const onCorridor = useMemo(() => new Set(hotspots.map((h) => h.id)), [hotspots])
 
-  const { to, nearby, viewH } = useMemo(() => {
+  const { to, ways, nearby, viewH } = useMemo(() => {
     // Frame on the trip and the black spots that sit on it.
     const seed: [number, number][] = [
       [origin.lat, origin.lon],
@@ -137,9 +137,21 @@ export function CorridorMap({
     const vh = viewHeight(b)
     const inView = (lat: number, lon: number) =>
       lat >= b.minLat && lat <= b.maxLat && lon >= b.minLon && lon <= b.maxLon
+    // The classified network inside the frame. Without it this was a route
+    // and some red marks floating on white — technically a map and not
+    // recognisably one. Minor roads are dropped on a wide frame, because a
+    // tertiary road across a whole district is a hairline that reads as
+    // smudge rather than as information.
+    const spanKm = (b.maxLat - b.minLat) * 110.574
+    const floor = spanKm > 28 ? 2 : spanKm > 14 ? 1 : 0
+    const ways = (roads?.ways ?? []).filter(
+      (w) => w.c >= floor && w.p.some((pt) => inView(pt[0], pt[1])),
+    )
+
     return {
       viewH: vh,
       to: project(b, vh),
+      ways,
       nearby: {
         // Off-corridor segments inside the frame, drawn faintly so the
         // highlighted ones read as a selection rather than as everything.
@@ -147,7 +159,7 @@ export function CorridorMap({
         towns: data.places.places.filter((p) => inView(p.lat, p.lon)),
       },
     }
-  }, [all, data.places.places, destination, hotspots, onCorridor, origin])
+  }, [all, data.places.places, destination, hotspots, onCorridor, origin, roads])
 
   const path = (points: [number, number][]) =>
     points.map((p, i) => `${i ? 'L' : 'M'}${to(p[0], p[1]).map((n) => n.toFixed(1)).join(' ')}`).join(' ')
@@ -196,6 +208,20 @@ export function CorridorMap({
             if (end) return null
             return <circle key={p.id} cx={x} cy={y} r={4.5} fill="#94a3b8" />
           })}
+
+          {/* The road network, behind everything. Pale and thin: it is
+              context for the red stretches, not the subject. */}
+          {ways.map((w, i) => (
+            <path
+              key={`rd${i}`}
+              d={path(w.p)}
+              fill="none"
+              stroke={w.c >= 3 ? '#9fb0c4' : w.c === 2 ? '#b8c5d4' : '#ccd6e0'}
+              strokeWidth={w.c >= 4 ? 3.6 : w.c === 3 ? 2.8 : w.c === 2 ? 2 : 1.3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
 
           {/* The trip. The road where the network can supply one, and the
               straight line where it cannot — dashed in that case, because a
@@ -283,8 +309,10 @@ export function CorridorMap({
           {hotspots.length > 0
             ? 'Tap a red stretch to see which road it is. '
             : 'Nothing designated lies on this corridor, which is good news and is why nothing is marked red. '}
-          Blue dashed line is the direct route between the two towns, not a road path — the app
-          does not pretend otherwise.
+          Blue is the road route, worked out on the phone from the network the app carries.
+          The faint dashed line is the straight one between the two towns: the score is still
+          measured in a corridor around that, so it stays visible rather than being quietly
+          replaced.
         </p>
       )}
 

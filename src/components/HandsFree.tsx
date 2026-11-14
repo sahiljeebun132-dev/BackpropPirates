@@ -57,9 +57,10 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
 
       {!isNative() && (
         <Notice accent="amber" icon={Icon.alertTriangle('h-3.5 w-3.5')}>
-          This only works in the Android app. A web page is not allowed to keep
-          a microphone open in the background, and could not call anyone if it
-          heard you.
+          In a browser this listens only while the page is open and in front of
+          you — no page may hold a microphone in the background. It will hear
+          you and count down; the texts and the call still need one tap each,
+          because no web page may send them on its own.
         </Notice>
       )}
 
@@ -75,7 +76,6 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
         <button
           type="button"
           onClick={() => void (listening ? voice.disarm() : voice.arm())}
-          disabled={!isNative()}
           aria-pressed={listening}
           className={[
             'mt-3 w-full rounded-2xl px-4 py-4 text-center text-base font-bold transition',

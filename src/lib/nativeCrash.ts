@@ -1,6 +1,30 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 
 import { isNative } from './platform'
+import {
+  startWebVoice, stopWebVoice, webMicAvailable, webRecognitionAvailable,
+  webSpeak, webStopSpeaking, webVoiceRunning,
+} from './webVoice'
+
+/**
+ * The browser's own ears and voice, behind the same four functions.
+ *
+ * Everything above this line talks to Java. The hands-free screen and its
+ * hook do not care which, and they should not: the PWA had none of this
+ * feature at all until these were wired up, which on an iPhone meant the
+ * whole thing was missing. A browser cannot listen with the screen off and
+ * does not pretend to, but it can hear a shout while it is open, and that
+ * is the trigger worth having.
+ */
+const webListeners: {
+  heard: ((d: { text: string; partial: boolean }) => void)[]
+  level: ((level: number) => void)[]
+  config: ((c: { language: string; onDevice: boolean }) => void)[]
+  wordsLost: ((reason: string) => void)[]
+  stopped: ((reason: string) => void)[]
+} = { heard: [], level: [], config: [], wordsLost: [], stopped: [] }
+
+const fanOut = <T,>(list: ((v: T) => void)[], v: T) => list.forEach((f) => f(v))
 
 /** The native half of crash watch.
  *
@@ -436,7 +460,11 @@ export async function onNativeJolt(
  * build stays silent and says so rather than appearing to speak.
  */
 export async function nativeSpeak(text: string): Promise<SimpleResult> {
-  if (!isNative()) return unavailable
+  if (!isNative()) {
+    return webSpeak(text)
+      ? { ok: true }
+      : { ok: false, message: 'This browser has no speech engine.' }
+  }
   try {
     return await plugin.speak({ text })
   } catch {
@@ -445,7 +473,10 @@ export async function nativeSpeak(text: string): Promise<SimpleResult> {
 }
 
 export async function nativeStopSpeaking(): Promise<SimpleResult> {
-  if (!isNative()) return unavailable
+  if (!isNative()) {
+    webStopSpeaking()
+    return { ok: true }
+  }
   try {
     return await plugin.stopSpeaking()
   } catch {
@@ -456,7 +487,18 @@ export async function nativeStopSpeaking(): Promise<SimpleResult> {
 /** Begin listening. Asks for the microphone the first time, which is why it
  *  is called from a button the rider pressed and not from app start. */
 export async function nativeStartListening(): Promise<SimpleResult & { onDevice?: boolean }> {
-  if (!isNative()) return unavailable
+  if (!isNative()) {
+    const ok = await startWebVoice({
+      onHeard: (text, partial) => fanOut(webListeners.heard, { text, partial }),
+      onLevel: (level) => fanOut(webListeners.level, level),
+      onConfig: (language, onDevice) => fanOut(webListeners.config, { language, onDevice }),
+      onWordsLost: (reason) => fanOut(webListeners.wordsLost, reason),
+      onFailed: (reason) => fanOut(webListeners.stopped, reason),
+    })
+    return ok
+      ? { ok: true, onDevice: true }
+      : { ok: false, message: 'This browser would not start listening.' }
+  }
   try {
     return await plugin.startListening()
   } catch {
@@ -465,7 +507,10 @@ export async function nativeStartListening(): Promise<SimpleResult & { onDevice?
 }
 
 export async function nativeStopListening(): Promise<SimpleResult> {
-  if (!isNative()) return unavailable
+  if (!isNative()) {
+    stopWebVoice()
+    return { ok: true }
+  }
   try {
     return await plugin.stopListening()
   } catch {
@@ -486,7 +531,22 @@ export async function nativeVoiceStatus(): Promise<VoiceStatus> {
     language: 'default',
     words: false,
   }
-  if (!isNative()) return none
+  if (!isNative()) {
+    // Measured, not assumed: the same honesty block the app shows, filled
+    // in from what this particular browser actually exposes.
+    return {
+      ...none,
+      ok: true,
+      microphone: webMicAvailable(),
+      listening: webVoiceRunning(),
+      onDevice: true,
+      recognizerAvailable: webRecognitionAvailable(),
+      onDeviceAvailable: false,
+      canSpeak: typeof window !== 'undefined' && 'speechSynthesis' in window,
+      language: webRecognitionAvailable() ? 'fr-FR' : 'shout-only',
+      words: webRecognitionAvailable(),
+    }
+  }
   try {
     return { ...none, ...(await plugin.voiceStatus()) }
   } catch {
@@ -498,7 +558,13 @@ export async function nativeVoiceStatus(): Promise<VoiceStatus> {
 export async function onHeard(
   handler: (data: { text: string; partial: boolean }) => void,
 ): Promise<() => void> {
-  if (!isNative()) return () => {}
+  if (!isNative()) {
+    webListeners.heard.push(handler as never)
+    return () => {
+      const at = webListeners.heard.indexOf(handler as never)
+      if (at >= 0) webListeners.heard.splice(at, 1)
+    }
+  }
   try {
     const handle = await plugin.addListener('heard', handler)
     return () => void handle.remove()
@@ -512,7 +578,13 @@ export async function onHeard(
 export async function onHearLevel(
   handler: (level: number) => void,
 ): Promise<() => void> {
-  if (!isNative()) return () => {}
+  if (!isNative()) {
+    webListeners.level.push(handler as never)
+    return () => {
+      const at = webListeners.level.indexOf(handler as never)
+      if (at >= 0) webListeners.level.splice(at, 1)
+    }
+  }
   try {
     const handle = await plugin.addListener('hearLevel', (d) => handler(d.level))
     return () => void handle.remove()
@@ -527,7 +599,13 @@ export async function onHearLevel(
 export async function onHearWordsLost(
   handler: (reason: string) => void,
 ): Promise<() => void> {
-  if (!isNative()) return () => {}
+  if (!isNative()) {
+    webListeners.wordsLost.push(handler as never)
+    return () => {
+      const at = webListeners.wordsLost.indexOf(handler as never)
+      if (at >= 0) webListeners.wordsLost.splice(at, 1)
+    }
+  }
   try {
     const handle = await plugin.addListener('hearWordsLost', (d) => handler(d.reason))
     return () => void handle.remove()
@@ -541,7 +619,13 @@ export async function onHearWordsLost(
 export async function onHearConfig(
   handler: (config: { language: string; onDevice: boolean }) => void,
 ): Promise<() => void> {
-  if (!isNative()) return () => {}
+  if (!isNative()) {
+    webListeners.config.push(handler as never)
+    return () => {
+      const at = webListeners.config.indexOf(handler as never)
+      if (at >= 0) webListeners.config.splice(at, 1)
+    }
+  }
   try {
     const handle = await plugin.addListener('hearConfig', handler)
     return () => void handle.remove()
@@ -554,7 +638,13 @@ export async function onHearConfig(
 export async function onHearStopped(
   handler: (reason: string) => void,
 ): Promise<() => void> {
-  if (!isNative()) return () => {}
+  if (!isNative()) {
+    webListeners.stopped.push(handler as never)
+    return () => {
+      const at = webListeners.stopped.indexOf(handler as never)
+      if (at >= 0) webListeners.stopped.splice(at, 1)
+    }
+  }
   try {
     const handle = await plugin.addListener('hearStopped', (d) => handler(d.reason))
     return () => void handle.remove()

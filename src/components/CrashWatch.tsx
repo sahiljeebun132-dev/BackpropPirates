@@ -738,6 +738,9 @@ export function CrashWatch({
  */
 function LockScreenChecklist() {
   const [ready, setReady] = useState<Readiness | null>(null)
+  /** True once Android has stopped showing the dialog and the only
+   *  remaining route is the system settings screen. */
+  const [stuck, setStuck] = useState(false)
 
   const refresh = useCallback(() => {
     void nativeReadiness().then(setReady)
@@ -756,9 +759,37 @@ function LockScreenChecklist() {
 
   if (!isNative() || !ready) return null
 
+
+  /**
+   * Ask, and if asking changes nothing, stop asking.
+   *
+   * Android stops showing the dialog once a permission has been refused
+   * twice — the request then returns immediately, having done nothing and
+   * reported nothing. An "Allow" button that silently does that is worse
+   * than no button: the rider taps it, no dialog appears, and they conclude
+   * the app is broken. Which is roughly what it is at that point, because
+   * the only way back is the system settings screen.
+   *
+   * So: ask, compare the state afterwards, and if it is unchanged, take
+   * them where the switch actually lives.
+   */
   const ask = async () => {
-    await requestCrashPermissions()
+    const before = ready
+    const after = await requestCrashPermissions()
     refresh()
+    const unchanged =
+      before &&
+      before.sms === after.sms &&
+      before.phone === after.phone &&
+      before.location === after.location &&
+      before.microphone === after.microphone &&
+      before.notifications === after.notifications
+    const stillMissing =
+      !after.sms || !after.phone || !after.location || !after.microphone || !after.notifications
+    if (unchanged && stillMissing) {
+      setStuck(true)
+      await openAppSettings()
+    }
   }
 
   const rows = [
@@ -822,8 +853,10 @@ function LockScreenChecklist() {
       </ul>
       {missing > 0 && (
         <p className="mt-2 text-[11px] leading-relaxed text-amber-900">
-          Detection still runs without these. They decide whether anyone is told about it. If
-          tapping Allow does nothing, Android has stopped asking —{' '}
+          Detection still runs without these. They decide whether anyone is told about it.{' '}
+          {stuck
+            ? 'Android has stopped asking, so Allow just opened your settings instead. Turn SMS and Phone on there and come back. '
+            : 'If tapping Allow does nothing, Android has stopped asking — '}
           <button
             type="button"
             onClick={() => void openAppSettings()}

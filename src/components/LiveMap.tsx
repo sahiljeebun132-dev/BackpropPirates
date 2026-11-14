@@ -24,8 +24,22 @@ import type { Roads } from '../lib/roads'
  * under them, which is the one thing a map in motion has to do.
  */
 
-const VIEW = 320
-const CENTRE = VIEW / 2
+/**
+ * A tall rectangle, because that is the shape of a phone held up on a bike.
+ *
+ * This was a circle at first, clipped to a disc with range rings — handsome,
+ * and wrong. A disc throws away the top and bottom of the screen, which is
+ * exactly where the road you are about to be on is, and it reads as a radar
+ * rather than as a map. The rings are gone with it: a scale bar says the
+ * same thing in a corner instead of drawing five circles through the middle
+ * of everything.
+ */
+const VIEW_W = 360
+const VIEW_H = 520
+const CX = VIEW_W / 2
+/** Not the middle. The rider sits low, so most of the frame is the road
+ *  ahead rather than the road already ridden. */
+const CY = VIEW_H * 0.62
 
 const KM_PER_DEG_LAT = 110.574
 const KM_PER_DEG_LON = 104.4
@@ -53,15 +67,16 @@ export function LiveMap({
 }) {
   const { to, ways, segments, towns, places } = useMemo(() => {
     // Half the viewport covers radiusKm, so the full frame is a diameter.
-    const scale = CENTRE / radiusKm
+    // Half the width covers radiusKm, so the frame is a diameter across.
+    const scale = CX / radiusKm
     const to = (lat: number, lon: number): [number, number] => [
-      CENTRE + (lon - position.lon) * KM_PER_DEG_LON * scale,
-      CENTRE - (lat - position.lat) * KM_PER_DEG_LAT * scale,
+      CX + (lon - position.lon) * KM_PER_DEG_LON * scale,
+      CY - (lat - position.lat) * KM_PER_DEG_LAT * scale,
     ]
 
     // A generous box, so a segment that crosses the frame is drawn even when
     // its midpoint is outside it.
-    const span = radiusKm * 1.6
+    const span = radiusKm * 2.2
     const dLat = span / KM_PER_DEG_LAT
     const dLon = span / KM_PER_DEG_LON
     const inBox = (lat: number, lon: number) =>
@@ -95,13 +110,14 @@ export function LiveMap({
       .map((p, i) => `${i ? 'L' : 'M'}${to(p[0], p[1]).map((n) => n.toFixed(1)).join(' ')}`)
       .join(' ')
 
-  // One ring per kilometre, so distance is readable without a scale bar.
-  const rings = Array.from({ length: Math.floor(radiusKm) }, (_, i) => i + 1)
+  // A scale bar: one kilometre, wherever that lands.
+  const kmPx = CX / radiusKm
 
   return (
     <svg
-      viewBox={`0 0 ${VIEW} ${VIEW}`}
-      className="block aspect-square w-full rounded-[20px] bg-[#0E1420]"
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      className="block w-full rounded-[20px] bg-[#0E1420]"
+      style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}
       role="img"
       aria-label={`Map of the road within ${radiusKm} km, centred on you`}
     >
@@ -111,25 +127,12 @@ export function LiveMap({
           <stop offset="100%" stopColor="#1C7FE8" stopOpacity="0" />
         </radialGradient>
         <clipPath id="zw-clip">
-          <circle cx={CENTRE} cy={CENTRE} r={CENTRE - 2} />
+          <rect x="0" y="0" width={VIEW_W} height={VIEW_H} rx="20" />
         </clipPath>
       </defs>
 
       <g clipPath="url(#zw-clip)">
-        <circle cx={CENTRE} cy={CENTRE} r={CENTRE} fill="#0E1420" />
-
-        {/* Distance rings, faint, labelled only at the outermost. */}
-        {rings.map((km) => (
-          <circle
-            key={km}
-            cx={CENTRE}
-            cy={CENTRE}
-            r={(CENTRE / radiusKm) * km}
-            fill="none"
-            stroke="#1E2A3C"
-            strokeWidth="1"
-          />
-        ))}
+        <rect x="0" y="0" width={VIEW_W} height={VIEW_H} fill="#0E1420" />
 
         {/* The road network, under everything else. Thicker and paler as
             the class rises, which is most of what makes a tangle of lines
@@ -174,8 +177,8 @@ export function LiveMap({
               key={p.id}
               x={x}
               y={y}
-              fill="#5A6C84"
-              fontSize="7"
+              fill="#7C8EA6"
+              fontSize="9"
               textAnchor="middle"
               dominantBaseline="middle"
             >
@@ -208,29 +211,37 @@ export function LiveMap({
         })}
 
         {/* You, in the middle, because the frame moves and you do not. */}
-        <circle cx={CENTRE} cy={CENTRE} r="22" fill="url(#zw-glow)" />
+        <circle cx={CX} cy={CY} r="26" fill="url(#zw-glow)" />
         {heading !== null && (
           <path
-            d={`M${CENTRE} ${CENTRE - 15} L${CENTRE - 6} ${CENTRE + 5} L${CENTRE} ${CENTRE + 1} L${CENTRE + 6} ${CENTRE + 5} Z`}
+            d={`M${CX} ${CY - 16} L${CX - 7} ${CY + 6} L${CX} ${CY + 1} L${CX + 7} ${CY + 6} Z`}
             fill="#FFFFFF"
-            transform={`rotate(${heading} ${CENTRE} ${CENTRE})`}
+            transform={`rotate(${heading} ${CX} ${CY})`}
           />
         )}
-        {heading === null && <circle cx={CENTRE} cy={CENTRE} r="5" fill="#FFFFFF" />}
-        <circle cx={CENTRE} cy={CENTRE} r="5.5" fill="none" stroke="#1C7FE8" strokeWidth="2" />
+        {heading === null && <circle cx={CX} cy={CY} r="6" fill="#FFFFFF" />}
+        <circle cx={CX} cy={CY} r="6.5" fill="none" stroke="#1C7FE8" strokeWidth="2.5" />
       </g>
 
-      <circle
-        cx={CENTRE}
-        cy={CENTRE}
-        r={CENTRE - 2}
-        fill="none"
-        stroke="#1E2A3C"
-        strokeWidth="2"
+      {/* Scale bar, bottom left, out of the way of everything. */}
+      <g opacity="0.75">
+        <line
+          x1="14" y1={VIEW_H - 16} x2={14 + kmPx} y2={VIEW_H - 16}
+          stroke="#8FA3BC" strokeWidth="2.5" strokeLinecap="round"
+        />
+        <line x1="14" y1={VIEW_H - 20} x2="14" y2={VIEW_H - 12} stroke="#8FA3BC" strokeWidth="2" />
+        <line
+          x1={14 + kmPx} y1={VIEW_H - 20} x2={14 + kmPx} y2={VIEW_H - 12}
+          stroke="#8FA3BC" strokeWidth="2"
+        />
+        <text x={14 + kmPx / 2} y={VIEW_H - 24} fill="#8FA3BC" fontSize="10" textAnchor="middle">
+          1 km
+        </text>
+      </g>
+      <rect
+        x="1" y="1" width={VIEW_W - 2} height={VIEW_H - 2} rx="20"
+        fill="none" stroke="#1E2A3C" strokeWidth="2"
       />
-      <text x={CENTRE} y={14} fill="#5A6C84" fontSize="9" textAnchor="middle">
-        {radiusKm} km
-      </text>
     </svg>
   )
 }

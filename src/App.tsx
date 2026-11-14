@@ -10,6 +10,7 @@ import { FirstRunPermissions } from './components/FirstRunPermissions'
 import { InstallApp } from './components/InstallApp'
 import { HandsFree } from './components/HandsFree'
 import { HomeDashboard } from './components/HomeDashboard'
+import { IslandMap } from './components/IslandMap'
 import { LiveConditionsPanel, LiveUnavailable } from './components/LiveConditions'
 import { HotspotList } from './components/HotspotList'
 import { IslandContext } from './components/IslandContext'
@@ -18,7 +19,7 @@ import { RideLive } from './components/RideLive'
 import { RoadScanner } from './components/RoadScanner'
 import { RouteResult } from './components/RouteResult'
 import { SourcesPanel } from './components/SourcesPanel'
-import { PageHeader, Row, Section, Icon } from './components/ui'
+import { PageHeader } from './components/ui'
 import { planDeparture } from './lib/departure'
 import { lightBandAt } from './lib/live'
 import { assessRoute } from './lib/risk'
@@ -236,6 +237,7 @@ export default function App() {
         <>
           <PageHeader title="Accidents & road safety" onBack={() => setView('plan')} />
           <IslandContext data={appData} />
+          <IslandMap data={appData} />
           <HotspotList
             hotspots={appData.hotspots.hotspots.map((h) => ({ ...h, detourKm: 0 }))}
             totalOnIsland={appData.hotspots.hotspots.length}
@@ -322,17 +324,11 @@ export default function App() {
       <div className={view === 'plan' || view === 'crash' ? 'contents' : 'hidden'}>
         {/* The heading and the scanner row are free to come and go; only
             CrashWatch has to persist, so only it sits outside the branch. */}
-        {view === 'plan' && (
-          <Section title="Running while you ride">
-            <Row
-              accent="amber"
-              icon={Icon.road('h-4 w-4')}
-              title="Road scanner"
-              subtitle="The phone logs the potholes so you do not have to"
-              onClick={() => setView('scanner')}
-            />
-          </Section>
-        )}
+        {/* The road scanner is built and works, but it is not part of what
+            this is for today, and a rider does not need a second background
+            job offered to them on the way to the one that matters. The
+            'scanner' view still exists; nothing on the home screen points at
+            it. */}
         <CrashWatch
           expanded={view === 'crash'}
           onOpen={() => setView('crash')}
