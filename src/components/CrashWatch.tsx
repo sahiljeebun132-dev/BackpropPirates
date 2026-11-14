@@ -16,6 +16,10 @@ import {
   type VibrationReport,
 } from '../lib/nativeCrash'
 import { isNative } from '../lib/platform'
+import {
+  deviceId, joinRoom, readSavedRoom, reportAlert, standDownRoom, watchRoom,
+  writeSavedRoom,
+} from '../lib/simRoom'
 import { useVoiceSos } from '../lib/useVoiceSos'
 import { MedicalIdCard } from './MedicalIdCard'
 import { Icon, PageHeader } from './ui'
@@ -55,6 +59,10 @@ export function CrashWatch({
   const [phase, setPhase] = useState<Phase>('off')
   const [testMode, setTestMode] = useState(false)
   const [contacts, setContacts] = useState<EmergencyContact[]>(() => readContacts())
+  /** The demo room this phone is listening to, or empty. Saved, because the
+   *  phone is usually paired before the laptop is even open. */
+  const [simRoom, setSimRoom] = useState<string>(() => readSavedRoom())
+  const [simJoined, setSimJoined] = useState(false)
   const [peak, setPeak] = useState<number | null>(null)
   /** What the gyroscope and the location provider saw around the impact.
    *  Native only, display only: it is shown on the red screen and never
@@ -362,6 +370,63 @@ export function CrashWatch({
     onCancel: () => imOk(),
   })
 
+  /**
+   * The laptop's trigger, arriving over the demo room.
+   *
+   * Deliberately calls the same trigger() a real 3g impact calls, with live
+   * escalation on. Everything downstream is untouched: the countdown runs its
+   * full thirty seconds, the texts go to the real saved numbers, the GPS fix
+   * is taken from the actual handset. Only the impact itself is simulated,
+   * because that is the single part of the chain a stage cannot supply.
+   *
+   * The peak passed is a real figure rather than a round one — 3.1g, the kind
+   * of reading a moderate car impact actually produces — so the evidence
+   * panel shows something a judge can sanity-check instead of a placeholder.
+   */
+  useEffect(() => {
+    if (!simRoom) return
+    const stop = watchRoom(simRoom, () => {
+      trigger(3.1 * 9.8, true)
+    })
+    return stop
+  }, [simRoom, trigger])
+
+  // Keep the room's device list current so the control page can show that the
+  // phone really is connected before anybody presses anything.
+  useEffect(() => {
+    if (!simRoom) {
+      setSimJoined(false)
+      return
+    }
+    let alive = true
+    const beat = async () => {
+      const state = await joinRoom(simRoom, deviceId(), isNative() ? 'Zetway app' : 'Zetway web')
+      if (alive) setSimJoined(state !== null)
+    }
+    void beat()
+    const t = setInterval(() => void beat(), 20000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [simRoom])
+
+  // Tell the room what the phone actually did, so the watchers see measured
+  // numbers rather than a mock-up. Sent on every countdown tick while the
+  // alert is up, because the seconds remaining are the thing a room watches.
+  useEffect(() => {
+    if (!simRoom) return
+    if (phase !== 'asking' && phase !== 'alerting') return
+    void reportAlert(simRoom, {
+      lat: position?.lat ?? null,
+      lon: position?.lon ?? null,
+      accuracy: null,
+      peak,
+      secondsLeft: phase === 'asking' ? left : 0,
+      steps: autoSteps.map((st) => `${st.state}: ${st.text}`),
+    })
+  }, [simRoom, phase, left, position, peak, autoSteps])
+
   const voiceArmed = voice.phase !== 'off' && voice.phase !== 'degraded'
   useEffect(() => {
     if (phase === 'asking' && !voiceArmed) {
@@ -586,6 +651,17 @@ export function CrashWatch({
         Show me what happens in a crash
       </button>
 
+      <DemoRoomPanel
+        room={simRoom}
+        joined={simJoined}
+        onRoom={(next) => {
+          setSimRoom(next)
+          writeSavedRoom(next)
+          if (!next) setSimJoined(false)
+        }}
+        onStandDown={() => simRoom && void standDownRoom(simRoom)}
+      />
+
       <BuzzSelfTest />
 
       <button
@@ -806,6 +882,103 @@ function ContactEditor({
         Saved on this phone only. Nothing is uploaded, and nobody is contacted unless you tap to
         contact them.
       </p>
+    </div>
+  )
+}
+
+/**
+ * Pairing the phone to a laptop, for a demo.
+ *
+ * This is the one screen in Zetway that exists for the people watching rather
+ * than for the rider, and it says so. It is kept on the crash-watch page
+ * rather than the home screen because that is where somebody setting up a
+ * demonstration already is, and because a rider who never gives a
+ * demonstration should never meet it.
+ *
+ * The code is four characters off a projector, typed into a phone by someone
+ * who is already nervous, so it is uppercased and stripped as it is typed
+ * rather than validated afterwards with a red message.
+ */
+function DemoRoomPanel({
+  room,
+  joined,
+  onRoom,
+  onStandDown,
+}: {
+  room: string
+  joined: boolean
+  onRoom: (room: string) => void
+  onStandDown: () => void
+}) {
+  const [open, setOpen] = useState(room.length > 0)
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full text-xs font-semibold text-brand-deep underline"
+      >
+        {room ? `Demo room ${room}${joined ? " — connected" : " — connecting"}` : "Pair with a demo screen"}
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+          <p className="text-[11px] leading-relaxed text-slate-600">
+            For showing the system to a room. A laptop on{" "}
+            <span className="tabular font-semibold">backprop-pirates.vercel.app/control.html</span>{" "}
+            fires the impact; everything after it is real — the full countdown,
+            real texts to the people you have saved, and the phone&rsquo;s own GPS.
+          </p>
+
+          <label className="mt-2.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Room code
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              value={room}
+              onChange={(e) => onRoom(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
+              placeholder="ABCD"
+              inputMode="text"
+              autoCapitalize="characters"
+              className="tabular w-full rounded-lg border border-slate-300 px-3 py-2 text-base font-bold tracking-widest text-slate-900"
+            />
+            {room && (
+              <button
+                type="button"
+                onClick={() => onRoom("")}
+                className="shrink-0 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-300"
+              >
+                Leave
+              </button>
+            )}
+          </div>
+
+          {room && (
+            <>
+              <p className="mt-2 text-[11px] font-semibold text-slate-600">
+                {joined
+                  ? "Connected. The laptop can fire whenever you are ready."
+                  : "Looking for the room\u2026 check the code and the signal."}
+              </p>
+              <button
+                type="button"
+                onClick={onStandDown}
+                className="mt-2 w-full rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-300"
+              >
+                Clear the room after a run
+              </button>
+            </>
+          )}
+
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            Judges can follow along at{" "}
+            <span className="tabular font-semibold">/watch.html</span> — their phones
+            alarm and show your position live. That is a live feed, not a text
+            message; the texts go to your saved contacts only.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
