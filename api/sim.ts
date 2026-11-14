@@ -118,10 +118,13 @@ function fresh(room: Room): Room {
 
 async function read(room: string): Promise<Room | null> {
   try {
-    const blob = await get(`${PREFIX}${room}.json`, { access: 'private' })
-    if (!blob) return null
-    const text = await (await fetch(blob.url, { cache: 'no-store' })).text()
-    const parsed = JSON.parse(text) as Room
+    // The store is private, so the body comes back through the SDK with the
+    // server's token. Fetching blob.url instead returns nothing useful and
+    // fails quietly, which is how this spent a deploy appearing to work while
+    // every read returned an empty room.
+    const got = await get(`${PREFIX}${room}.json`, { access: 'private' })
+    if (!got || got.statusCode !== 200) return null
+    const parsed = JSON.parse(await new Response(got.stream).text()) as Room
     if (Date.now() - Date.parse(parsed.at) > TTL_MINUTES * 60_000) return null
     return parsed
   } catch {
@@ -130,12 +133,14 @@ async function read(room: string): Promise<Room | null> {
 }
 
 async function write(room: Room): Promise<void> {
+  // A room is one blob rewritten in place, so overwriting is the whole point
+  // and has to be asked for explicitly. No cache hint: every reader comes
+  // through this function, which already answers no-store.
   await put(`${PREFIX}${room.room}.json`, JSON.stringify(room), {
     access: 'private',
     contentType: 'application/json',
     addRandomSuffix: false,
     allowOverwrite: true,
-    cacheControlMaxAge: 0,
   })
 }
 
@@ -163,6 +168,7 @@ export async function POST(request: Request): Promise<Response> {
   const existing = (await read(room)) ?? emptyRoom(room)
   const now = new Date().toISOString()
 
+  try {
   if (action === 'join') {
     const id = String(body.deviceId ?? '').slice(0, 40) || 'unknown'
     const name = String(body.deviceName ?? 'A phone').slice(0, 40)
@@ -228,4 +234,11 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   return json({ error: `unknown action ${action}` }, 400)
+  } catch (err) {
+    console.error('sim room write failed', err)
+    return json(
+      { error: 'could not write the room', detail: String((err as Error)?.message ?? err) },
+      502,
+    )
+  }
 }
