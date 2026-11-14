@@ -22,7 +22,7 @@ import {
 } from '../lib/simRoom'
 import { useVoiceSos } from '../lib/useVoiceSos'
 import { MedicalIdCard } from './MedicalIdCard'
-import { Icon, PageHeader } from './ui'
+import { Details, Icon, PageHeader } from './ui'
 
 type Phase = 'off' | 'armed' | 'asking' | 'alerting'
 
@@ -667,18 +667,23 @@ export function CrashWatch({
         Show me what happens in a crash
       </button>
 
-      <DemoRoomPanel
-        room={simRoom}
-        joined={simJoined}
-        onRoom={(next) => {
-          setSimRoom(next)
-          writeSavedRoom(next)
-          if (!next) setSimJoined(false)
-        }}
-        onStandDown={() => simRoom && void standDownRoom(simRoom)}
-      />
-
-      <BuzzSelfTest />
+      {/* Neither of these is for a rider. One proves the buzzer works on
+          this handset, the other pairs the phone to a laptop for a
+          demonstration — both worth having, neither worth meeting on the way
+          to a motorcycle. Behind one line, closed every time. */}
+      <Details summary="Testing and demo tools">
+        <DemoRoomPanel
+          room={simRoom}
+          joined={simJoined}
+          onRoom={(next) => {
+            setSimRoom(next)
+            writeSavedRoom(next)
+            if (!next) setSimJoined(false)
+          }}
+          onStandDown={() => simRoom && void standDownRoom(simRoom)}
+        />
+        <BuzzSelfTest />
+      </Details>
 
       <button
         type="button"

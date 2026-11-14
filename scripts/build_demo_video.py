@@ -227,7 +227,7 @@ def build() -> int:
     c = seg(d)
     c.bg(d)
     c.text("ZETWAY", d, size=130, y=0.60, channel=3, colour=WHITE, bold=True)
-    c.text("Vigilance en route", d, size=42, y=0.45, channel=4, colour=BRAND)
+    c.text("Know the road before you go", d, size=42, y=0.45, channel=4, colour=BRAND)
     c.text("Team BackpropPirates    Life Powered by Tech 2026    Theme 2: Powered to Move",
            d, size=23, y=0.28, channel=5, colour=DIM)
 
@@ -262,7 +262,7 @@ def build() -> int:
     d = sec(9)
     c = seg(d)
     c.bg(d)
-    c.image("07-map.jpg", d)
+    c.image("08-map.jpg", d)
     c.label("Not a district average. Your route.", d)
     c.caption("Fourteen officially designated accident-prone stretches lie on this corridor.", d)
     c.footnote("Drawn from the real geometry of all 48. No map tiles, so it works offline too.", d)
@@ -308,7 +308,7 @@ def build() -> int:
     d = sec(7)
     c = seg(d)
     c.bg(d)
-    c.image("06-alert.jpg", d)
+    c.image("07-alert.jpg", d)
     c.label("Detected with the screen off, in a pocket", d)
     c.caption("Alarm, vibration, and thirty seconds to answer.", d)
     c.footnote("A foreground service holds the sensor. A web page cannot.", d)
@@ -322,6 +322,26 @@ def build() -> int:
     c.text("114 stays one tap. Android lets no third-party app dial an emergency number, "
            "so we say so on the screen rather than pretend otherwise.",
            d, size=24, y=0.25, channel=5, colour=DIM, wrap=0.78)
+
+    # ----------------------------------------------------------- hands-free
+    # The beat the video did not have, and the one the whole alert chain is
+    # for: a rider who cannot reach the phone at all.
+    d = sec(5)
+    c = seg(d)
+    c.bg(d, colour=(0.10, 0.012, 0.012, 1))
+    c.text("But the rider is under the bike.", d, size=52, y=0.62, channel=3,
+           colour=WHITE, bold=True)
+    c.text("They cannot reach either button.",
+           d, size=31, y=0.42, channel=4, colour=DIM, wrap=0.78)
+
+    d = sec(10)
+    c = seg(d)
+    c.bg(d, colour=DEEP)
+    c.image("06-handsfree.jpg", d)
+    c.label("Answer it without touching anything", d, colour=GREEN)
+    c.caption("Shout, or say help in English, French or Kreol.", d)
+    c.footnote("The shout trigger reads loudness straight off the microphone: no model, "
+               "no language, no network. It is the half that still works in a dead spot.", d)
 
     # ------------------------------------------------------------ offline
     d = sec(4)

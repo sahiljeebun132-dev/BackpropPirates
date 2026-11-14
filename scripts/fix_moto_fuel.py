@@ -148,7 +148,7 @@ LEVEL_CARB = 0.040
 LEVEL_FI = 0.012                   # the injected bike really is empty
 LEVEL_FULL = 0.120
 
-TAP_C = (-0.686, 0.428)
+TAP_C = (-0.686, 0.436)
 TAP_R = 0.030
 PIPE_W = 0.018
 PIPE_BOTTOM = 0.452
@@ -160,12 +160,14 @@ PIPE_SHORT_TOP = 0.480
 # Three detents round the tap. ON and RES are at the two ends of the sweep so
 # that turning one to the other never passes through OFF, which is how a tap
 # with a sixty degree throw is actually arranged.
-GLYPH_R = 0.098
-A_OFF = math.radians(210)
+GLYPH_R = 0.132
+LEVER_LEN = 0.034
+LEVER_KNOB = 0.052
+A_OFF = math.radians(205)
 A_ON = math.radians(270)
-A_RES = math.radians(330)
+A_RES = math.radians(320)
 
-LINE_Z = 0.428                     # the fuel line out of the tap
+LINE_Z = 0.436                     # the fuel line out of the tap
 LINE_X1 = -0.520                   # where it turns down for the carburettor
 CARB_C = (-0.490, 0.312)
 CARB_W, CARB_H = 0.110, 0.085
@@ -183,7 +185,7 @@ STAND_FOLD = math.radians(-104)
 
 KERB_TOP = GROUND_Z + 0.060        # a low kerb; it hides a sliver of tyre
 
-ENTER_X = 0.95                     # where the bike coasts in from
+ENTER_X = 0.60                     # where the bike coasts in from
 PUSH_DX = -0.34                    # and how far it is pushed at the end
 
 # ------------------------------------------- the same machine, head on (m)
@@ -464,9 +466,9 @@ def build_bike(mats):
     """
     root = empty("Bike", (0, 0, 0))
 
-    plate("Engine", 0.430, 0.280, (-0.625, LAY["engine"], 0.150),
+    plate("Engine", 0.460, 0.255, (-0.640, LAY["engine"], 0.137),
           material=mats["machine"], parent=root)
-    plate("Cylinder", 0.150, 0.115, (-0.915, LAY["engine"], 0.342),
+    plate("Cylinder", 0.150, 0.115, (-0.930, LAY["engine"], 0.342),
           material=mats["machine"], parent=root)
     bar("Silencer", (-0.330, 0.140), (0.090, 0.195), 0.058, LAY["bike"] - 0.01,
         mats["dim"], parent=root)
@@ -576,9 +578,9 @@ def build_tap(mats, parent):
                   material=mat, parent=g)
 
     lever = empty("Lever", (TAP_C[0], 0, TAP_C[1]), parent=group)
-    plate("LeverBar", 0.050, 0.016, (0.037, LAY["lever"], 0),
+    plate("LeverBar", LEVER_LEN, 0.016, (0.010 + LEVER_LEN / 2, LAY["lever"], 0),
           material=mats["machine"], parent=lever)
-    disc("LeverKnob", 0.013, (0.068, LAY["lever"] - 0.01, 0),
+    disc("LeverKnob", 0.010, (LEVER_KNOB, LAY["lever"] - 0.01, 0),
          material=mats["steel"], parent=lever)
 
     return dict(group=group, lever=lever, glyphs=glyphs)
@@ -651,18 +653,18 @@ def build_cluster(mats, parent):
 def build_rider(mats, parent):
     """A helmet and a glove. Nobody is drawn: no faces, nothing identifiable,
     and a whole figure would be the largest thing in a clip about a tap."""
-    helmet = empty("Helmet", (-1.300, 0, 0.828), parent=parent)
-    disc("HelmetShell", 0.085, (0, LAY["glyph"], 0),
+    helmet = empty("Helmet", (-1.330, 0, 0.858), parent=parent)
+    disc("HelmetShell", 0.086, (0, LAY["glyph"], 0),
          material=mats["machine"], parent=helmet)
-    plate("HelmetChin", 0.062, 0.030, (-0.050, LAY["glyph"], -0.044),
-          material=mats["machine"], parent=helmet, spin=math.radians(-18))
-    plate("HelmetVisor", 0.096, 0.032, (-0.024, LAY["glyph"] - 0.02, 0.014),
+    plate("HelmetChin", 0.098, 0.050, (-0.052, LAY["glyph"], -0.044),
+          material=mats["machine"], parent=helmet, spin=math.radians(-12))
+    plate("HelmetVisor", 0.100, 0.034, (-0.030, LAY["glyph"] - 0.02, 0.016),
           material=mats["brand"], parent=helmet)
 
-    glove = empty("Glove", (-1.246, 0, 0.618), parent=parent)
-    plate("GlovePalm", 0.058, 0.062, (0, LAY["glyph"], 0),
-          material=mats["brand"], parent=glove)
-    plate("GloveCuff", 0.030, 0.072, (0.038, LAY["glyph"], 0.012),
+    glove = empty("Glove", (-1.248, 0, 0.614), parent=parent)
+    disc("GlovePalm", 0.040, (0, LAY["glyph"], 0),
+         material=mats["brand"], parent=glove)
+    plate("GloveCuff", 0.032, 0.070, (0.034, LAY["glyph"], 0.014),
           material=mats["brand"], parent=glove, spin=math.radians(-14))
 
     return dict(helmet=helmet, glove=glove)
@@ -789,8 +791,8 @@ def build_front_stage(mats):
           material=mats["bg"], parent=lean)
     plate("MaskAbove", 1.80, 0.80, (0, LAY["mask"], t_z + T2_IN_H / 2 + 0.40),
           material=mats["bg"], parent=lean)
-    plate("MaskTunnel", T2_TUN_W, T2_TUN_H,
-          (0, LAY["mask"], t_z - T2_IN_H / 2 + T2_TUN_H / 2),
+    plate("MaskTunnel", T2_TUN_W, T2_TUN_H + 0.024,
+          (0, LAY["mask"] - 0.01, t_z - T2_IN_H / 2 + T2_TUN_H / 2 - 0.012),
           material=mats["machine"], parent=lean)
 
     fuel = plate("FrontFuel", 0.72, 0.60, (STAGE_X, LAY["fuelfront"], 0.0),
