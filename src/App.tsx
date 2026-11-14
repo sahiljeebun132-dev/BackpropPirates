@@ -64,6 +64,14 @@ export default function App() {
   const [fallbackBand, setFallbackBand] = useState<TimeBand>('night-unlit')
   const [view, setView] = useState<View>('plan')
 
+  // Open a page and you should be at the top of it. The scroll container is
+  // shared by every screen, so without this a tall home screen left you nine
+  // hundred pixels down a page you had only just opened, with the header —
+  // the one thing that says where you are — off screen above you.
+  useEffect(() => {
+    document.querySelector('main')?.scrollTo({ top: 0 })
+  }, [view])
+
   const data = state.status === 'ready' ? state.data : null
 
   const [from, to] = useMemo(() => {
@@ -245,7 +253,7 @@ export default function App() {
           )}
           <SourcesPanel data={appData} />
         </>
-      ) : (
+      ) : view === 'plan' ? (
         <>
           {/* Before anything else: if there is no signal, say so and say what
               still works, rather than letting the rider find out by tapping. */}
@@ -294,7 +302,7 @@ export default function App() {
             }
           />
         </>
-      )}
+      ) : null}
 
       {/* Mounted for the whole session, never torn down by navigation, and
           shown as a line on home or a page of its own. Hidden elsewhere

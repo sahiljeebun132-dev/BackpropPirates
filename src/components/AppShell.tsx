@@ -10,12 +10,20 @@ type Props = {
   location?: { active: boolean; label: string; onPress: () => void } | null
 }
 
+/** Which build is on the phone, for when a test result and the code disagree.
+ *
+ *  No longer printed in the footer — a rider scrolled past it on every screen
+ *  and it was only ever for us. It is still worth keeping, so it goes where
+ *  the people who need it look: `__ZETWAY_BUILD__` in the console. */
 const buildLabel = new Date(__BUILD_TIME__).toLocaleString('en-GB', {
   timeZone: 'Indian/Mauritius',
   weekday: 'short',
   hour: '2-digit',
   minute: '2-digit',
 })
+if (typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, string>).__ZETWAY_BUILD__ = buildLabel
+}
 
 /**
  * Phone-first page frame: sticky header, scrolling content, footer.
@@ -110,10 +118,14 @@ export function AppShell({ children, location = null }: Props) {
             phone that would not vibrate before anyone established whether it
             was running the Android app or the web one, and only the Android
             app can buzz at alarm priority. A word in the footer settles it. */}
-        <footer className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-center text-[11px] text-slate-400">
-          Team BackpropPirates · Life Powered by Tech 2026
-          <br />
-          {isNative() ? 'Android app' : 'Web app'} · build {buildLabel}
+        {/* One line, not three. The build timestamp that used to sit here was
+            for us, and a rider scrolling past it on every screen paid for it
+            in the only currency a phone has. Which build this is stays: two
+            people lost an evening to a phone that would not vibrate before
+            anyone established whether it was the Android app or the web one,
+            and only the Android app can buzz at alarm priority. */}
+        <footer className="shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1.5 text-center text-[11px] text-slate-400">
+          BackpropPirates · {isNative() ? 'Android app' : 'Web app'}
         </footer>
       </div>
     </div>

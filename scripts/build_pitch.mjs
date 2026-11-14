@@ -6,7 +6,7 @@
  *   node scripts/build_pitch.mjs
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import Module, { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -78,6 +78,38 @@ const BREAKDOWN_SRC = readFileSync('src/lib/breakdown.ts', 'utf8')
 const CAR_GUIDES = (BREAKDOWN_SRC.match(/vehicle: 'car',/g) || []).length
 const MOTO_GUIDES = (BREAKDOWN_SRC.match(/vehicle: 'motorcycle',/g) || []).length
 if (!CAR_GUIDES || !MOTO_GUIDES) throw new Error('guide counts failed to parse')
+const GUIDES = CAR_GUIDES + MOTO_GUIDES
+
+// Everything else this deck counts, counted here rather than typed into a
+// string. These are the figures that had already drifted once: the data slide
+// said ten tables in its title, nine in its notes and twenty-one in the same
+// sentence, while data/raw/json held twelve.
+const RAW_TABLES = readdirSync('data/raw/json').filter((f) => f.endsWith('.json')).length
+const USED_TABLES = new Set(
+  Object.values(D).flatMap((f) => (f.sources ?? []).map((s) => s.dataset)),
+).size
+// The app's own Sources panel lists one fewer than that, because the weather
+// table is credited on the conditions panel instead. Counted so the speaker
+// can say which number a judge is looking at.
+const PANEL_SOURCES = (
+  readFileSync('src/components/SourcesPanel.tsx', 'utf8').match(/powers: '/g) || []
+).length
+const API_FNS = readdirSync('api').filter((f) => f.endsWith('.ts')).length
+// What the service worker has to store for the offline demo. Typed by hand it
+// said 269 KB, which stopped being true when the data was last rebuilt.
+const DATA_FILES = readdirSync('public/data').filter((f) => f.endsWith('.json'))
+const DATA_KB = Math.round(
+  DATA_FILES.reduce((t, f) => t + statSync(`public/data/${f}`).size, 0) / 1024,
+)
+if (!RAW_TABLES || !USED_TABLES || !PANEL_SOURCES || !API_FNS || !DATA_KB) {
+  throw new Error('a repo count failed to read')
+}
+
+const NUMWORD = {
+  2: 'Two', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten', 11: 'Eleven',
+  12: 'Twelve', 13: 'Thirteen', 14: 'Fourteen', 15: 'Fifteen', 16: 'Sixteen',
+}
+const word = (n) => NUMWORD[n] ?? String(n)
 const pct = (n, dp = 1) => `${(n * 100).toFixed(dp)}%`
 
 // --- theme -----------------------------------------------------------------
@@ -189,8 +221,12 @@ pres.addSection({ title: 'Opening' })
   statBlock(s, { x: M + 0.3, y: 4.18, w: cols, value: nf(D.island.fatal),
     label: `people killed on Mauritian roads in ${D.island.year}`, valueColor: C.accent2, labelColor: 'CBD5E1' })
   statBlock(s, { x: M + 0.3 + cols, y: 4.18, w: cols, value: nf(D.island.casualties),
-    label: 'injured or killed, from 39,485 reported accidents', valueColor: C.background1, labelColor: 'CBD5E1' })
-  statBlock(s, { x: M + 0.3 + 2 * cols, y: 4.18, w: cols, value: pct(D.exposure.vulnerableShare, 0),
+    label: `injured or killed, from ${nf(D.island.accidents)} reported accidents`,
+    valueColor: C.background1, labelColor: 'CBD5E1' })
+  // One decimal place, not none. The table says 49.9% and the speaker note
+  // has always said 49.9%; rounding it up to a round 50 on the wall was the
+  // one headline figure on this deck that was not literally what we read.
+  statBlock(s, { x: M + 0.3 + 2 * cols, y: 4.18, w: cols, value: pct(D.exposure.vulnerableShare),
     label: 'of them were on two wheels or on foot', valueColor: C.accent3, labelColor: 'CBD5E1' })
 
   s.addText('Source: Statistics Mauritius and Open Data Mauritius, via data.govmu.org', {
@@ -273,7 +309,7 @@ pres.addSection({ title: 'The app' })
 
   // The whole product in one capture: a rider report, the score, and the
   // conditions panel telling them to leave an hour earlier.
-  const shotH = 4.55
+  const shotH = 4.15
   const shotW = byHeight('docs/pitch-assets/live.png', shotH).w
   s.addImage({ path: 'docs/pitch-assets/live.png', x: M, y: 1.45, w: shotW, h: shotH,
     objectName: 'shot-live',
@@ -286,7 +322,9 @@ pres.addSection({ title: 'The app' })
     [
       { text: 'A Corridor Safety Score from the official record — tap any factor for its figures and its table.', options: { bullet: true, breakLine: true } },
       { text: `The ${D.hotspots.hotspots.length} designated accident-prone segments — drawn on your corridor and named by road number — and the nearest of ${nf(D.emergency.places.length)} hospitals and police stations with tap-to-call.`, options: { bullet: true, breakLine: true } },
-      { text: 'Live conditions: sunrise, sunset and rain for this corridor, free and keyless from Open-Meteo.', options: { bullet: true, breakLine: true } },
+      // The live-conditions bullet used to sit here. The capture beside it
+      // already shows the LEAVING / LIGHT / RAIN panel saying the same thing,
+      // and the room it frees is what the hands-free card below needs.
       { text: 'Live hazard reports from other riders, within seconds, on this corridor.', options: { bullet: true } },
     ],
     { isTextBox: true, x: tx, y: 1.5, w: tw, h: 1.95, margin: 0, fontSize: 13, color: C.text1,
@@ -297,24 +335,25 @@ pres.addSection({ title: 'The app' })
   // replaced the hazard-report capture here: both are good, but only one of
   // them makes the slide's own claim visible, and "14 named black spots on
   // your route" is that claim.
-  const rh = 2.5
+  const rh = 2.15
+  const ry = 3.25
   const rw = byHeight('docs/pitch-assets/map.jpg', rh).w
-  s.addImage({ path: 'docs/pitch-assets/map.jpg', x: tx, y: 3.6, w: rw, h: rh,
+  s.addImage({ path: 'docs/pitch-assets/map.jpg', x: tx, y: ry, w: rw, h: rh,
     objectName: 'shot-map',
     shadow: { type: 'outer', color: '94A3B8', blur: 8, offset: 2, angle: 90, opacity: 0.35 } })
   s.addText('14 of 48, on this corridor', {
-    isTextBox: true, x: tx, y: 3.6 + rh + 0.04, w: rw, h: 0.26, margin: 0,
+    isTextBox: true, x: tx, y: ry + rh + 0.04, w: rw, h: 0.26, margin: 0,
     fontSize: 10, color: C.text2, align: 'center', italic: true,
   })
 
   const cx = tx + rw + 0.35
   const cw = W - M - cx
   s.addShape(pres.ShapeType.roundRect, {
-    x: cx, y: 3.6, w: cw, h: 2.5, rectRadius: 0.1,
+    x: cx, y: ry, w: cw, h: 3.15, rectRadius: 0.1,
     fill: { color: C.text1 }, line: { color: C.text1 }, objectName: 'when-it-goes-wrong',
   })
-  s.addText('And when it goes wrong anyway', {
-    isTextBox: true, x: cx + 0.28, y: 3.78, w: cw - 0.56, h: 0.3, margin: 0,
+  s.addText('And when it goes wrong anyway — without touching the phone', {
+    isTextBox: true, x: cx + 0.28, y: ry + 0.18, w: cw - 0.56, h: 0.3, margin: 0,
     fontSize: 13, bold: true, color: C.accent6,
   })
   s.addText(
@@ -323,10 +362,18 @@ pres.addSection({ title: 'The app' })
         options: { bullet: true, breakLine: true } },
       { text: 'Crash watch: a foreground service reads the accelerometer with the screen off. Over 3.1g it alarms and counts down 30 seconds.',
         options: { bullet: true, breakLine: true } },
+      // The two bullets this slide was missing. Nothing here overclaims:
+      // src/lib/sosVoice.ts carries the three-language root table,
+      // ShoutWatch.java reads AudioRecord at 16 kHz with no model at all, and
+      // CrashWatch.tsx wires the voice answer into the 30-second countdown.
+      { text: 'Hands-free, because the rider cannot reach the phone. A shout alone arms it: loudness read straight off the microphone, no model, no language, no network, no Google services.',
+        options: { bullet: true, breakLine: true } },
+      { text: 'Or the words, in English, French and Kreol. Either one speaks a countdown the rider can stop — and during the crash countdown "I am fine" stands it down while "help" escalates at once.',
+        options: { bullet: true, breakLine: true } },
       { text: 'Unanswered, the Android build texts every contact a map link and rings the first, with no tap. 114 stays one tap, because Android lets no app dial it.',
         options: { bullet: true } },
     ],
-    { isTextBox: true, x: cx + 0.28, y: 4.14, w: cw - 0.56, h: 1.85, margin: 0,
+    { isTextBox: true, x: cx + 0.28, y: ry + 0.54, w: cw - 0.56, h: 2.5, margin: 0,
       fontSize: 10.5, color: 'CBD5E1', lineSpacing: 13.5, paraSpaceAfter: 6 },
   )
 
@@ -343,6 +390,10 @@ pres.addSection({ title: 'The app' })
     `Then report a hazard live from a phone in the room and show it appear on another phone within seconds.
 
 ` +
+    `Say this about the alert, because it is the honest shape of it and somebody will wonder: a handset places one voice call at a time. That is the carrier's rule, not a limitation we chose. So every contact is texted at once, one of them is called, and the judges' page at /w/ZETW14 is a live feed, not an SMS. Nothing on this deck claims otherwise.\n\n` +
+    `On Kreol, if asked: no phone ships a Morisyen model, so the recogniser is asked for French and "oskour" arrives as something near "au secours". Matching on roots rather than whole words is what makes that survivable. We are not claiming a Kreol speech model exists, because none does.\n\n` +
+    `The shout trigger is the one that matters. It reads loudness straight off the microphone through AudioRecord: no model, no language, no network, no Google services, so it still works in a dead spot. Neither trigger dials anything on hearing a noise \u2014 both open a spoken, cancellable countdown, because a false alarm costs a real crew a real call-out.\n\n` +
+    `If a judge pushes on false alarms, play crash-moto.mp4 from the laptop rather than spending a slide on it. It was rendered in Blender with Bullet rigid-body physics and an articulated, belted occupant \u2014 nothing keyframed \u2014 and it is the picture of why the alert corroborates rotation and change of speed rather than peak g alone.\n\n` +
     `On satellite, if asked \u2014 and this used to be on the slide: we evaluated it and rejected it on evidence, not effort. Seeing something car-sized needs sub-metre resolution, which means low orbit and about one pass a day; the satellites that watch continuously are weather satellites at 500 m a pixel, where a car does not exist. Mauritius is cloudy too. Resolution and revisit rate are a tradeoff you cannot escape, and Mauritius is cloudy. Weather models ingest satellite observations, so what we use is still remote-sensed, it just arrives as numbers.
 
 ` +
@@ -358,7 +409,7 @@ pres.addSection({ title: 'The app' })
 pres.addSection({ title: 'The data' })
 {
   const s = pres.addSlide({ masterName: 'LIGHT', sectionTitle: 'The data' })
-  s.addText('Ten official tables, one of them mappable', { placeholder: 'title' })
+  s.addText(`${word(RAW_TABLES)} official tables, one of them mappable`, { placeholder: 'title' })
 
   // The find.
   card(s, { x: M, y: 1.45, w: 6.35, h: 2.5, fill: '0F172A', name: 'find-card' })
@@ -415,7 +466,7 @@ pres.addSection({ title: 'The data' })
   s.addNotes(
     `If asked how we got the data: data.govmu.org sits behind a bot check, so a script cannot fetch the CSVs. We used the Electric Sheep Africa mirror on Hugging Face, which carries the original CKAN package ID, resource ID and the data.govmu.org URL on every row. Provenance is intact and the app links to the original resource file.\n\n` +
     `The cleaning does real work: it repairs text the publisher saved in the wrong encoding, parses the MULTILINESTRING geometry, derives town coordinates from facility positions, and maps the 9 administrative districts onto the 7 police districts. That mapping is our assumption and we publish it inside places.json.\n\n` +
-    `We downloaded 21 candidate tables and used the 9 that could power a feature.`,
+    `We downloaded ${RAW_TABLES} government tables and used the ${USED_TABLES} that power a feature. If a judge taps Data sources in the app it says ${PANEL_SOURCES}: the weather table is credited on the conditions panel instead of in that list. The ${RAW_TABLES - USED_TABLES} we did not use are committed in data/raw/json with the rest.`,
   )
 }
 
@@ -453,18 +504,33 @@ pres.addSection({ title: 'How it works' })
   )
 
   card(s, { x: tx, y: 4.55, w: tw, h: 1.45, fill: 'FEF3C7', name: 'bug-card' })
+  // 0.2 of padding rather than 0.25: at 0.25 the closing "94." fell onto a
+  // line of its own, which is the one typographic thing a judge's eye catches.
   s.addText('We tested it, and the first version was wrong', {
-    isTextBox: true, x: tx + 0.25, y: 4.72, w: tw - 0.5, h: 0.3, margin: 0, fontSize: 12.5, bold: true, color: '92400E',
+    isTextBox: true, x: tx + 0.2, y: 4.72, w: tw - 0.4, h: 0.3, margin: 0, fontSize: 12.5, bold: true, color: '92400E',
   })
   s.addText(
     'Scoring all 5,200 route, mode and time combinations showed 70% came out "Severe" and nothing safe: vehicle occupants are always the largest casualty group, so every car trip was punished for being ordinary. We re-anchored each factor to the range the data spans. Scores now run 22 to 94.',
-    { isTextBox: true, x: tx + 0.25, y: 5.05, w: tw - 0.5, h: 0.85, margin: 0, fontSize: 11, color: '78350F', lineSpacing: 15 },
+    { isTextBox: true, x: tx + 0.2, y: 5.05, w: tw - 0.4, h: 0.85, margin: 0, fontSize: 10.5, color: '78350F', lineSpacing: 15 },
+  )
+
+  // The voice bugs belong here rather than on a slide of their own: this is
+  // already the "we tested it and we were wrong" slide, so they are the same
+  // argument in the same minute. A footnote, not a fourth card.
+  s.addText(
+    [
+      { text: 'And again, in the voice triggers. Found by reading our own matcher against real sentences: the app heard its own countdown through its own microphone and cancelled itself; the cancel list held "mo bon", which sits inside "mo Bondie"; apostrophes were flattened, so "I can’t move" matched nothing. ' },
+      { text: '47 tests became 81.', options: { bold: true, color: C.accent1 } },
+    ],
+    { isTextBox: true, x: tx, y: 6.12, w: tw, h: 0.62, margin: 0,
+      fontSize: 10, color: '475569', lineSpacing: 14 },
   )
 
   s.addNotes(
     `This is the slide to linger on. The first question a judge asks is "where does 31 come from" and the answer is in the app, not in the pitch.\n\n` +
-    `Worked example on screen: 14 accident-prone segments costs 35 points, district volume 8, rider risk 11, unlit darkness 15. 100 minus 69 is 31.\n\n` +
+    `Worked example on screen: 14 accident-prone segments costs 35 points, district volume 8, rider risk 11, unlit darkness 15. 100 minus 69 is 31. That is the capture beside you, taken from Grand Baie to Port Louis by motorcycle at 19:00 — the same trip you just ran live.\n\n` +
     `The calibration story matters because it shows we tested the model rather than the demo route. The check script is in the repo: scripts/check_score_spread.mjs.\n\n` +
+    `The footnote underneath is eight seconds, not a minute. Three bugs, all found by running the matcher against sentences a hurt person would actually say, none by waiting for them to happen on stage. "Mo bon" is the one to say out loud if you only say one: it means "I am fine", it sits inside "mo Bondie", and "mo Bondie" is the commonest thing a hurt Mauritian says. A cry of pain was being read as a cancellation. scripts/test_sos_voice.mjs prints 81 passed, 0 failed; the version of that file from before the review ran 47 checks.\n\n` +
     `Be clear it is an exposure indicator, not a prediction. It cannot know about today's traffic, weather or the driver, and the app says so.`,
   )
 }
@@ -484,7 +550,7 @@ pres.addSection({ title: 'Impact' })
   const cw = (W - 2 * M - 0.6) / 3
   const cols = [
     ['Runs on nothing', [
-      'Static JSON and one small function on a free tier. The weather feed needs no key at all.',
+      `Static JSON served from the edge, and ${word(API_FNS).toLowerCase()} small functions on free tiers. The weather feed needs no key at all.`,
       'A data refresh is two scripts and a push.',
     ]],
     ['Reaches people now', [
@@ -524,7 +590,9 @@ pres.addSection({ title: 'Impact' })
   s.addText(
     [
       { text: 'Offline Mode. ', options: { bold: true, color: C.accent3 } },
-      { text: 'We kept the Corridor Safety Score working with no internet — and it never needed the network. It is computed on the device from 269 KB of government tables, so a service worker storing them is all it took. The score, the 48 black spots, the emergency numbers and all 15 roadside guides work in airplane mode. The forecast and other riders’ reports cannot, are not cached, and the app says which is which. The APK already shipped those files inside it.' },
+      // 269 KB was typed in here and stopped being true when the data was
+      // last rebuilt. Measured off public/data now, like everything else.
+      { text: `We kept the Corridor Safety Score working with no internet — and it never needed the network. It is computed on the device from ${DATA_KB} KB of government tables, so a service worker storing them is all it took. The score, the ${D.hotspots.hotspots.length} black spots, the emergency numbers and all ${GUIDES} roadside guides work in airplane mode. The forecast and other riders’ reports cannot, are not cached, and the app says which is which. The APK already shipped those files inside it.` },
     ],
     { isTextBox: true, x: M + 0.3, y: 4.36, w: W - 2 * M - 0.6, h: 0.62, margin: 0,
       fontSize: 11, color: 'FDE68A', lineSpacing: 13.5 },
@@ -544,11 +612,11 @@ pres.addSection({ title: 'Impact' })
   })
 
   s.addNotes(
-    `Cost: it genuinely runs on nothing. Static JSON on a free tier, no backend, no API keys. That matters for a public-sector handover.\n\n` +
+    `Cost: it genuinely runs on nothing. Static JSON on a free tier and ${word(API_FNS).toLowerCase()} small serverless functions, also on a free tier. The weather feed needs no key. The one key those functions carry is the project's public anon key, which is designed to ship in client bundles and is constrained by row-level security on two tables holding public hazard warnings and throwaway demo rooms. That matters for a public-sector handover.\n\n` +
     `Reach: a link works on any phone, with no store review and no install friction, and that is still what we demo from. The Android build is additive — it exists only because a browser may not text or call on its own after a crash — and inside the APK the data ships too, so the core works with no signal at all.\n\n` +
     `Who runs it: the people who publish this data already. Handing it over is a repo transfer, not a procurement exercise.\n\n` +
     `Limits, if asked: routes are straight lines between towns, not real road paths, and the app says so. Light and junction tables are 2018, the latest published. 26 towns, limited to places with an official health facility so the coordinates are real.\n\n` +
-    `Surprise card, Offline Mode: the honest version of this answer is that we picked the one feature that never needed the network. The score is worked out in the browser from nine static files; the app only ever died offline because they had to be fetched. A service worker precaches them and the app's own bundle. Demo it by putting the phone in airplane mode and running a route — the score, the black spots, the emergency numbers and every roadside guide still work. The weather and other riders' reports genuinely cannot work offline, so they are not cached and not faked, and a banner names what is stored and what is waiting for signal. One trap worth mentioning if a judge is technical: on a first visit the page fetches its own JavaScript before the worker takes control, so runtime caching misses it and an offline reload is a blank page. Install reads index.html and caches what it references.`,
+    `Surprise card, Offline Mode: the honest version of this answer is that we picked the one feature that never needed the network. The score is worked out in the browser from ${word(DATA_FILES.length).toLowerCase()} static files; the app only ever died offline because they had to be fetched. A service worker precaches them and the app's own bundle. Demo it by putting the phone in airplane mode and running a route — the score, the black spots, the emergency numbers and every roadside guide still work. The weather and other riders' reports genuinely cannot work offline, so they are not cached and not faked, and a banner names what is stored and what is waiting for signal. One trap worth mentioning if a judge is technical: on a first visit the page fetches its own JavaScript before the worker takes control, so runtime caching misses it and an offline reload is a blank page. Install reads index.html and caches what it references.`,
   )
 }
 

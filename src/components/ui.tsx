@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 /**
@@ -328,5 +329,45 @@ export function Section({
       </h2>
       {children}
     </section>
+  )
+}
+
+/**
+ * The detail that proves a claim, folded away until somebody wants it.
+ *
+ * This app earns trust by showing its working — which figures came from
+ * where, what the sensor actually read, what this particular phone can and
+ * cannot do. All of that is worth having and none of it is worth reading
+ * while you are standing beside a broken motorcycle. So it goes behind one
+ * line that says what is inside.
+ *
+ * Closed on every mount. A diagnostic panel that remembers it was open is a
+ * diagnostic panel that is always open.
+ */
+export function Details({
+  summary,
+  children,
+}: {
+  summary: string
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-2 border-t border-slate-100 pt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 py-2 text-left"
+      >
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          {summary}
+        </span>
+        <span className="shrink-0 text-[11px] font-semibold text-brand-deep">
+          {open ? 'Hide' : 'Show'}
+        </span>
+      </button>
+      {open && <div className="pb-1">{children}</div>}
+    </div>
   )
 }

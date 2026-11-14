@@ -78,16 +78,30 @@ def load(slug: str) -> dict:
 
 
 def fix_text(s: Any) -> str:
-    """Repair UTF-8 that the publisher saved as cp1252 ('Place DâArmes')."""
+    """Repair UTF-8 that the publisher saved one byte per character.
+
+    This used to encode as cp1252 and quietly give up. cp1252 has no mapping
+    for U+0080, and U+0080 is the middle byte of a UTF-8 right single quote —
+    so the one case the docstring named, "Place d'Armes", was precisely the
+    case that threw, hit the bare `pass`, and shipped unrepaired. Seven more
+    names reached the accidents screen ending in a replacement glyph.
+
+    latin-1 is the right codec here because it is not really a codec: it maps
+    U+0000..U+00FF onto bytes 0x00..0xFF one to one, which is exactly the
+    damage being undone.
+    """
     if not isinstance(s, str):
         return ""
-    if any(ch in s for ch in ("Ã", "â", "Â")):
+    if any(ord(ch) in (0xC2, 0xC3, 0xE2) for ch in s):
         try:
-            s = s.encode("cp1252", errors="strict").decode("utf-8", errors="strict")
+            s = s.encode("latin-1", errors="strict").decode("utf-8", errors="strict")
         except (UnicodeEncodeError, UnicodeDecodeError):
-            pass
+            # A truncated sequence — the partner byte was lost upstream and
+            # cannot be guessed. Drop the orphan rather than render a glyph
+            # nobody can read.
+            s = "".join(ch for ch in s if ord(ch) not in (0xC2, 0xC3))
     # Curly quotes and stray non-breaking spaces left by the repair.
-    s = s.replace("’", "'").replace("‘", "'").replace("\xa0", " ")
+    s = s.replace("’", "'").replace("‘", "'").replace("\xa0", " ").replace("�", "")
     return re.sub(r"\s+", " ", s).strip()
 
 

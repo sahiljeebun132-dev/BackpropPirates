@@ -54,6 +54,12 @@ export function PlanForm(props: Props) {
   // nothing is removed; leaving it open cost 160px on every visit for a
   // question most people never change.
   const [whenOpen, setWhenOpen] = useState(false)
+  // Same treatment as the departure below it. Both of these have a sensible
+  // default, both were costing two hundred pixels of the first screen a
+  // rider ever sees, and between them they pushed everything this app does
+  // below the fold — the launcher, the five things it can help with, all of
+  // it, behind a form with two dropdowns.
+  const [modeOpen, setModeOpen] = useState(false)
   const whenSummary = `${
     departIsNow
       ? 'Leaving now'
@@ -126,8 +132,27 @@ export function PlanForm(props: Props) {
         </div>
 
         <div className="mt-4 border-t border-slate-100 pt-3">
-        <span className="text-xs font-medium text-slate-500">How you are travelling</span>
-        <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setModeOpen((o) => !o)}
+          aria-expanded={modeOpen}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-medium text-slate-500">
+              How you are travelling
+            </span>
+            <span className="mt-0.5 block truncate text-sm font-medium text-slate-900">
+              {mode === 'motorcycle' ? 'Motorcycle' : MODE_LABEL[mode]}
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-brand-deep">
+            {modeOpen ? 'Hide' : 'Change'}
+          </span>
+        </button>
+
+        {modeOpen && (<>
+        <div className="mt-3 grid grid-cols-2 gap-2">
           {MODES.map((m) => {
             const active = m === mode
             return (
@@ -153,6 +178,7 @@ export function PlanForm(props: Props) {
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
           Scored separately: riders and people on foot are half of everyone hurt here.
         </p>
+        </>)}
         </div>
 
         <div className="mt-3 border-t border-slate-100 pt-3">

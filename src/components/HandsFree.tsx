@@ -5,7 +5,7 @@ import { escalate, type EscalationStep } from '../lib/escalate'
 import { isNative } from '../lib/platform'
 import { CANCEL_PHRASES, SOS_PHRASES } from '../lib/sosVoice'
 import { useVoiceSos } from '../lib/useVoiceSos'
-import { Card, CardTitle, Icon, Notice, PageHeader } from './ui'
+import { Card, CardTitle, Details, Icon, Notice, PageHeader } from './ui'
 
 /**
  * Help without touching the phone.
@@ -280,22 +280,22 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
         </p>
       </Card>
 
-      {voice.transcript.length > 0 && (
-        <Card>
-          <CardTitle>What it thought it heard</CardTitle>
-          <ol className="mt-2 space-y-1">
-            {voice.transcript.map((t, i) => (
-              <li key={i} className="truncate text-[11px] text-slate-500">
-                {t}
-              </li>
-            ))}
-          </ol>
-        </Card>
-      )}
-
       <Card>
-        <CardTitle>What this phone can actually do</CardTitle>
-        <dl className="mt-2 space-y-1.5">
+        <CardTitle>What this phone can do</CardTitle>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+          {voice.offline
+            ? 'Words and shouting both work on this phone with no signal.'
+            : voice.words
+              ? 'Shouting works with no signal. Words need a connection on this phone.'
+              : 'Shouting works with no signal.'}{' '}
+          Nothing it hears is uploaded, saved or sent anywhere.
+        </p>
+
+        {/* Everything below is the working behind that sentence. True,
+            useful to a judge, and not what anybody needs while they are
+            standing beside a broken motorcycle. */}
+        <Details summary="The detail, phone by phone">
+        <dl className="mt-1 space-y-1.5">
           <Fact
             label="Listening in"
             ok={voice.language !== null}
@@ -351,12 +351,28 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
             no="Not yet — it is asked for when you start listening"
           />
         </dl>
+
+        {voice.transcript.length > 0 && (
+          <>
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              Last few things it heard
+            </p>
+            <ol className="mt-1 space-y-1">
+              {voice.transcript.map((t, i) => (
+                <li key={i} className="truncate text-[11px] text-slate-500">
+                  {t}
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+
         <p className="mt-2.5 text-[11px] leading-relaxed text-slate-500">
-          Nothing it hears is uploaded, saved or sent anywhere. The audio is
-          matched against the short word list above and discarded; only the
-          text message you can read in &ldquo;What Zetway did&rdquo; ever leaves
-          the phone.
+          The audio is matched against the short word list above and
+          discarded; only the text message you can read in &ldquo;What Zetway
+          did&rdquo; ever leaves the phone.
         </p>
+        </Details>
       </Card>
     </div>
   )
