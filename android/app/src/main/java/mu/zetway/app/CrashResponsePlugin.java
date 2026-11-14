@@ -321,6 +321,48 @@ public class CrashResponsePlugin extends Plugin {
         }
     }
 
+    /**
+     * Open WhatsApp with the message already written, for the rider to send.
+     *
+     * The send itself stays manual and there is no way around that: WhatsApp
+     * exposes no send API to other apps, so wa.me and ACTION_SEND both land
+     * on its compose screen and wait for a finger. What this removes is
+     * everything before the finger - finding the app, finding the contact,
+     * and typing a location nobody can type one-handed at the roadside.
+     *
+     * Pinned to com.whatsapp so it goes straight there rather than through a
+     * chooser. If that throws, WhatsApp is not installed, and the unpinned
+     * link reaches a browser that offers to install it - which is a better
+     * end than a crash dialog.
+     */
+    @PluginMethod
+    public void openWhatsApp(PluginCall call) {
+        String number = call.getString("number", "");
+        String body = call.getString("body", "");
+        if (number == null || number.isEmpty()) {
+            call.reject("openWhatsApp needs a number.");
+            return;
+        }
+        Uri uri = Uri.parse("https://wa.me/" + number
+                + "?text=" + Uri.encode(body == null ? "" : body));
+        try {
+            Intent direct = new Intent(Intent.ACTION_VIEW, uri);
+            direct.setPackage("com.whatsapp");
+            direct.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(direct);
+            call.resolve(result(true, null));
+        } catch (Exception notInstalled) {
+            try {
+                Intent open = new Intent(Intent.ACTION_VIEW, uri);
+                open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(open);
+                call.resolve(result(true, "WhatsApp is not installed; opened the link instead."));
+            } catch (Exception e) {
+                call.resolve(result(false, "WhatsApp could not be opened on this phone."));
+            }
+        }
+    }
+
     @PermissionCallback
     private void phonePermissionCallback(PluginCall call) {
         if (getPermissionState("phone") != PermissionState.GRANTED) {

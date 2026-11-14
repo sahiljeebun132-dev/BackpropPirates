@@ -131,6 +131,7 @@ type CrashResponsePlugin = {
   sendSms(options: { numbers: string[]; message: string }): Promise<SmsResult>
   placeCall(options: { number: string }): Promise<CallResult>
   openDialler(options: { number: string }): Promise<SimpleResult>
+  openWhatsApp(options: { number: string; body: string }): Promise<SimpleResult>
   startWatching(options: { threshold: number; test: boolean }): Promise<
     SimpleResult & { notifications?: boolean }
   >
@@ -677,6 +678,34 @@ export async function openDialler(number: string): Promise<SimpleResult> {
     return await plugin.openDialler({ number })
   } catch {
     return { ok: false, message: 'Could not open the dialler.' }
+  }
+}
+
+/**
+ * Open WhatsApp on a contact with the message already written.
+ *
+ * The same shape as openDialler and for the same reason: this is as far as
+ * the platform allows. WhatsApp publishes no send API to other apps, so the
+ * last tap is the rider's on both Android and the web, and no permission or
+ * flag changes that. What it removes is everything before the tap.
+ *
+ * waNumber, not the raw string -- wa.me wants full international and a
+ * Mauritian contact is saved as eight digits.
+ */
+export async function openWhatsApp(number: string, body: string): Promise<SimpleResult> {
+  const to = waNumber(number)
+  if (!isNative()) {
+    try {
+      window.open(`https://wa.me/${to}?text=${encodeURIComponent(body)}`, '_blank', 'noopener')
+      return { ok: true }
+    } catch {
+      return { ok: false, message: 'This browser would not open WhatsApp.' }
+    }
+  }
+  try {
+    return await plugin.openWhatsApp({ number: to, body })
+  } catch {
+    return { ok: false, message: 'Could not open WhatsApp.' }
   }
 }
 

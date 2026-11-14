@@ -57,6 +57,12 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- Android 11 hid other packages from us. Without this line
+             setPackage("com.whatsapp") throws ActivityNotFoundException on
+             a phone that has WhatsApp installed and working - the same trap
+             that made isRecognitionAvailable() return false above. -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
     </queries>
 
     <!-- Permissions -->
