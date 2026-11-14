@@ -30,11 +30,13 @@ Five places where the clip and the text are not a line-for-line match:
   - Step 3 is "upright, not on the side stand", and a side elevation cannot
     show a lean at all. That beat cuts to a head-on elevation of the same
     machine, still orthographic and still flat. The tank is drawn in section
-    with the tunnel the frame runs through, because that tunnel is the reason
-    a leaning tank reads empty: the fuel all goes to the low lobe and the
-    filler looks down onto a dry ridge. The amount of fuel does not change
-    between the two framings - the surface height is solved for equal area,
-    not chosen by eye, which is the one claim this beat is making.
+    with the tunnel the frame runs through, because that tunnel is the whole
+    reason a leaning tank reads empty: what is left sits below the tunnel
+    roof, so the two lobes are separate basins and leaning tips one of them
+    into the other. Glance in and one side is dry. The amount of fuel does
+    not change between the two states - the surface is solved for equal area
+    rather than placed by eye, and that equality is the only claim this beat
+    makes.
   - Step 4 says push with your helmet on. Nobody is drawn: no faces, nothing
     identifiable. A helmet and a glove stand in for the rider, which is the
     same shorthand scripts/fix_chain.py uses for "by hand".
@@ -186,7 +188,7 @@ STAND_FOLD = math.radians(-104)
 KERB_TOP = GROUND_Z + 0.060        # a low kerb; it hides a sliver of tyre
 
 ENTER_X = 0.60                     # where the bike coasts in from
-PUSH_DX = -0.34                    # and how far it is pushed at the end
+PUSH_DX = -0.30                    # and how far it is pushed at the end
 
 # ------------------------------------------- the same machine, head on (m)
 # Parked far enough right that it can never wander into a side-on framing.
@@ -214,7 +216,7 @@ T2_LEVEL = -0.043
 
 WIDE = ((-0.78, 0.24), 2.60)
 TAP_VIEW = ((-0.76, 0.450), 0.82)
-LAMP_VIEW = ((-0.898, 0.600), 0.72)
+LAMP_VIEW = ((-0.870, 0.580), 0.76)
 FRONT_VIEW = ((STAGE_X, 0.185), 1.16)
 PRIME_VIEW = ((-0.816 + PUSH_DX, 0.524), 0.94)
 
@@ -879,9 +881,13 @@ def animate(rig, tap, pump, line, cluster, rider, stage, cam, mats, surf):
             # x turns by x / r. One expression for both wheels, so they can
             # never drift out of step with the ground or each other.
             key(w, f, rot=(0, x / WHEEL_R, 0), interp="LINEAR")
+    # It arrives with the stand up, because it arrived riding. The stand goes
+    # down once it has stopped. F is the first frame of each beat, not the
+    # last: offsets from it are added, never subtracted, or the key lands
+    # before frame one and nothing on this curve means what it says.
     key(rig["stand"], 1, rot=(0, STAND_FOLD, 0))
-    key(rig["stand"], F["coast"] - 22, rot=(0, STAND_FOLD, 0))
-    key(rig["stand"], F["coast"] - 6, rot=(0, 0, 0))
+    key(rig["stand"], F["coast"] + 24, rot=(0, STAND_FOLD, 0))
+    key(rig["stand"], F["coast"] + 40, rot=(0, 0, 0))
 
     # --- reserve: the tap, and what the two pickups are for. The level sits
     # above the short pipe's mouth and below the tall one's, which is the
