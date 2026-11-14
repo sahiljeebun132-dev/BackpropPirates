@@ -81,10 +81,20 @@ This is the one to try somewhere you can shout without alarming anybody.
 | C8 | Read the **Listening in** line | Says the language it settled on. French if your phone has the pack — that is how Kreol is matched. English if not, and it says so plainly rather than pretending |
 | C9 | Say **"help"**, or "au secours", or "oskour" | Counts down out loud from 10 and shows what it heard. Say **"stop"** and it stops |
 | C10 | Shout with no words at all | Counts down from 15 — longer, because a horn can fake a shout. Shouting is the trigger that needs no language, no model and no signal |
+| C11 | Tap **Measure my shout** | Six seconds: three of silence, three of you shouting. It then states the gap it measured and the threshold it set. Do this once on the phone you will demo with — until you do, it is running a default that was never measured against a real microphone, and it says so |
+| C12 | Read **Shout measured on this phone** | Should now say yes, with your own number. If it says it could not tell your shout apart from the room, the microphone is not delivering — check nothing else is holding it |
 
 If words stop working mid-session the screen says so and keeps the shout
 trigger running. That is deliberate: recognition is the fragile half and
 shouting is the half that has to survive a dead spot.
+
+### C13–C15. The demo room — 3 minutes
+
+| # | Do this | Should happen |
+|---|---|---|
+| C13 | Laptop: **backprop-pirates.vercel.app/c/ZETW14**. Phone: Crash watch → *Pair with a demo screen* →  | Laptop lists one phone. The fire button only enables once it does, on purpose |
+| C14 | Another phone: **backprop-pirates.vercel.app/w/ZETW14** → tap to watch, volume up | “Connected, all quiet” |
+| C15 | Laptop: **Simulate impact** | Phone: red screen, countdown, buzz. Watcher: alarm, your coordinates, a map link. Say **“I am fine”** without touching the phone and it stands down. **Reset room** on the laptop before running it again |
 
 ### D. Crash watch — the important one, 10 minutes
 
