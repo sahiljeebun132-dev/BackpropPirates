@@ -130,6 +130,7 @@ type CrashResponsePlugin = {
   stopVibration(): Promise<SimpleResult>
   sendSms(options: { numbers: string[]; message: string }): Promise<SmsResult>
   placeCall(options: { number: string }): Promise<CallResult>
+  openDialler(options: { number: string }): Promise<SimpleResult>
   startWatching(options: { threshold: number; test: boolean }): Promise<
     SimpleResult & { notifications?: boolean }
   >
@@ -650,6 +651,32 @@ export async function onHearStopped(
     return () => void handle.remove()
   } catch {
     return () => {}
+  }
+}
+
+/**
+ * Put a number in the dialler, ready to dial.
+ *
+ * For 114 and 999 this is as far as any third-party Android app may go, so
+ * it is worth going all the way to it: the rider is left with the number
+ * entered and one green button to press, rather than a keypad to find.
+ *
+ * On the web a tel: link does the same job, which is why this falls back to
+ * one rather than refusing.
+ */
+export async function openDialler(number: string): Promise<SimpleResult> {
+  if (!isNative()) {
+    try {
+      window.location.href = `tel:${number.replace(/\s+/g, '')}`
+      return { ok: true }
+    } catch {
+      return { ok: false, message: 'This browser would not open the dialler.' }
+    }
+  }
+  try {
+    return await plugin.openDialler({ number })
+  } catch {
+    return { ok: false, message: 'Could not open the dialler.' }
   }
 }
 

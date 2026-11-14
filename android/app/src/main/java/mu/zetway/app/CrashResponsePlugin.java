@@ -290,6 +290,37 @@ public class CrashResponsePlugin extends Plugin {
         dial(call, number);
     }
 
+    /**
+     * Put the number in the dialler, ready to go.
+     *
+     * The closest thing to "call the ambulance" that any third-party app on
+     * Android is allowed to do. ACTION_CALL for 114 is refused and
+     * TelecomManager only accepts an emergency number from the preloaded
+     * dialler; CALL_PRIVILEGED is not available to us. ACTION_DIAL is, and
+     * it leaves the rider with the number already entered and one green
+     * button between them and an ambulance.
+     *
+     * That is worth doing properly rather than treating as a consolation:
+     * somebody who has just shouted for help should not then be hunting for
+     * a keypad.
+     */
+    @PluginMethod
+    public void openDialler(PluginCall call) {
+        String number = call.getString("number", "");
+        if (number == null || number.isEmpty()) {
+            call.reject("openDialler needs a number.");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number)));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve(result(true, null));
+        } catch (Exception e) {
+            call.resolve(result(false, "No dialler on this phone could be opened."));
+        }
+    }
+
     @PermissionCallback
     private void phonePermissionCallback(PluginCall call) {
         if (getPermissionState("phone") != PermissionState.GRANTED) {

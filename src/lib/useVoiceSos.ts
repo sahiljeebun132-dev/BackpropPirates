@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   nativeSpeak,
+  openDialler,
   nativeStartListening,
   nativeStopListening,
   nativeStopSpeaking,
@@ -13,7 +14,7 @@ import {
   onHeard,
   type VoiceStatus,
 } from './nativeCrash'
-import { hearSos, matchedWord, ShoutDetector } from './sosVoice'
+import { askedForAmbulance, hearSos, matchedWord, ShoutDetector } from './sosVoice'
 import {
   activeMargin, DEFAULT_MARGIN, high, marginFrom, median, readCalibration,
   writeCalibration, type Calibration,
@@ -274,6 +275,21 @@ export function useVoiceSos(options: {
         if (Date.now() < muteUntil.current) return
         // A later alternative of an utterance already acted on.
         if (Date.now() - lastVerdictAt.current < VERDICT_LOCK_MS) return
+
+        // Asked for an ambulance by name: no countdown, straight to the
+        // dialler with 114 in it. Android will not let any third-party app
+        // place that call itself, so one green button is the whole of what
+        // is legally available — and the rider should not have to find a
+        // keypad to press it.
+        if (askedForAmbulance(text)) {
+          lastVerdictAt.current = Date.now()
+          setTrigger('word')
+          setHeardWord('ambulance')
+          say('Opening the dialler on 114. Press call.')
+          void openDialler('114')
+          onFireRef.current()
+          return
+        }
 
         const verdict = hearSos(text)
         if (verdict === 'cancel') {

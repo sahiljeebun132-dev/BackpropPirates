@@ -54,6 +54,8 @@ export function LiveMap({
   hazards,
   radiusKm,
   roads,
+  route,
+  passed,
 }: {
   data: AppData
   position: { lat: number; lon: number }
@@ -64,6 +66,11 @@ export function LiveMap({
   radiusKm: number
   /** The classified network, or null until it has loaded. */
   roads: Roads | null
+  /** The journey being navigated, or null when just riding. */
+  route: [number, number][] | null
+  /** How far along that route the rider is, so the part already ridden can
+   *  be drawn differently from the part still to come. */
+  passed: number
 }) {
   const { to, ways, segments, towns, places } = useMemo(() => {
     // Half the viewport covers radiusKm, so the full frame is a diameter.
@@ -148,6 +155,30 @@ export function LiveMap({
             strokeLinejoin="round"
           />
         ))}
+
+        {/* The journey. The road already ridden is dimmed, so the bright
+            part of the line is always the part that still matters. */}
+        {route && route.length > 1 && (
+          <>
+            <path
+              d={path(route.slice(0, Math.max(2, passed + 1)))}
+              fill="none"
+              stroke="#2B4463"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d={path(route.slice(Math.max(0, passed)))}
+              fill="none"
+              stroke="#4493F8"
+              strokeWidth="6"
+              strokeOpacity="0.95"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </>
+        )}
 
         {/* The hazard layer: officially designated accident-prone stretches. */}
         {segments.map((h) => (

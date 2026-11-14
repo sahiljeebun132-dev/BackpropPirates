@@ -62,6 +62,12 @@ const DISTRESS = [
   'oskour', 'oskor', 'o sekour', 'sekour', 'ed mwa', 'aide moi', 'aid mwa',
   'mo blese', 'mo bles', 'mo pa kapav bouze', 'pa kapav bouze', 'sove mwa',
   'mo bondie', 'mo bondye', 'mo bon dieu', 'ayo',
+  // More Kreol, because this table is the entire vocabulary: a word that is
+  // not here cannot be understood, however clearly it is shouted.
+  'anbilans', 'anbulans', 'ed mo', 'ede mwa', 'vinn ed', 'vini ed',
+  'mo pe mor', 'mo pa bon ditou', 'mo tom', 'mo fine tombe', 'mo inn tombe',
+  'aksidan', 'mo fine gagn aksidan', 'enn aksidan', 'pena personne',
+  'mo dan dilo', 'mo kwense', 'mo dan trou',
 ]
 
 /**
@@ -113,6 +119,32 @@ const NEGATED_DISTRESS = [
 ]
 
 export type Heard = 'distress' | 'cancel' | null
+
+/**
+ * Words that are not "I am hurt" but "send an ambulance".
+ *
+ * A separate intent because it deserves a separate action. General distress
+ * opens a countdown, which is right: it might be a horn, it might be
+ * somebody shouting at a dog. Asking for an ambulance by name is not
+ * ambiguous, and the one thing a rider can do with it is reach the dialler
+ * with 114 already in it.
+ *
+ * "Anbilans" is the Kreol, and it is first in the list because it is what
+ * will actually be said here.
+ */
+const AMBULANCE = [
+  'anbilans', 'anbulans', 'ambilans', 'ambulans',
+  'ambulance', 'une ambulance', 'appelle ambulance', 'apel anbilans',
+  'call an ambulance', 'call ambulance', 'samu', 'cent quatorze', '114',
+]
+
+/** True when the rider asked for an ambulance in so many words. */
+export function askedForAmbulance(transcript: string): boolean {
+  const flat = flatten(transcript)
+  if (!flat) return false
+  if (NEGATED_DISTRESS.some((w) => flat.includes(w))) return false
+  return AMBULANCE.some((w) => flat.includes(w))
+}
 
 /** Whole-utterance equality for the bare tokens, allowing a trailing stem so
  *  a recogniser writing "arretez" still matches the root "arrete". */

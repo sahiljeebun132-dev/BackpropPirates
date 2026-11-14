@@ -220,6 +220,8 @@ export default function App() {
           data={appData}
           reports={reports.reports}
           position={gps.position}
+          origin={from}
+          destination={to}
           onUseGps={gps.request}
           onBack={() => setView('plan')}
         />

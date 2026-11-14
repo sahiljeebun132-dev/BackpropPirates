@@ -199,3 +199,122 @@ export function routeBetween(
     directKm: Math.round(km(from.lat, from.lon, to.lat, to.lon) * 10) / 10,
   }
 }
+
+// ------------------------------------------------------------- navigating
+
+export type Progress = {
+  /** Index of the route point the rider is nearest. */
+  at: number
+  /** How far off the line they are, in km. Large means they have left it. */
+  offKm: number
+  /** Distance still to travel along the route. */
+  remainingKm: number
+  /** True once they are far enough off that the route no longer describes
+   *  the journey. */
+  offRoute: boolean
+}
+
+/** How far off the drawn line counts as no longer on it. Generous, because
+ *  the network is simplified to about twenty metres and a dual carriageway
+ *  is drawn as one line. */
+const OFF_ROUTE_KM = 0.25
+
+/**
+ * Where along the route the rider is.
+ *
+ * Nearest-point rather than anything cleverer: the route is a few hundred
+ * points and a phone can measure all of them several times a second without
+ * noticing. Map-matching with heading and history would be better on a road
+ * that doubles back on itself, and worse everywhere else, because it can
+ * lock onto the wrong carriageway and refuse to let go.
+ */
+export function progressAlong(
+  route: Route,
+  position: { lat: number; lon: number },
+): Progress {
+  let at = 0
+  let best = Infinity
+  for (let i = 0; i < route.points.length; i++) {
+    const d = km(position.lat, position.lon, route.points[i][0], route.points[i][1])
+    if (d < best) {
+      best = d
+      at = i
+    }
+  }
+
+  let remaining = 0
+  for (let i = at + 1; i < route.points.length; i++) {
+    remaining += km(
+      route.points[i - 1][0],
+      route.points[i - 1][1],
+      route.points[i][0],
+      route.points[i][1],
+    )
+  }
+
+  return {
+    at,
+    offKm: Math.round(best * 100) / 100,
+    remainingKm: Math.round(remaining * 10) / 10,
+    offRoute: best > OFF_ROUTE_KM,
+  }
+}
+
+/**
+ * The next designated accident-prone stretch on the road ahead.
+ *
+ * This is the part a general-purpose navigator does not do, and the reason
+ * this screen exists at all: not "turn left in 200 metres" but "the stretch
+ * the authorities have designated starts in 1.4 kilometres". Only stretches
+ * ahead of the rider count — one already passed is not a warning, it is
+ * noise, and noise is how a warning stops being read.
+ */
+export function nextHazardAhead(
+  route: Route,
+  progress: Progress,
+  hotspots: { id: string; label?: string; road?: string | null; points: unknown }[],
+  /** How close a stretch has to come to the route to count as on it. */
+  nearKm = 0.3,
+): { id: string; label: string; road: string | null; km: number } | null {
+  let bestKm = Infinity
+  let found: { id: string; label: string; road: string | null; km: number } | null = null
+
+  // Distance along the route to each point ahead, computed once.
+  const ahead: { i: number; along: number }[] = []
+  let along = 0
+  for (let i = progress.at + 1; i < route.points.length; i++) {
+    along += km(
+      route.points[i - 1][0],
+      route.points[i - 1][1],
+      route.points[i][0],
+      route.points[i][1],
+    )
+    ahead.push({ i, along })
+  }
+
+  for (const h of hotspots) {
+    const pts = h.points as [number, number][]
+    if (!Array.isArray(pts) || pts.length === 0) continue
+    for (const { i, along: a } of ahead) {
+      if (a >= bestKm) break
+      const [rlat, rlon] = route.points[i]
+      let near = Infinity
+      for (const p of pts) {
+        const d = km(rlat, rlon, p[0], p[1])
+        if (d < near) near = d
+      }
+      if (near <= nearKm && a < bestKm) {
+        bestKm = a
+        found = {
+          id: h.id,
+          label: h.label ?? h.id,
+          road: h.road ?? null,
+          km: Math.round(a * 10) / 10,
+        }
+        break
+      }
+    }
+  }
+
+  return found
+}
