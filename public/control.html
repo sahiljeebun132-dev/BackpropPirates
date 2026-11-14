@@ -94,7 +94,11 @@
         <ul id="devices"><li class="muted">None yet.</li></ul>
 
         <p class="label" style="margin-top:18px">Judges watch at</p>
-        <p class="mono" id="watchurl" style="font-size:13px;word-break:break-all;margin:0"></p>
+        <p class="mono" id="watchurl" style="font-size:22px;font-weight:800;word-break:break-all;margin:0;color:var(--blue)"></p>
+        <p class="muted" style="margin:6px 0 0">
+          Short on purpose. This gets typed into a phone by someone standing
+          up with an audience waiting.
+        </p>
       </div>
     </div>
 
@@ -253,10 +257,21 @@
   }
 
   function updateWatchUrl() {
-    $('watchurl').textContent = location.origin + '/watch.html?room=' + (room() || 'CODE')
+    var host = location.host.replace(/^www\./, '')
+    $('watchurl').textContent = host + '/w/' + (room() || 'CODE')
   }
 
-  roomEl.value = saved() || makeCode()
+  function fromLink() {
+    try {
+      var v = new URLSearchParams(location.search).get('room')
+      return v ? v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : ''
+    } catch (e) { return '' }
+  }
+
+  // A link wins over whatever this browser remembers, so a code agreed in
+  // advance survives opening the page on a borrowed laptop.
+  roomEl.value = fromLink() || saved() || makeCode()
+  save(roomEl.value)
   updateWatchUrl()
 
   roomEl.addEventListener('input', function () {
