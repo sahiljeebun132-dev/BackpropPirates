@@ -69,7 +69,22 @@ Work down it. The right-hand column is what proves the claim, so if something di
 | C3 | Switch to Car | 7 car guides, including tyre and coolant |
 | C4 | Open **Chain trouble** | "Stop and call for help if" sits **above** the steps, not below them |
 | C5 | Say you are on a blind bend | It tells you to get clear first and changes the waiting advice |
-| C6 | Tap the speaker icon on any guide | It reads the steps aloud |
+| C6 | Tap **Read this aloud** on any guide | The phone speaks the steps. Until this morning the button did not appear in the app at all — the WebView has no speech synthesis, so it now goes through Android's own engine |
+
+### C7–C10. Hands-free help — 4 minutes
+
+This is the one to try somewhere you can shout without alarming anybody.
+
+| # | Do this | Should happen |
+|---|---|---|
+| C7 | Home → **Hands-free help** → Start listening | Asks for the microphone the first time. Then "Listening — tap to stop", a level meter, and a block saying what this phone can actually do |
+| C8 | Read the **Listening in** line | Says the language it settled on. French if your phone has the pack — that is how Kreol is matched. English if not, and it says so plainly rather than pretending |
+| C9 | Say **"help"**, or "au secours", or "oskour" | Counts down out loud from 10 and shows what it heard. Say **"stop"** and it stops |
+| C10 | Shout with no words at all | Counts down from 15 — longer, because a horn can fake a shout. Shouting is the trigger that needs no language, no model and no signal |
+
+If words stop working mid-session the screen says so and keeps the shout
+trigger running. That is deliberate: recognition is the fragile half and
+shouting is the half that has to survive a dead spot.
 
 ### D. Crash watch — the important one, 10 minutes
 
@@ -78,6 +93,7 @@ Work down it. The right-hand column is what proves the claim, so if something di
 | D1 | Turn crash watch on | Card goes **On**; a notification sits in the shade saying it is watching |
 | D2 | Watch the live sensor readout, shake gently | Number moves. Nothing fires |
 | D3 | Turn **Test mode** on, shake hard | Alarm sounds, phone **buzzes**, countdown starts |
+| D3a | While the countdown runs, say **"I'm OK"** | It cancels without you touching the phone. Saying **"help"** instead acts immediately rather than waiting out the thirty seconds |
 | D4 | **Feel the vibration** | It buzzes in a long on-off pattern **for the whole countdown**, not for three seconds |
 | D5 | Tap **I'm OK** | Alarm and buzzing stop at once. Watch re-arms itself |
 | D6 | Fire it again → tap **Call ambulance 114 now** | Alarm silences, dialler opens with 114 in it, your contacts still get the text |
