@@ -17,6 +17,9 @@ Everything below is a thing that already works. Nothing here needs building.
   4. The deck
 - [ ] Load the live app once on the laptop **while you still have wifi**, so the service worker caches it. If the venue wifi dies, the demo still runs. **Do this after the last deploy, not before** — a deploy renames the app's bundle, because the filenames carry a content hash, and the stored copy still points at the old one. The first online load after the deploy is what puts the new bundle in the cache.
 - [ ] Judges can install it themselves: the site carries both builds, in a card low on the home screen. Say so — it is a stronger line than any slide about shipping twice from one codebase.
+- [ ] **Save the people who should be alerted** on the phone: Crash watch → *People to alert*. Your teammates, and the judges if they will give you a number. Without this the demo honestly reports "No emergency contacts are saved" in front of everyone, because that is what is true
+- [ ] **Your demo room is `ZETW14`.** Laptop tab: `backprop-pirates.vercel.app/c/ZETW14`. Phone: Crash watch → *Pair with a demo screen* → type `ZETW14`. Wait for **Connected** before you start talking
+- [ ] **Hand the judges `backprop-pirates.vercel.app/w/ZETW14`** as they sit down, and tell them to turn the volume up. Their phones will alarm and plot your position live when the crash fires
 - [ ] Team leader: repo link submitted via the organisers' form
 
 ---
@@ -60,6 +63,39 @@ Do it on **your phone**, mirrored or held up. Say what you are about to do befor
 
 ---
 
+## The crash, fired from the laptop
+
+Shaking a phone at 3g in front of a room looks like a man shaking a phone.
+Fire it from the laptop instead. Everything after the trigger is the app
+behaving exactly as it would on a road: the real thirty-second countdown,
+real texts to the real people you saved, the phone's own GPS fix.
+
+1. Confirm the control page says **1 phone in the room**. If it says none,
+   the fire button is disabled on purpose — reopen the pairing panel on the
+   phone and check the code.
+2. Say what is about to happen *before* you press it. The judges' phones are
+   about to make a noise and they should know why.
+3. Press **Simulate impact**.
+4. On the phone: the red screen, the countdown, the buzz. On every judge's
+   phone: the alarm, your coordinates, a map link.
+5. **Say "I am fine"** out loud without touching the phone. It stands down.
+   That is the hands-free path doing the thing the whole feature exists for.
+6. Or let it run to zero and show them the texts arriving.
+
+**Say this, because it is true and somebody will wonder:** the watch page is
+a live feed, not a text message. The texts go to the contacts saved on the
+phone. A handset places one voice call at a time — that is the carrier's
+rule, not a limitation of the app — so one contact is called and all of them
+are texted.
+
+**If the room's wifi is bad**, skip the laptop. Crash watch → *Test mode* on
+→ shake the phone hard. Same screen, same texts, no network needed for the
+trigger. The watch page is the only part that needs the internet.
+
+**To run it twice**, press **Reset room** on the laptop first.
+
+---
+
 ## The surprise card — do this live
 
 This is the strongest 30 seconds you have. **Rehearse it once tonight.**
@@ -79,6 +115,27 @@ Then the line that wins it:
 Then, immediately and without being asked:
 
 > *"The forecast and other riders' reports genuinely can't work offline. We don't cache them and we don't fake them — a stale forecast is worse than none, because you'd act on it."*
+
+---
+
+## The thirty seconds that land best
+
+If you only get one moment, make it this one. Put the phone face down on the
+table, out of reach. Fire the crash from the laptop. Then, with your hands
+visibly nowhere near it, say **"I am fine"** — and it stops.
+
+Then say: *that is the point. The rider this is for cannot reach their
+phone.*
+
+If you have another ten seconds, say what it cost to make that work: the app
+speaks the countdown out loud through the same speaker the microphone is
+listening on, so the first version heard its own voice say "say stop to
+cancel" and cancelled itself. And the cancel list contained "mo bon", which
+sits inside **"mo Bondie"** — the commonest thing a hurt Mauritian says. It
+read a cry of pain as *I'm fine*. Both were found by reviewing the code
+against real sentences rather than reading it, and both are in the tests now.
+
+Judges remember a team that found its own worst bug.
 
 ---
 
