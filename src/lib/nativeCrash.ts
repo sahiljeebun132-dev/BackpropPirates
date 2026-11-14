@@ -1,6 +1,7 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 
 import { isNative } from './platform'
+import { waNumber } from './crashWatch'
 import {
   startWebVoice, stopWebVoice, webMicAvailable, webRecognitionAvailable,
   webSpeak, webStopSpeaking, webVoiceRunning,
