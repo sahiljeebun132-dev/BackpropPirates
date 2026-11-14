@@ -279,6 +279,11 @@ export function currentPosition(): Promise<{ lat: number; lon: number; accuracy:
  *  the automatic escalation both call it — so it is the single place the
  *  medical summary is attached.
  */
+/** Where the alert page lives. Absolute on purpose: inside the APK the
+ *  page origin is https://localhost, and a link to that in somebody else's
+ *  text message goes nowhere. */
+const ALERT_ORIGIN = 'https://backprop-pirates.vercel.app'
+
 export function helpMessage(
   position: { lat: number; lon: number } | null,
   peak: number | null,
@@ -287,7 +292,28 @@ export function helpMessage(
     ? `https://www.google.com/maps?q=${position.lat.toFixed(5)},${position.lon.toFixed(5)}`
     : 'Location unavailable, I will try to send it separately.'
   const impact = peak ? ` Zetway detected an impact of about ${(peak / 9.8).toFixed(1)}g.` : ''
-  const core = `I may have had a road accident and did not respond on my phone.${impact} My location: ${where}`
+
+  // A second link, and the reason it is worth the characters: a map pin is
+  // silent. A text arrives while the phone is in a pocket and waits to be
+  // read, which is the wrong behaviour for the one message that must not
+  // wait. This link opens a page that sounds an alarm, shows the position
+  // and puts 114 one tap away.
+  //
+  // It works on an iPhone, which matters more here than anywhere else in
+  // this app: iOS has no vibration API and will not run a background sensor
+  // for a web page, so an iPhone cannot be the phone that detects the crash
+  // — but it can absolutely be the phone that is woken by one, and most of
+  // the people a rider lists are not on Android.
+  //
+  // Everything the page needs is in the URL. No account, no lookup, nothing
+  // to go down: the link works as long as the site serves a static file.
+  const alert = position
+    ? ` Alarm and details: ${ALERT_ORIGIN}/alert.html?lat=${position.lat.toFixed(5)}&lon=${position.lon.toFixed(5)}${
+        peak ? `&g=${(peak / 9.8).toFixed(1)}` : ''
+      }&t=${Date.now()}`
+    : ''
+
+  const core = `I may have had a road accident and did not respond on my phone.${impact} My location: ${where}${alert}`
 
   // The medical summary goes last, never first. Whoever reads this needs
   // where before who: a friend is deciding where to drive and a dispatcher is

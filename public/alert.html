@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zetway — someone needs help</title>
+<meta name="theme-color" content="#d7263d">
+<style>
+  :root { --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: #d7263d; color: #fff;
+    font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    padding: max(18px, env(safe-area-inset-top)) 16px 40px;
+  }
+  .wrap { max-width: 460px; margin: 0 auto; }
+  h1 { font-size: 27px; line-height: 1.2; margin: 0 0 4px; }
+  .when { font-size: 13px; opacity: .85; margin: 0 0 18px; }
+  .card {
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+  }
+  .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    font-weight: 700; opacity: .8; margin: 0 0 6px;
+  }
+  .mono { font-family: var(--mono); font-size: 18px; font-weight: 700; margin: 0; }
+  a.btn, button.btn {
+    display: block; width: 100%; text-align: center; text-decoration: none;
+    font: inherit; font-weight: 800; font-size: 17px; padding: 16px;
+    border: 0; border-radius: 14px; background: #fff; color: #d7263d;
+    margin-top: 10px; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
+  .pulse { animation: p 1s ease-in-out infinite; }
+  @keyframes p { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none } }
+  .note {
+    font-size: 12px; line-height: 1.55; opacity: .85;
+    border-left: 2px solid rgba(255,255,255,.4); padding-left: 10px; margin-top: 18px;
+  }
+  .quiet { background: #0d1117; color: #e6edf3; }
+  .quiet .card { background: #161b22; border-color: #2a323d; }
+  .quiet a.btn { background: #e6edf3; color: #0d1117; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="head" class="pulse">Someone may have crashed</h1>
+  <p class="when" id="when"></p>
+
+  <div class="card">
+    <p class="label">Where they are</p>
+    <p class="mono" id="pos">No position in this link</p>
+    <p class="when" id="acc" style="margin:6px 0 0"></p>
+    <a class="btn" id="map" style="display:none" target="_blank" rel="noopener">Open on a map</a>
+  </div>
+
+  <div class="card" id="impactCard" style="display:none">
+    <p class="label">Impact their phone measured</p>
+    <p class="mono" id="impact"></p>
+  </div>
+
+  <a class="btn" href="tel:114">Call 114 — ambulance</a>
+  <a class="btn" href="tel:999">Call 999 — police</a>
+  <button class="btn ghost" id="hush">Silence this phone</button>
+
+  <p class="note">
+    This page was opened from a message sent automatically by Zetway on
+    someone&rsquo;s phone after it detected a heavy impact and they did not
+    answer. The position is the one their phone recorded. If you cannot reach
+    them, call 114.
+  </p>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id) }
+  var q = new URLSearchParams(location.search)
+  var lat = parseFloat(q.get('lat'))
+  var lon = parseFloat(q.get('lon'))
+  var g = parseFloat(q.get('g'))
+  var t = q.get('t')
+
+  if (isFinite(lat) && isFinite(lon)) {
+    $('pos').textContent = lat.toFixed(5) + ', ' + lon.toFixed(5)
+    $('acc').textContent = 'Recorded by their phone at the moment of impact.'
+    var m = $('map')
+    m.href = 'https://www.google.com/maps?q=' + lat + ',' + lon
+    m.style.display = 'block'
+  }
+  if (isFinite(g)) {
+    $('impact').textContent = g.toFixed(1) + 'g'
+    $('impactCard').style.display = 'block'
+  }
+  if (t) {
+    var d = new Date(Number(t))
+    if (!isNaN(d.getTime())) $('when').textContent = 'Sent ' + d.toLocaleString()
+  }
+
+  /* A two-tone alarm built in the browser: no file to download on a bad
+     connection, and it starts the instant the page is touched. Browsers will
+     not let a page make noise before an interaction, which is the one thing
+     that cannot be worked around — so the first tap anywhere starts it, and
+     the heading says to tap. iOS has no vibration API at all, so sound is
+     the only channel there and it is the one that matters in a pocket. */
+  var ctx = null, osc = null, hushed = false
+
+  function start() {
+    if (hushed || osc) return
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)()
+      if (ctx.state === 'suspended') ctx.resume()
+      osc = ctx.createOscillator()
+      var gain = ctx.createGain()
+      osc.type = 'square'
+      gain.gain.value = 0.10
+      osc.connect(gain).connect(ctx.destination)
+      var at = ctx.currentTime
+      for (var i = 0; i < 400; i++) osc.frequency.setValueAtTime(i % 2 ? 660 : 990, at + i * 0.45)
+      osc.start()
+      $('head').textContent = 'Someone may have crashed'
+    } catch (e) { /* sound is a bonus; the page still says what happened */ }
+    try { navigator.vibrate && navigator.vibrate([600, 250, 600, 250, 600]) } catch (e) {}
+  }
+
+  function stop() {
+    hushed = true
+    try { if (osc) { osc.stop(); osc.disconnect(); osc = null } } catch (e) { osc = null }
+    try { navigator.vibrate && navigator.vibrate(0) } catch (e) {}
+    document.body.classList.add('quiet')
+    $('head').classList.remove('pulse')
+  }
+
+  $('hush').addEventListener('click', function (e) { e.stopPropagation(); stop() })
+  // Any first touch starts it, because a browser will not without one.
+  ['click', 'touchstart', 'keydown'].forEach(function (ev) {
+    document.addEventListener(ev, start, { once: false })
+  })
+  // And try immediately, for the browsers that allow it.
+  start()
+})()
+</script>
+</body>
+</html>

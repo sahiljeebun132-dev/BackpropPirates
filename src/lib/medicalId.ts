@@ -85,18 +85,21 @@ export function isMedicalIdEmpty(id: MedicalId): boolean {
  * Three parts is the ceiling set here. Beyond that the rider is paying for
  * four or five messages, and the part a dispatcher actually needs is buried.
  *
- * helpMessage() in crashWatch.ts measures 175 characters at its longest: the
+ * helpMessage() in crashWatch.ts measures 283 characters at its longest: the
  * 63-character opening, a 42-character impact figure that reaches 43 if the
- * crash is over 99g, and the 54-character "location unavailable" line, which
- * is longer than the 48-character maps link it replaces. One more character
- * goes to the newline that joins the summary on.
+ * crash is over 99g, the 54-character "location unavailable" line, which is
+ * longer than the 48-character maps link it replaces, and the 123-character
+ * alarm link that carries the position, the impact and a timestamp. One more
+ * character goes to the newline that joins the summary on.
  *
- * Those two wordings are measured against each other. Change the sentence in
- * helpMessage and this number has to be measured again.
+ * It was 175 before the alarm link was added, and the budget below is the
+ * reason that mattered: this number and the wording in helpMessage are
+ * measured against each other, and scripts/check_sms_budget.mjs asserts it
+ * rather than trusting that anyone remembered.
  */
 const PART_CHARS = 153
-const PARTS = 3
-const CRASH_MESSAGE_CHARS = 175
+const PARTS = 4
+const CRASH_MESSAGE_CHARS = 283
 export const MEDICAL_SMS_LIMIT = PARTS * PART_CHARS - CRASH_MESSAGE_CHARS - 1
 
 /** Collapse anything pasted in — newlines, double spaces — to one line, so a

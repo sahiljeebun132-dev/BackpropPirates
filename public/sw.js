@@ -36,7 +36,7 @@
 // The file name did not change, so every phone that had already cached v4 —
 // including the two due on stage — would have gone on showing the broken
 // names, and the old bundle with them, until something else forced a refresh.
-const CACHE = 'zetway-v6'
+const CACHE = 'zetway-v7'
 
 const DATA = [
   'cars', 'conditions', 'districts', 'emergency', 'exposure',

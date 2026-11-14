@@ -136,12 +136,17 @@ export function routeBetween(
   from: { lat: number; lon: number },
   to: { lat: number; lon: number },
 ): Route | null {
-  if (!roads || roads.ways.length === 0) return null
+  const note = (why: string) => {
+    if (typeof window !== 'undefined') {
+      ;(window as unknown as Record<string, unknown>).__routeWhy = why
+    }
+  }
+  if (!roads || roads.ways.length === 0) { note('no roads: ' + (roads ? roads.ways.length : 'null')); return null }
 
   const g = graphFor(roads)
   const start = nearest(g, from.lat, from.lon)
   const goal = nearest(g, to.lat, to.lon)
-  if (start === null || goal === null || start === goal) return null
+  if (start === null || goal === null || start === goal) { note(`snap start=${start} goal=${goal}`); return null }
 
   const h = (n: NodeId) => km(g.lat[n], g.lon[n], g.lat[goal], g.lon[goal])
 
@@ -171,7 +176,7 @@ export function routeBetween(
     }
   }
 
-  if (!cameFrom.has(goal)) return null
+  if (!cameFrom.has(goal)) { note('no path found'); return null }
 
   const points: [number, number][] = []
   let at: NodeId | undefined = goal
@@ -187,6 +192,7 @@ export function routeBetween(
     along += km(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1])
   }
 
+  note('ok ' + points.length + ' pts')
   return {
     points,
     km: Math.round(along * 10) / 10,
