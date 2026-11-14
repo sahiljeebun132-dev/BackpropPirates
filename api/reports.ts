@@ -7,18 +7,31 @@
  *   GET  /api/reports?lat=&lon=&km=   recent reports near a point
  *   POST /api/reports                 add one
  *
- * Storage is a private Vercel Blob store, one JSON object per report, so two
- * people reporting at the same moment cannot overwrite each other. Reads fetch
- * the objects in parallel and are capped, so one busy evening cannot turn a
- * page load into a hundred round trips.
+ * Storage is Postgres, one row per report, so two people reporting at the
+ * same moment cannot overwrite each other. This began life on a private
+ * Vercel Blob store; that store was suspended at the account level hours
+ * before a live demonstration, which took hazard reporting down in
+ * production with it. The validation, the four-hour expiry and the shape of
+ * the responses are unchanged — only the shelf the rows sit on moved.
  *
- * The store is private and the token never leaves the server: the browser only
- * ever talks to this function, which decides what may be written.
+ * The browser still only ever talks to this function, which decides what may
+ * be written.
  */
 
-import { del, get, list, put } from '@vercel/blob'
+/** The project's public anon key. It is designed to ship in client bundles
+ *  and is safe in source; what constrains it is row-level security on a table
+ *  that holds nothing but public hazard warnings, each of which expires. */
+const SUPABASE_URL = 'https://lhfonctjtiediylfjscd.supabase.co'
+const SUPABASE_ANON =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoZm9uY3RqdGllZGl5bGZqc2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyNzc0MDcsImV4cCI6MjEwMTg1MzQwN30.XzgVXT8DbjjocWLXvAtXc2p8F0t0nb6G9OjL_UDE74s'
 
-const PREFIX = 'reports/'
+const REST = `${SUPABASE_URL}/rest/v1`
+const TABLE = 'zetway_reports'
+const AUTH = {
+  apikey: SUPABASE_ANON,
+  authorization: `Bearer ${SUPABASE_ANON}`,
+  'content-type': 'application/json',
+}
 /** Reports older than this stop being useful to someone setting off now. */
 const TTL_MINUTES = 240
 /** Most recent N fetched per request, so a flood cannot slow the app down. */
@@ -112,30 +125,20 @@ export async function GET(request: Request): Promise<Response> {
   const filterByPlace = Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0
 
   try {
-    const { blobs } = await list({ prefix: PREFIX, limit: 1000 })
-    const cutoff = Date.now() - TTL_MINUTES * 60_000
-
-    // Pathnames start with the timestamp, so sorting them sorts by age.
-    const fresh = blobs
-      .filter((b) => new Date(b.uploadedAt).getTime() >= cutoff)
-      .sort((a, b) => b.pathname.localeCompare(a.pathname))
-      .slice(0, MAX_READ)
-
-    // The store is private, so blobs are read through the SDK with the
-    // server's token rather than by fetching a URL.
-    const settled = await Promise.all(
-      fresh.map(async (b) => {
-        try {
-          const got = await get(b.pathname, { access: 'private' })
-          if (!got || got.statusCode !== 200) return null
-          return parseReport(b.pathname, await new Response(got.stream).text())
-        } catch {
-          return null // one unreadable report must not fail the whole feed
-        }
-      }),
+    // One query, filtered and capped by the database. Expiry is a WHERE
+    // clause rather than a sweep, so a report stops being visible the moment
+    // it is too old whether or not anything has tidied up after it.
+    const cutoff = new Date(Date.now() - TTL_MINUTES * 60_000).toISOString()
+    const res = await fetch(
+      `${REST}/${TABLE}?at=gte.${encodeURIComponent(cutoff)}` +
+        `&order=at.desc&limit=${MAX_READ}`,
+      { headers: AUTH, cache: 'no-store' },
     )
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
 
-    let reports = settled.filter((r): r is StoredReport => r !== null)
+    let reports = ((await res.json()) as unknown[])
+      .map((row) => parseReport('row', JSON.stringify(row)))
+      .filter((r): r is StoredReport => r !== null)
     if (filterByPlace) {
       reports = reports
         .map((r) => ({ ...r, distanceKm: Math.round(distanceKm(lat, lon, r.lat, r.lon) * 10) / 10 }))
@@ -181,11 +184,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    await put(`${PREFIX}${Date.now()}-${report.id}.json`, JSON.stringify(report), {
-      access: 'private', // the store is private; only this function can read it
-      contentType: 'application/json',
-      addRandomSuffix: false,
+    const res = await fetch(`${REST}/${TABLE}`, {
+      method: 'POST',
+      headers: { ...AUTH, prefer: 'return=minimal' },
+      body: JSON.stringify(report),
     })
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
     return json({ report }, 201)
   } catch (err) {
     console.error('save report failed', err)
@@ -193,17 +197,21 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-/** Housekeeping: drop anything past its usefulness. Safe to call from a cron
- *  or by hand; it never touches anything inside the window. */
+/** Housekeeping: drop anything past its usefulness.
+ *
+ *  Reads already exclude expired rows, so this only reclaims space and is
+ *  safe to call at any time; it never touches anything inside the window. */
 export async function DELETE(): Promise<Response> {
   try {
-    const { blobs } = await list({ prefix: PREFIX, limit: 1000 })
-    const cutoff = Date.now() - TTL_MINUTES * 60_000
-    const stale = blobs.filter((b) => new Date(b.uploadedAt).getTime() < cutoff)
-    if (stale.length) await del(stale.map((b) => b.url))
-    return json({ removed: stale.length })
+    const cutoff = new Date(Date.now() - TTL_MINUTES * 60_000).toISOString()
+    const res = await fetch(`${REST}/${TABLE}?at=lt.${encodeURIComponent(cutoff)}`, {
+      method: 'DELETE',
+      headers: { ...AUTH, prefer: 'return=minimal' },
+    })
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+    return json({ ok: true })
   } catch (err) {
-    console.error('cleanup failed', err)
-    return json({ error: 'cleanup failed' }, 502)
+    console.error('expire reports failed', err)
+    return json({ error: 'could not expire old reports' }, 502)
   }
 }
