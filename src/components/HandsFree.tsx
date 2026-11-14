@@ -115,6 +115,12 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
                 style={{ width: `${meter}%` }}
               />
             </div>
+            {voice.deaf && (
+              <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                Not listening for a moment &mdash; the phone is talking, and it
+                must not hear itself.
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-slate-500">
               A shout has to clear the background by{' '}
               <span className="font-semibold tabular">{voice.margin.toFixed(1)}</span> for about a

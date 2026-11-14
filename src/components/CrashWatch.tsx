@@ -427,29 +427,45 @@ export function CrashWatch({
     })
   }, [simRoom, phase, left, position, peak, autoSteps])
 
+  // `voice` is a fresh object on every render, so depending on it re-ran
+  // this effect constantly: arm() was called again before the previous call
+  // had finished, each one resetting the shout detector and re-prompting for
+  // the microphone. Depend on the stable callbacks and hold a flag while a
+  // call is in flight.
+  const { arm: armVoice, disarm: disarmVoice, muteFor } = voice
   const voiceArmed = voice.phase !== 'off' && voice.phase !== 'degraded'
+  const voiceBusy = useRef(false)
+
   useEffect(() => {
-    if (phase === 'asking' && !voiceArmed) {
-      void voice.arm()
-      return
-    }
-    if (phase !== 'asking' && voiceArmed) {
-      void voice.disarm()
-    }
-  }, [phase, voiceArmed, voice])
+    if (voiceBusy.current) return
+    const wants = phase === 'asking'
+    if (wants === voiceArmed) return
+    voiceBusy.current = true
+    void (wants ? armVoice() : disarmVoice()).finally(() => {
+      voiceBusy.current = false
+    })
+  }, [phase, voiceArmed, armVoice, disarmVoice])
 
   // Said once, when the question appears. A phone face-down in the gravel is
   // a phone whose screen nobody is reading, and this is the only way the
   // rider learns that saying something would work.
   useEffect(() => {
     if (phase !== 'asking') return
-    void nativeSpeak(
-      'Zetway detected a heavy impact. Say "I am OK" to cancel, or say "help" to call for help now.',
-    )
+    // Every trigger word is gone from this line. The first version said
+    // 'Say "I am OK" to cancel, or say "help" to call for help now' out of
+    // the speaker and into its own open microphone; the recogniser heard it,
+    // the matcher saw a cancel phrase, and the alert stood itself down about
+    // a second after raising itself. Now the words are described rather than
+    // spoken, and the hook is told to go deaf while the line plays.
+    const line =
+      'Zetway detected a heavy impact. Speak now to answer: say that you are ' +
+      'all right to call this off, or ask for an ambulance to send for one.'
+    muteFor(700 + line.length * 75)
+    void nativeSpeak(line)
     return () => {
       void nativeStopSpeaking()
     }
-  }, [phase])
+  }, [phase, muteFor])
 
   if (phase === 'asking' || phase === 'alerting') {
     return (

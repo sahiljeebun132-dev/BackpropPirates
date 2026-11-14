@@ -148,17 +148,24 @@ class ShoutWatch {
      *
      * Full scale for 16-bit audio is 32767, so the ratio gives dBFS: about
      * -90 in a silent room, about -10 for someone shouting into the phone.
-     * Mapping -60..0 onto 0..10 puts ordinary speech near the middle and
-     * leaves the top of the range for the thing this is actually for.
      *
-     * The absolute calibration matters less than it might look, because the
-     * detector above judges the gap above a rolling background rather than
-     * the number itself.
+     * Four decibels to the unit, which matters more than it looks. At six —
+     * where this started — the detector's margin of three units demanded an
+     * eighteen decibel jump, and eighteen decibels over a running engine on
+     * a roadside is not a shout, it is a gunshot. A real cry clears ten to
+     * fifteen over its background, so four to the unit puts it comfortably
+     * past three units while ordinary speech, which wanders three or four
+     * decibels, stays well short.
+     *
+     * The absolute calibration still matters less than it might look,
+     * because the detector judges the gap above a rolling background rather
+     * than the number. The screen shows the largest gap actually seen, so
+     * this can be checked against a real phone in about ten seconds.
      */
     static float toLevel(double rms) {
         if (rms <= 1.0) return 0f;
         double dbfs = 20.0 * Math.log10(rms / 32767.0);
-        double level = (dbfs + 60.0) / 6.0;
+        double level = (dbfs + 40.0) / 4.0;
         if (level < 0) return 0f;
         if (level > 10) return 10f;
         return (float) level;
