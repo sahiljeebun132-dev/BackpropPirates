@@ -55,6 +55,15 @@ const DISTRESS = [
   // English
   'help', 'emergency', 'ambulance', 'i am hurt', 'im hurt', 'cant move', 'cannot move',
   'im bleeding', 'bleeding', 'im stuck', 'im trapped', 'cant breathe',
+  // Answering the countdown rather than reporting an injury. The alert is
+  // already on screen asking "are you alright?", and "please call" is what
+  // somebody says to that question — they are confirming, not describing.
+  // Every one is two words or more on purpose: a bare 'call' sits inside
+  // "don't call" and "no need to call", and this table has already been
+  // bitten once by a root hiding inside its own opposite. The negations are
+  // in NEGATED_DISTRESS below and are tested against each of these.
+  'please call', 'yes call', 'call them', 'call for help', 'call help',
+  'call someone', 'call now', 'apel sekour', 'apel ed',
   // French, which is also what the recogniser hears Kreol as
   'au secours', 'ausecours', 'secours', 'aidez', 'a laide', 'urgence',
   'je suis blesse', 'peux pas bouger', 'coince',

@@ -49,6 +49,22 @@ function check(label, got, want) {
 
 console.log('\nCries for help, as a French recogniser would render them')
 for (const [text, want] of [
+  // Confirming the countdown out loud. The alert is already asking "are you
+  // alright?", so these are answers to a question, not reports of an injury.
+  // Each affirmative is paired with the negation it must not be confused
+  // with: a bare 'call' would sit inside every one of the cancels below,
+  // which is the same shape as 'mo bon' hiding inside 'mo Bondie'.
+  ['please call', 'distress'],
+  ['yes call them', 'distress'],
+  ['call for help', 'distress'],
+  ['call someone now', 'distress'],
+  ['apel sekour', 'distress'],
+  ['please dont call', 'cancel'],
+  ['please do not call anyone', 'cancel'],
+  ['no need to call, im fine', 'cancel'],
+  ['pa apel personne', 'cancel'],
+  ['dont call an ambulance', 'cancel'],
+
   ['help', 'distress'],
   ['help me please', 'distress'],
   ['HELP', 'distress'],

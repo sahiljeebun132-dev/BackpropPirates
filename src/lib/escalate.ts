@@ -1,5 +1,5 @@
 import { currentPosition, helpMessage, type EmergencyContact } from './crashWatch'
-import { nativePlaceCall, nativeSendSms } from './nativeCrash'
+import { nativePlaceCall, nativeSendSms, openWhatsApp } from './nativeCrash'
 import { isNative } from './platform'
 
 /** What the app did, in the order it did it, in words a frightened person can
@@ -123,6 +123,29 @@ export async function escalate(
         text: `Could not ring ${first.name} automatically. Tap below.`,
       })
     }
+
+    // WhatsApp last, so it is what is on screen when somebody picks the
+    // phone up, and after the call rather than before it — launching an
+    // activity mid-dial would bury the one thing that is already working.
+    //
+    // The send itself stays the rider's tap and no amount of permission
+    // changes that: WhatsApp publishes no send API to other apps. What this
+    // removes is everything before the tap — finding the app, finding the
+    // contact, and typing a location nobody can type one-handed at the
+    // roadside. Not reached when the rider is dialling 114 themselves,
+    // because that path has already returned above.
+    const wa = await openWhatsApp(first.phone, message)
+    steps.push(
+      wa.ok
+        ? {
+            state: 'manual',
+            text: `WhatsApp is open on ${first.name} with the message already written. One tap sends it.`,
+          }
+        : {
+            state: 'manual',
+            text: wa.message ?? 'Could not open WhatsApp on this phone.',
+          },
+    )
   }
 
   steps.push({
