@@ -15,8 +15,8 @@ import {
 } from './nativeCrash'
 import { hearSos, matchedWord, ShoutDetector } from './sosVoice'
 import {
-  activeMargin, high, marginFrom, median, readCalibration, writeCalibration,
-  type Calibration,
+  activeMargin, DEFAULT_MARGIN, high, marginFrom, median, readCalibration,
+  writeCalibration, type Calibration,
 } from './shoutCalibration'
 
 /**
@@ -466,7 +466,10 @@ export function useVoiceSos(options: {
     level,
     quiet,
     peakOver,
-    margin: detector.current.margin,
+    // From state, not from the detector's ref. Reading a ref during render
+    // means the screen keeps showing the old threshold after a measurement
+    // until something else happens to re-render it.
+    margin: calibration?.margin ?? DEFAULT_MARGIN,
     status,
     language,
     offline,

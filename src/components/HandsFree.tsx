@@ -127,6 +127,49 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
               second. A horn or a door slam is too short.
             </p>
 
+            {/* Measuring beats arguing. The threshold was a single number
+                applied to two audio sources that report on different scales,
+                on hardware it had never been tried against; three seconds of
+                this room and three of your voice settles it properly. */}
+            {voice.calibrating ? (
+              <div className="mt-3 rounded-xl bg-brand-deep px-4 py-4 text-center text-white">
+                <p className="text-lg font-extrabold">
+                  {voice.calibrating === 'quiet' ? 'Stay quiet\u2026' : 'Shout now!'}
+                </p>
+                <p className="mt-1 text-xs opacity-90">
+                  {voice.calibrating === 'quiet'
+                    ? 'Measuring how loud this room is.'
+                    : 'Keep going until it stops.'}
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void voice.calibrate()}
+                className="mt-3 w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-300"
+              >
+                {voice.calibration
+                  ? 'Measure my shout again'
+                  : 'Measure my shout \u2014 takes six seconds'}
+              </button>
+            )}
+
+            {voice.calibration && !voice.calibrating && (
+              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                Measured on this phone: your shout came in{' '}
+                <span className="tabular font-semibold">
+                  {voice.calibration.gap.toFixed(1)}
+                </span>{' '}
+                above the room, so the threshold is set to{' '}
+                <span className="tabular font-semibold">
+                  {voice.calibration.margin.toFixed(1)}
+                </span>
+                . A little over half the gap, because the shout that matters
+                will be muffled by a helmet and worse than the one you
+                practised.
+              </p>
+            )}
+
             {/* The number, kept, because nobody can read a moving meter while
                 they are shouting. If a real shout does not get this above the
                 figure beside it, the threshold is wrong for this phone and no
@@ -294,6 +337,12 @@ export function HandsFree({ onBack }: { onBack: () => void }) {
             ok={s?.canSpeak ?? false}
             yes="Yes"
             no="No speech engine on this phone — the countdown is on screen only"
+          />
+          <Fact
+            label="Shout measured on this phone"
+            ok={voice.calibration !== null}
+            yes={`Yes \u2014 threshold ${voice.margin.toFixed(1)}, from your own voice`}
+            no={`Not yet \u2014 using the default ${voice.margin.toFixed(1)}, which was never measured against a real microphone`}
           />
           <Fact
             label="Microphone allowed"
