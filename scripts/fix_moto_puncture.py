@@ -155,6 +155,10 @@ PLATE = 0.006  # thickness of every plate
 # ------------------------------------------------------------------ geometry
 # Metres, side elevation of the left of the bike, front to the right, so that
 # forward is +X and the machine rolls the way the frame reads.
+# WHEEL_R and RIM_R are OUTER radii, and the rings are built inside them:
+# a torus of major radius r stands minor_radius proud of r, so building the
+# tread at WHEEL_R put the contact patch 25 mm under the road and the flat
+# 25 mm under that.
 WHEEL_R = 0.300
 RIM_R = 0.215
 TYRE_W = 0.025          # torus minor radius: the tread ring
@@ -170,14 +174,10 @@ GROUND_Z = -WHEEL_R
 PIVOT = (WHEELBASE, GROUND_Z)
 FLAT_DROP = 0.070
 FLAT_SQUASH = 1.0 - FLAT_DROP / WHEEL_R
+FLAT_BULGE = 1.05       # a flat spreads sideways; squashing it without this
+                        # reads as a smaller wheel, which on a motorcycle is a
+                        # different machine rather than a different problem
 FLAT_ANGLE = -math.asin(FLAT_DROP / WHEELBASE)
-
-# Where the nail went in, and where the valve is. Both are fixed on the wheel
-# and the wheel does not turn between finding one and connecting to the other,
-# so these two angles are chosen once and everything else is read off them.
-NAIL_PHI = math.radians(68)     # upper rear quarter: reachable, and in frame
-VALVE_PHI = math.radians(-35)   # lower front quarter, pointing at the pump
-VALVE_TIP_R = 0.272
 
 HEAD = (1.180, 0.560)
 SWING_PIVOT = (0.520, 0.020)
@@ -192,12 +192,32 @@ DASH_Z = -0.50
 DASH_STEP = 0.34
 PUSH_DIST = 2.40
 RIDE_DIST = 4.20
-SHOP_X = 2.30 + PUSH_DIST + RIDE_DIST   # so it ends up at world x = 2.30
+SHOP_X = 2.48 + PUSH_DIST + RIDE_DIST   # so it ends up at world x = 2.48
+PUSH_TURN = PUSH_DIST / WHEEL_R         # how far the wheel turns getting there
+
+# Where the nail and the valve are to be found once the bike has been pushed
+# to where the work happens. They are built at these angles minus the turn the
+# push puts in, because a wheel that has rolled eight radians does not care
+# where its nail was drawn: the first cut of this had the puncture face down
+# on the road and the air line pointing at open sky.
+#
+# A positive rotation about +Y carries a point clockwise on screen, which is
+# the way a wheel rolling to the right turns, so it SUBTRACTS from a screen
+# angle. The local angle is therefore the wanted one plus the turn, not minus
+# it: getting that backwards put the puncture twice as far round as it
+# started.
+NAIL_PHI = math.radians(68)     # upper rear quarter: reachable, and in frame
+VALVE_PHI = math.radians(-35)   # lower front quarter, pointing at the pump
+NAIL_LOCAL = NAIL_PHI + PUSH_TURN
+VALVE_LOCAL = VALVE_PHI + PUSH_TURN
+VALVE_TIP_R = 0.248             # in the sidewall, inside the tread
 
 # The pump, standing on the road beside the wheel.
 GAUGE_C = (0.430, -0.120)
 GAUGE_R = 0.105
 NEEDLE_LEN = 0.078
+# The air line leaves the body of the pump, not the middle of its dial.
+HOSE_ROOT = (0.368, -0.182)
 HOSE_LEN = 0.200                 # built at this length, then scaled to fit
 # Where the needle stops: the figure printed on the bike, which this diagram
 # is not allowed to know, so it is drawn as a position on a dial and nothing
@@ -237,9 +257,9 @@ BLADE_PARK = 0.740        # off the right edge of the section framing
 # Framings: centre of frame, and orthographic width.
 WIDE = ((0.70, 0.14), 2.80)
 INSET = ((0.00, INSET_Z), 1.50)
-CLOSE = ((0.02, -0.02), 1.30)
-SECTION = ((0.00, SECT_Z - 0.115), 1.24)
-RIDE = ((0.95, 0.25), 3.80)
+CLOSE = ((0.06, -0.035), 1.42)
+SECTION = ((0.00, SECT_Z - 0.125), 1.16)
+RIDE = ((1.02, 0.26), 3.95)
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(_REPO, "public", "guides")
@@ -482,40 +502,50 @@ def build_shop(mats, world):
          material=mats["ink"], parent=root)
     # A couple stacked outside, which is what a tyre shop looks like from the
     # road and costs two rings to say.
-    ring("ShopStackA", 0.070, 0.026, (-0.52, LAY["shop_mark"], GROUND_Z + 0.055),
+    ring("ShopStackA", 0.070, 0.026, (-0.49, LAY["shop_mark"], GROUND_Z + 0.055),
          material=mats["ink"], parent=root)
-    ring("ShopStackB", 0.070, 0.026, (-0.52, LAY["shop_mark"], GROUND_Z + 0.155),
+    ring("ShopStackB", 0.070, 0.026, (-0.49, LAY["shop_mark"], GROUND_Z + 0.155),
          material=mats["ink"], parent=root)
     return root
 
 
 # ------------------------------------------------------------------- the bike
 def build_wheel(name, parent, mats, *, spokes=5, r=WHEEL_R, rim=RIM_R,
-                tyre_mat=None, squash=False):
+                squash=False):
     """Tread ring, rim, spokes, hub.
 
     The spokes are what make a roll read as a roll; a plain disc turns
-    invisibly. The tread ring is a separate child when the tyre has to go
-    flat, so that the tyre can squash onto a rim that stays round - which is
-    what a flat looks like, and what a flat drawn by scaling the whole wheel
-    does not.
+    invisibly.
+
+    Two things about the hierarchy, both learned by rendering it wrong. The
+    rim hangs off the wheel directly and the tread off a squash empty, so a
+    flat tyre collapses onto a rim that stays round, which is what a flat
+    looks like. And that squash sits ABOVE the part that turns, not below it:
+    a non-uniform scale underneath a rotation is applied in the wheel's own
+    axes, so the flat spot went round with the wheel and the tyre came out
+    squashed sideways and standing taller than the good one.
     """
-    hub = empty(name, parent=parent)
-    squashed = empty(name + "Squash", parent=hub) if squash else hub
-    ring(name + "Tyre", r, TYRE_W, (0, LAY["wheel"], 0),
-         material=tyre_mat or mats["ink"], parent=squashed)
-    ring(name + "Rim", rim, RIM_W, (0, LAY["wheel"], 0),
-         material=mats["steel"], parent=hub)
+    root = empty(name, parent=parent)
+    flat_part = empty(name + "Squash", parent=root) if squash else root
+    spin_tread = empty(name + "SpinTread", parent=flat_part)
+    spin_hub = empty(name + "Spin", parent=root)
+    # Built inside the radius it is given, so r is where the rubber meets the
+    # road and the contact patch is exact rather than a torus-width out.
+    ring(name + "Tyre", r - TYRE_W, TYRE_W, (0, LAY["wheel"], 0),
+         material=mats["ink"], parent=spin_tread)
+    ring(name + "Rim", rim - RIM_W, RIM_W, (0, LAY["wheel"], 0),
+         material=mats["steel"], parent=spin_hub)
     for i in range(spokes):
         a = 2 * math.pi * i / spokes
         w = 0.028 if spokes <= 6 else 0.009
         r0 = 0.036 if spokes <= 6 else 0.048
         bar(f"{name}Spoke{i}", (math.cos(a) * r0, math.sin(a) * r0),
             (math.cos(a) * rim, math.sin(a) * rim), w, LAY["wheel"],
-            mats["steel"], parent=hub)
+            mats["steel"], parent=spin_hub)
     disc(name + "Hub", 0.042 if spokes <= 6 else 0.052, (0, LAY["hub"], 0),
-         material=mats["steel"], parent=hub)
-    return hub, squashed
+         material=mats["steel"], parent=spin_hub)
+    return dict(root=root, flat=flat_part, tread=spin_tread, hub=spin_hub,
+                spins=(spin_tread, spin_hub))
 
 
 def build_bike(mats, world):
@@ -530,8 +560,14 @@ def build_bike(mats, world):
 
     bar("Swingarm", SWING_PIVOT, REAR_AXLE, 0.024, LAY["frame"], mats["slate"], bike)
     bar("Shock", (0.260, 0.010), (0.360, 0.400), 0.016, LAY["frame"], mats["steel"], bike)
+    # The engine is the mass of the machine, and it has to read as mass: the
+    # first cut had it in the pale secondary grey, which made it a pannier on
+    # a bicycle. Dark, with fins, it is an engine.
     plate("Engine", 0.380, 0.340, (0.610, LAY["frame"], 0.190),
-          material=mats["steel"], parent=bike)
+          material=mats["slate"], parent=bike)
+    for i, z in enumerate((0.250, 0.292, 0.334)):
+        plate(f"Fin{i}", 0.300, 0.020, (0.628, LAY["placard"], z),
+              material=mats["steel"], parent=bike)
     bar("Spine", HEAD, (0.600, 0.470), 0.020, LAY["frame"], mats["slate"], bike)
     bar("DownTube", (1.160, 0.520), (0.800, 0.200), 0.018, LAY["frame"], mats["slate"], bike)
     plate("Tank", 0.430, 0.180, (0.840, LAY["frame"], 0.515),
@@ -554,51 +590,60 @@ def build_bike(mats, world):
     plate("PlacardMarkBar", 0.072, 0.024, (0, LAY["placard_mark"], 0),
           material=mats["brand"], parent=placard_mark)
 
-    rear, squash = build_wheel("Rear", bike, mats, squash=True)
-    rear.location = (REAR_AXLE[0], 0, REAR_AXLE[1])
-    front, _ = build_wheel("Front", bike, mats)
-    front.location = (FRONT_AXLE[0], 0, FRONT_AXLE[1])
+    rear = build_wheel("Rear", bike, mats, squash=True)
+    rear["root"].location = (REAR_AXLE[0], 0, REAR_AXLE[1])
+    front = build_wheel("Front", bike, mats)
+    front["root"].location = (FRONT_AXLE[0], 0, FRONT_AXLE[1])
+    squash = rear["flat"]
+    tread = rear["tread"]
 
-    # The valve rides on the rim, which never squashes, so it is a child of
-    # the hub rather than of the squash.
-    bar("Valve", (math.cos(VALVE_PHI) * 0.200, math.sin(VALVE_PHI) * 0.200),
-        (math.cos(VALVE_PHI) * VALVE_TIP_R, math.sin(VALVE_PHI) * VALVE_TIP_R),
-        0.022, LAY["valve"], mats["steel"], parent=rear)
+    # The valve lives in the sidewall, between the rim and the inside of the
+    # tread, because that is where a tubeless valve is: through the rim. It
+    # is only on screen while the air line is on it, so it cannot be mistaken
+    # for a second thing sticking out of the tyre during the push.
+    valve = empty("Valve", parent=rear["hub"])
+    bar("ValveStem",
+        (math.cos(VALVE_LOCAL) * 0.198, math.sin(VALVE_LOCAL) * 0.198),
+        (math.cos(VALVE_LOCAL) * VALVE_TIP_R, math.sin(VALVE_LOCAL) * VALVE_TIP_R),
+        0.022, LAY["valve"], mats["steel"], parent=valve)
 
-    # What went in, drawn on the squash so it stays on the tread wherever the
-    # tread has got to.
-    nail = empty("NailWheel", parent=squash)
-    nail_at = (math.cos(NAIL_PHI) * WHEEL_R, math.sin(NAIL_PHI) * WHEEL_R)
+    # What went in, drawn on the tread so it stays with it wherever it has
+    # got to, and squashed with it while the tyre is down.
+    nail = empty("NailWheel", parent=tread)
+    nail_at = (math.cos(NAIL_LOCAL) * WHEEL_R, math.sin(NAIL_LOCAL) * WHEEL_R)
     bar("NailWShank", nail_at,
-        (math.cos(NAIL_PHI) * (WHEEL_R + 0.075), math.sin(NAIL_PHI) * (WHEEL_R + 0.075)),
+        (math.cos(NAIL_LOCAL) * (WHEEL_R + 0.078),
+         math.sin(NAIL_LOCAL) * (WHEEL_R + 0.078)),
         0.015, LAY["nail_w"], mats["steel"], parent=nail)
     disc("NailWHead", 0.024,
-         (math.cos(NAIL_PHI) * (WHEEL_R + 0.080), LAY["nail_w"],
-          math.sin(NAIL_PHI) * (WHEEL_R + 0.080)),
+         (math.cos(NAIL_LOCAL) * (WHEEL_R + 0.084), LAY["nail_w"],
+          math.sin(NAIL_LOCAL) * (WHEEL_R + 0.084)),
          material=mats["steel"], parent=nail)
 
     # The marker that says found it, and later the plug that replaced it.
-    found = empty("Found", (math.cos(NAIL_PHI) * WHEEL_R, 0,
-                            math.sin(NAIL_PHI) * WHEEL_R), parent=squash)
+    found = empty("Found", (math.cos(NAIL_LOCAL) * WHEEL_R, 0,
+                            math.sin(NAIL_LOCAL) * WHEEL_R), parent=tread)
     ring("FoundRing", 0.062, 0.010, (0, LAY["nail_w"], 0),
          material=mats["brand"], parent=found)
-    plugged = empty("Plugged", (math.cos(NAIL_PHI) * WHEEL_R, 0,
-                                math.sin(NAIL_PHI) * WHEEL_R), parent=squash)
-    disc("PluggedDot", 0.028, (0, LAY["tread_mark"], 0),
+    plugged = empty("Plugged", (math.cos(NAIL_LOCAL) * (WHEEL_R - 0.013), 0,
+                                math.sin(NAIL_LOCAL) * (WHEEL_R - 0.013)),
+                    parent=tread)
+    disc("PluggedDot", 0.026, (0, LAY["tread_mark"], 0),
          material=mats["plugged"], parent=plugged)
 
     # The search: a short arc of brand that runs round the tread looking for
-    # it. On the squash too, so it hugs a flat tyre instead of floating off
+    # it. On the tread too, so it hugs a flat tyre instead of floating off
     # the top of where a round one would have been.
-    arc = empty("SearchArc", parent=squash)
+    arc = empty("SearchArc", parent=tread)
     for i in range(5):
         a = math.radians(-16 + i * 8)
         plate(f"ArcSeg{i}", 0.030, 0.014,
-              (math.cos(a) * (WHEEL_R + 0.040), LAY["arc"],
-               math.sin(a) * (WHEEL_R + 0.040)),
+              (math.cos(a) * (WHEEL_R + 0.052), LAY["arc"],
+               math.sin(a) * (WHEEL_R + 0.052)),
               material=mats["brand"], parent=arc, spin=-a + math.pi / 2)
 
-    return dict(tilt=tilt, bike=bike, rear=rear, front=front, squash=squash,
+    return dict(tilt=tilt, bike=bike, squash=squash, valve=valve,
+                spins=tuple(rear["spins"]) + tuple(front["spins"]),
                 nail=nail, found=found, plugged=plugged, arc=arc,
                 placard_mark=placard_mark)
 
@@ -633,12 +678,11 @@ def build_inset(mats):
     does not exist; the marks around them carry the verdict instead.
     """
     root = empty("Inset", (0, 0, INSET_Z))
-    cast, _ = build_wheel("InsetCast", root, mats, spokes=5, r=INSET_R,
-                          rim=0.190)
-    cast.location = (-0.340, 0, 0)
-    spoked, _ = build_wheel("InsetSpoked", root, mats, spokes=24, r=INSET_R,
-                            rim=0.190)
-    spoked.location = (0.340, 0, 0)
+    cast = build_wheel("InsetCast", root, mats, spokes=5, r=INSET_R, rim=0.190)
+    cast["root"].location = (-0.340, 0, 0)
+    spoked = build_wheel("InsetSpoked", root, mats, spokes=24, r=INSET_R,
+                         rim=0.190)
+    spoked["root"].location = (0.340, 0, 0)
 
     tick = empty("InsetTick", (-0.340, 0, 0), parent=root)
     ring("InsetTickRing", INSET_R + 0.052, 0.012, (0, LAY["arc"], 0),
@@ -686,11 +730,11 @@ def build_section(mats):
     # sidewalls: not there, ever, and that is a stop-and-call in the guide
     # rather than a matter of taste.
     zones = empty("Zones", parent=root)
-    plate("ZoneTread", 2 * 0.185, 0.016, (0, LAY["zone"], 0.098),
+    plate("ZoneTread", 2 * 0.185, 0.016, (0, LAY["zone"], 0.074),
           material=mats["brand"], parent=zones)
     for sign in (1, -1):
-        plate(f"ZoneTreadEnd{'R' if sign > 0 else 'L'}", 0.016, 0.052,
-              (0.185 * sign, LAY["zone"], 0.072),
+        plate(f"ZoneTreadEnd{'R' if sign > 0 else 'L'}", 0.016, 0.048,
+              (0.185 * sign, LAY["zone"], 0.050),
               material=mats["brand"], parent=zones)
     for sign in (1, -1):
         tag = "R" if sign > 0 else "L"
@@ -797,7 +841,7 @@ def build_pump(mats):
           material=mats["needle"], parent=needle)
     disc("NeedlePin", 0.018, (0, LAY["needle"], 0), material=mats["ink"], parent=root)
 
-    hose = empty("Hose", (GAUGE_C[0], 0, GAUGE_C[1]))
+    hose = empty("Hose", (HOSE_ROOT[0], 0, HOSE_ROOT[1]))
     plate("HoseBar", HOSE_LEN, 0.018, (HOSE_LEN / 2, LAY["hose"], 0),
           material=mats["brand_deep"], parent=hose)
     return dict(root=root, needle=needle, target=target, hose=hose)
@@ -806,7 +850,7 @@ def build_pump(mats):
 # ---------------------------------------------------------------- animation
 def hose_to(valve):
     """Rotation and stretch that put the far end of the hose on the valve."""
-    dx, dz = valve[0] - GAUGE_C[0], valve[1] - GAUGE_C[1]
+    dx, dz = valve[0] - HOSE_ROOT[0], valve[1] - HOSE_ROOT[1]
     return (0, -math.atan2(dz, dx), 0), (math.hypot(dx, dz) / HOSE_LEN, 1.0, 1.0)
 
 
@@ -818,8 +862,14 @@ def roll(rig, world, frame, dist, *, interp="LINEAR"):
     a wheel that skates is the one mistake in a diagram everybody sees.
     """
     key(world, frame, loc=(-dist, 0, 0), interp=interp)
-    key(rig["rear"], frame, rot=(0, dist / WHEEL_R, 0), interp=interp)
-    key(rig["front"], frame, rot=(0, dist / WHEEL_R, 0), interp=interp)
+    for spin in rig["spins"]:
+        key(spin, frame, rot=(0, dist / WHEEL_R, 0), interp=interp)
+
+
+def flat_scale(u=0.0):
+    """The rear tyre's shape, from flat at u=0 to inflated at u=1."""
+    return (FLAT_BULGE + (1.0 - FLAT_BULGE) * u, 1.0,
+            FLAT_SQUASH + (1.0 - FLAT_SQUASH) * u)
 
 
 def animate(rig, world, hand, inset, sect, pump, cam):
@@ -844,9 +894,16 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     # built with is overwritten the moment it gets a keyframe anywhere, since
     # the first key extrapolates backwards to frame one.
     key(tilt, 1, rot=(0, FLAT_ANGLE, 0), interp="CONSTANT")
-    key(squash, 1, scale=(1.0, 1.0, FLAT_SQUASH), interp="CONSTANT")
+    key(squash, 1, scale=flat_scale(0.0), interp="CONSTANT")
     roll(rig, world, 1, 0.0, interp="CONSTANT")
-    for obj in (hand, rig["found"], rig["plugged"], rig["arc"],
+    # The colour a material was built with lasts exactly until it gets its
+    # first key, which then extends backwards over the whole clip. Without
+    # these three the plug was green from frame one - sealed before it had
+    # been cut off the reel.
+    key_colour(sect["plug_mat"], 1, YELLOW)
+    key_colour(pump["needle_mat"], 1, INK)
+    key_colour(pump["target_mat"], 1, BRAND)
+    for obj in (hand, rig["found"], rig["plugged"], rig["arc"], rig["valve"],
                 inset["root"], inset["tick"], inset["strike"],
                 pump["root"], pump["hose"], pump["target"],
                 sect["zones"], sect["offcut"]):
@@ -883,8 +940,8 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     # or the rest of the air goes with it.
     f0 = F["find"]
     show(rig["arc"], f0 + 2, True)
-    key(rig["arc"], f0 + 4, rot=(0, math.radians(40), 0), interp="BEZIER")
-    key(rig["arc"], f0 + 34, rot=(0, -NAIL_PHI, 0))
+    key(rig["arc"], f0 + 4, rot=(0, -(NAIL_LOCAL - 2.30), 0), interp="BEZIER")
+    key(rig["arc"], f0 + 34, rot=(0, -NAIL_LOCAL, 0))
     show(rig["found"], f0 + 36, True)
     big = True
     for i in range(5):
@@ -906,7 +963,10 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     show(rig["nail"], f0, False)
 
     reamer = sect["reamer"]
-    key(reamer, f0 + 14, loc=(0, 0, TOOL_PARK), interp="CONSTANT")
+    # A plain first key, not a CONSTANT one: Blender holds the first key's
+    # value backwards anyway, and CONSTANT here made the reamer sit in the
+    # sky and then appear inside the tread on one frame.
+    key(reamer, f0 + 12, loc=(0, 0, TOOL_PARK))
     for fr, z in ((20, 0.030), (26, REAM_DEEP), (31, 0.015),
                   (36, REAM_DEEP), (41, 0.030), (47, TOOL_PARK)):
         key(reamer, f0 + fr, loc=(0, 0, z))
@@ -919,8 +979,8 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     # both tails stay out, and the tool comes back without it.
     f0 = F["plug"]
     tool = sect["inserter"]
-    key(tool, f0, loc=(0, 0, TOOL_PARK), interp="CONSTANT")
-    key(sect["plug"], f0, loc=(0, 0, TOOL_PARK), interp="CONSTANT")
+    key(tool, f0, loc=(0, 0, TOOL_PARK))
+    key(sect["plug"], f0, loc=(0, 0, TOOL_PARK))
     for fr, z in ((12, 0.140), (26, PLUG_DEPTH)):
         key(tool, f0 + fr, loc=(0, 0, z))
         key(sect["plug"], f0 + fr, loc=(0, 0, z))
@@ -951,9 +1011,10 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     f0 = F["inflate"]
     show(pump["root"], f0, True)
     show(pump["hose"], f0, True)
-    rot, scale = hose_to(tilt_point(math.cos(VALVE_PHI) * VALVE_TIP_R,
-                                    math.sin(VALVE_PHI) * VALVE_TIP_R, FLAT_ANGLE))
-    key(pump["hose"], f0, rot=rot, scale=scale, interp="CONSTANT")
+    show(rig["valve"], f0, True)
+    rot, hscale = hose_to(tilt_point(math.cos(VALVE_PHI) * VALVE_TIP_R,
+                                     math.sin(VALVE_PHI) * VALVE_TIP_R, FLAT_ANGLE))
+    key(pump["hose"], f0, rot=rot, scale=hscale, interp="CONSTANT")
 
     # Read the figure off the bike first: the mark on the chain guard and the
     # mark on the dial are the same blue, and they pulse one after the other,
@@ -973,18 +1034,19 @@ def animate(rig, world, hand, inset, sect, pump, cam):
                 (41, 0.72), (49, 1.00), (64, 1.00))
     for fr, u in schedule:
         f = f0 + fr
-        key(squash, f, scale=(1.0, 1.0, FLAT_SQUASH + (1.0 - FLAT_SQUASH) * u),
-            interp="LINEAR")
+        key(squash, f, scale=flat_scale(u), interp="LINEAR")
         key(tilt, f, rot=(0, FLAT_ANGLE * (1.0 - u), 0), interp="LINEAR")
         key(pump["needle"], f, rot=(0, -(DIAL_FROM - DIAL_SWEEP * TARGET_P * u), 0),
             interp="LINEAR")
         valve = tilt_point(math.cos(VALVE_PHI) * VALVE_TIP_R,
                            math.sin(VALVE_PHI) * VALVE_TIP_R,
                            FLAT_ANGLE * (1.0 - u))
-        rot, scale = hose_to(valve)
-        key(pump["hose"], f, rot=rot, scale=scale, interp="LINEAR")
-    # The plug is in the tyre from here on, where the nail used to be.
-    show(rig["plugged"], f0 + 20, True)
+        rot, hscale = hose_to(valve)
+        key(pump["hose"], f, rot=rot, scale=hscale, interp="LINEAR")
+    # The plug is in the tyre from the first frame of this beat, where the
+    # nail used to be: the cut lands on it, so the green the section beat
+    # just ended on is the green this one opens with.
+    show(rig["plugged"], f0, True)
     # It held. Fifteen frames of nothing moving is the check; the colour is
     # the verdict, and it is the same green the inset used for the right wheel.
     key_colour(pump["needle_mat"], f0 + 62, GREEN)
@@ -995,6 +1057,7 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     f0 = F["ride"]
     show(pump["root"], f0, False)
     show(pump["hose"], f0, False)
+    show(rig["valve"], f0, False)
     for i in range(13):
         t = i / 12.0
         roll(rig, world, f0 + 4 + int(round(t * 44)),

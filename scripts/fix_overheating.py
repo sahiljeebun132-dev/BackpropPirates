@@ -83,7 +83,7 @@ BEATS = (
     ("wait", 76),         # the steam stops, the bonnet vents, the clock runs
     ("no_cap", 56),       # the cap, refused while it is still hot
     ("check", 58),        # cool enough to touch, then read the level
-    ("top_up", 72),       # cap off, top up between the marks, cap on
+    ("top_up", 82),       # cap off, top up between the marks, cap on
     ("watch", 52),        # start up, watch the gauge
 )
 
@@ -175,22 +175,26 @@ BONNET_OPEN = math.radians(48)
 BAY = (1.58, 0.725)      # centre
 BAY_W, BAY_H = 0.96, 0.41
 
-TANK = (1.42, 0.70)      # the expansion tank, centre
+TANK = (1.42, 0.72)      # the expansion tank, centre
 TANK_W, TANK_H = 0.34, 0.30
 TANK_BOTTOM = TANK[1] - TANK_H / 2
 TANK_TOP = TANK[1] + TANK_H / 2
 CAP_POS = (TANK[0], TANK_TOP + 0.028)
-CAP_ASIDE = (1.70, 0.552)
+# Where the cap waits while the tank is open: clear of the tank, clear of the
+# radiator, and reached by lifting it straight up first — dragged across on
+# the diagonal it cut through the corner of the tank it had just come off.
+CAP_ASIDE = (1.72, 0.800)
+CAP_LIFT = (1.42, 1.000)
 # The marks the level is read against. Deliberately two ticks and nothing else:
 # no numbers, because a tick is what is moulded into the side of a real tank.
-MIN_Z = 0.645
-MAX_Z = 0.790
-MARKS_X = TANK[0] - TANK_W / 2 + 0.035
+MIN_Z = 0.665
+MAX_Z = 0.810
+MARKS_X = TANK[0] - TANK_W / 2 + 0.058
 
 # Coolant is drawn as a block growing from the floor of the tank, so the level
 # is its top edge. Below the minimum to start with, between the two marks after.
-LEVEL_LOW = 0.055
-LEVEL_OK = 0.160
+LEVEL_LOW = 0.030
+LEVEL_OK = 0.155
 
 RAD = (1.93, 0.72)
 RAD_W, RAD_H = 0.20, 0.34
@@ -208,11 +212,11 @@ G_HOT = math.radians(20)
 
 CLOCK_WIDE = (-0.75, 1.85)
 CLOCK_R = 0.28
-CLOCK_CLOSE = (2.12, 1.06)
+CLOCK_CLOSE = (2.08, 1.08)
 
 # Both parks are outside their own framing, so nothing waits in shot.
 HAND_PARK_WIDE = (3.10, 1.30)
-HAND_PARK_CLOSE = (2.48, 0.74)
+HAND_PARK_CLOSE = (2.45, 0.74)
 HAND_REACH = 0.078       # from the hand's origin to its fingertips
 # A hand at life size is 48 px across in the wide shot, which is noise rather
 # than a hand. It is drawn larger there and at life size in the close one,
@@ -220,13 +224,17 @@ HAND_REACH = 0.078       # from the hand's origin to its fingertips
 WIDE_GLYPH = 1.9
 
 BOTTLE_PARK = (3.20, 1.10)
-BOTTLE_PARK_CLOSE = (2.58, 1.12)
-BOTTLE_POUR = (1.65, 1.03)
+BOTTLE_PARK_CLOSE = (2.58, 1.02)
+BOTTLE_POUR = (1.61, 0.995)
 BOTTLE_TILT = math.radians(120)
+BOTTLE_CARRY = math.radians(100)   # how it is held on the way in and out
 BOTTLE_MOUTH = 0.22      # from the bottle's centre to the lip
 
 WIDE = ((0.15, 0.80), 5.0)
-CLOSE = ((1.58, 0.78), 1.45)
+# The close shot is framed to start just above the top of the front wheel:
+# any lower and a tyre arc runs across the bottom of the bay, which is the
+# one place this clip cannot afford to look busy.
+CLOSE = ((1.60, 0.8375), 1.20)
 # How much smaller a thing drawn for the wide shot has to be drawn to look the
 # same size in the close one. Used for the clock, which is in both.
 CLOSE_K = CLOSE[1] / WIDE[1]
@@ -380,12 +388,19 @@ def _set_interp(holder, frame, kind):
     """Force the interpolation of every key this ID has at `frame`.
 
     preferences.edit.keyframe_new_interpolation_type does nothing on this 5.2
-    build: the preference reads back as CONSTANT and the keyframe is still
-    born BEZIER. Every hard cut in this clip depends on getting this right, so
-    the keys are corrected after insertion instead.
+    build, so the keys are corrected after insertion instead.
+
+    BEZIER is set explicitly rather than left alone, which is the one place
+    this file departs from scripts/fix_tyre.py, and it is not cosmetic. Once a
+    curve on this build holds a run of CONSTANT keys, every key inserted after
+    it is born CONSTANT too — inherited from the key before it, not taken from
+    the preference. Skipping the BEZIER case, as the template does, therefore
+    leaves whole curves stepped: before this was found, the bonnet teleported
+    open instead of lifting, the hand jumped to the tank instead of reaching
+    for it, and every wisp of steam popped through four poses instead of
+    rising. It rendered, it just was not animation. Checked by reading the
+    keyframe_points back, not assumed.
     """
-    if kind == "BEZIER":
-        return
     for curve in _curves(holder):
         for point in curve.keyframe_points:
             if abs(point.co[0] - frame) < 0.5:
@@ -558,7 +573,7 @@ def build_bay(mats, car):
 
     marks = empty("Marks", (MARKS_X, 0, (MIN_Z + MAX_Z) / 2), parent=root)
     for i, z in enumerate((MIN_Z, MAX_Z)):
-        plate(f"Mark{i}", 0.085, 0.016, (0, LAY["mark"], z - (MIN_Z + MAX_Z) / 2),
+        plate(f"Mark{i}", 0.110, 0.020, (0, LAY["mark"], z - (MIN_Z + MAX_Z) / 2),
               material=mats["slate"], parent=marks)
 
     cap = empty("Cap", (CAP_POS[0], 0, CAP_POS[1]), parent=root)
@@ -678,8 +693,8 @@ def build_bottle(mats):
     return root
 
 
-STREAM_TOP = 0.930       # at the bottle's lip once it is tipped
-STREAM_LEN = 0.105       # down to just inside the open mouth of the tank
+STREAM_TOP = 0.885       # at the bottle's lip once it is tipped
+STREAM_LEN = 0.210       # down past the surface, so it reads as going in
 
 
 def build_stream(mats):
@@ -689,7 +704,7 @@ def build_stream(mats):
     lip. Scaling the plate itself would have grown it out of both ends, which
     on a pour means coolant appearing in mid-air above the bottle.
     """
-    root = empty("Stream", (1.44, 0, STREAM_TOP))
+    root = empty("Stream", (TANK[0], 0, STREAM_TOP))
     plate("StreamBar", 0.038, STREAM_LEN, (0, LAY["stream"], -STREAM_LEN / 2),
           material=mats["brand"], parent=root)
     return root
@@ -818,8 +833,7 @@ def animate(rig, bay, gauge, clock, hand, no_bonnet, no_cap, bottle, stream,
         show(gauge["root"], f, on)
 
     # The bonnet, reached for and refused, while the steam is still coming.
-    key(hand, F["engine_off"] + 14, loc=(HAND_PARK_WIDE[0], 0, HAND_PARK_WIDE[1]),
-        interp="CONSTANT")
+    key(hand, F["engine_off"] + 14, loc=(HAND_PARK_WIDE[0], 0, HAND_PARK_WIDE[1]))
     key(hand, F["engine_off"] + 26, loc=(2.00, 0, 1.12))
     show(no_bonnet, F["engine_off"] + 23, False)
     key(no_bonnet, F["engine_off"] + 27, scale=(1, 1, 1))
@@ -859,7 +873,7 @@ def animate(rig, bay, gauge, clock, hand, no_bonnet, no_cap, bottle, stream,
     key(hand, cut, loc=(HAND_PARK_CLOSE[0], 0, HAND_PARK_CLOSE[1]), rot=(0, 0, 0),
         scale=(1, 1, 1), interp="CONSTANT")
     key(bottle, cut, loc=(BOTTLE_PARK_CLOSE[0], 0, BOTTLE_PARK_CLOSE[1]),
-        interp="CONSTANT")
+        rot=point(BOTTLE_CARRY), interp="CONSTANT")
 
     # --- the cap, reached for and refused. This is the beat the guide shouts
     # about, so it gets the close framing to itself and no other movement.
@@ -891,42 +905,52 @@ def animate(rig, bay, gauge, clock, hand, no_bonnet, no_cap, bottle, stream,
         big = not big
     key(bay["marks"], F["check"] + 56, scale=(1, 1, 1), interp="CONSTANT")
 
-    # --- top up: now, and only now, the cap comes off.
-    key(hand, F["top_up"] + 3, loc=(HAND_PARK_CLOSE[0], 0, HAND_PARK_CLOSE[1]))
-    key(hand, F["top_up"] + 13, loc=(1.60, 0, CAP_POS[1]))
-    key(bay["cap"], F["top_up"] + 14, loc=(CAP_POS[0], 0, CAP_POS[1]))
-    key(bay["cap"], F["top_up"] + 22, loc=(CAP_ASIDE[0], 0, CAP_ASIDE[1]))
-    key(hand, F["top_up"] + 22, loc=(CAP_ASIDE[0] + 0.18, 0, CAP_ASIDE[1] + 0.012))
-    key(hand, F["top_up"] + 30, loc=(HAND_PARK_CLOSE[0], 0, HAND_PARK_CLOSE[1]))
+    # --- top up: now, and only now, the cap comes off. The hand is clear of
+    # the frame before the bottle arrives and the bottle is gone before the
+    # hand comes back, because they both enter from the right and crossing
+    # one through the other is the kind of thing a diagram cannot survive.
+    hand_hold = 0.18        # where a hand sits to be holding the cap
+    park_c = (HAND_PARK_CLOSE[0], 0, HAND_PARK_CLOSE[1])
+    park_b = (BOTTLE_PARK_CLOSE[0], 0, BOTTLE_PARK_CLOSE[1])
 
-    key(bottle, F["top_up"] + 28, loc=(BOTTLE_PARK_CLOSE[0], 0, BOTTLE_PARK_CLOSE[1]),
-        rot=(0, 0, 0))
-    key(bottle, F["top_up"] + 38, loc=(BOTTLE_POUR[0], 0, BOTTLE_POUR[1]),
-        rot=(0, 0, 0))
+    key(hand, F["top_up"] + 3, loc=park_c)
+    key(hand, F["top_up"] + 12, loc=(1.60, 0, CAP_POS[1]))
+    key(bay["cap"], F["top_up"] + 13, loc=(CAP_POS[0], 0, CAP_POS[1]))
+    key(bay["cap"], F["top_up"] + 17, loc=(CAP_LIFT[0], 0, CAP_LIFT[1]))
+    key(hand, F["top_up"] + 17, loc=(CAP_LIFT[0] + hand_hold, 0, CAP_LIFT[1]))
+    key(bay["cap"], F["top_up"] + 23, loc=(CAP_ASIDE[0], 0, CAP_ASIDE[1]))
+    key(hand, F["top_up"] + 23, loc=(CAP_ASIDE[0] + hand_hold, 0, CAP_ASIDE[1]))
+    key(hand, F["top_up"] + 30, loc=park_c)
+
+    key(bottle, F["top_up"] + 31, loc=park_b, rot=point(BOTTLE_CARRY))
+    key(bottle, F["top_up"] + 40, loc=(BOTTLE_POUR[0], 0, BOTTLE_POUR[1]),
+        rot=point(BOTTLE_CARRY))
     key(bottle, F["top_up"] + 46, loc=(BOTTLE_POUR[0], 0, BOTTLE_POUR[1]),
         rot=point(BOTTLE_TILT))
     key(stream, F["top_up"] + 45, scale=(1, 1, 0.001))
     key(stream, F["top_up"] + 49, scale=(1, 1, 1.0))
-    key(bay["level"], F["top_up"] + 47, scale=(1, 1, LEVEL_LOW))
+    key(bay["level"], F["top_up"] + 48, scale=(1, 1, LEVEL_LOW))
     key(bay["level"], F["top_up"] + 59, scale=(1, 1, LEVEL_OK))
     key(stream, F["top_up"] + 59, scale=(1, 1, 1.0))
     key(stream, F["top_up"] + 62, scale=(1, 1, 0.001))
     key(bottle, F["top_up"] + 61, loc=(BOTTLE_POUR[0], 0, BOTTLE_POUR[1]),
         rot=point(BOTTLE_TILT))
-    key(bottle, F["top_up"] + 68, loc=(BOTTLE_PARK_CLOSE[0], 0, BOTTLE_PARK_CLOSE[1]),
-        rot=(0, 0, 0))
+    key(bottle, F["top_up"] + 68, loc=park_b, rot=point(BOTTLE_CARRY))
 
-    key(hand, F["top_up"] + 60, loc=(HAND_PARK_CLOSE[0], 0, HAND_PARK_CLOSE[1]))
-    key(hand, F["top_up"] + 66, loc=(CAP_ASIDE[0] + 0.18, 0, CAP_ASIDE[1] + 0.012))
-    key(bay["cap"], F["top_up"] + 66, loc=(CAP_ASIDE[0], 0, CAP_ASIDE[1]))
-    key(bay["cap"], F["top_up"] + 71, loc=(CAP_POS[0], 0, CAP_POS[1]))
-    key(hand, F["top_up"] + 71, loc=(1.60, 0, CAP_POS[1]))
+    key(hand, F["top_up"] + 68, loc=park_c)
+    key(hand, F["top_up"] + 73, loc=(CAP_ASIDE[0] + hand_hold, 0, CAP_ASIDE[1]))
+    key(bay["cap"], F["top_up"] + 73, loc=(CAP_ASIDE[0], 0, CAP_ASIDE[1]))
+    key(bay["cap"], F["top_up"] + 77, loc=(CAP_LIFT[0], 0, CAP_LIFT[1]))
+    key(hand, F["top_up"] + 77, loc=(CAP_LIFT[0] + hand_hold, 0, CAP_LIFT[1]))
+    key(bay["cap"], F["top_up"] + 80, loc=(CAP_POS[0], 0, CAP_POS[1]))
+    key(hand, F["top_up"] + 80, loc=(1.60, 0, CAP_POS[1]))
 
     # --- the cut back to the wide shot closes the bay again.
     back = F["watch"]
     key(hand, back, loc=(HAND_PARK_WIDE[0], 0, HAND_PARK_WIDE[1]),
         scale=(WIDE_GLYPH, WIDE_GLYPH, WIDE_GLYPH), interp="CONSTANT")
-    key(bottle, back, loc=(BOTTLE_PARK[0], 0, BOTTLE_PARK[1]), interp="CONSTANT")
+    key(bottle, back, loc=(BOTTLE_PARK[0], 0, BOTTLE_PARK[1]), rot=(0, 0, 0),
+        interp="CONSTANT")
 
     # --- watch: bonnet down, then the gauge comes back from cold and settles
     # in the band. Nothing is switched on until the bonnet is shut, because an

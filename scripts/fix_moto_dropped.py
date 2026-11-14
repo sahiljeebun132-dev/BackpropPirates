@@ -101,7 +101,6 @@ INK = "#15181f"
 INK_SOFT = "#1e2430"
 TEXT = "#0f172a"
 BRAND = "#189edb"
-BRAND_DEEP = "#0e6fa3"
 YELLOW = "#f0c000"
 GREEN = "#007848"
 ROAD = "#e2e8f0"
@@ -154,23 +153,23 @@ GUARD_R = 0.330              # the front mudguard, hugging the tyre
 # plural, and a single blade would be drawing the wrong instruction. The
 # brake is the upper of the two so that pulling it swings away from the
 # clutch rather than straight through it.
-LEVER_PERCH = (1.215, 0.645)
-LEVER_TIP = (0.175, -0.040)        # local to the perch
-CLUTCH_PERCH = (1.228, 0.596)
-CLUTCH_TIP = (0.148, -0.034)
+LEVER_PERCH = (1.214, 0.620)
+LEVER_TIP = (0.178, -0.028)        # local to the perch
+CLUTCH_PERCH = (1.218, 0.582)
+CLUTCH_TIP = (0.155, -0.040)
 LEVER_PULL = -0.40                 # radians, blade tip up toward the grip
 LEVER_SLIDE = -0.035               # and back along the bar: a squeeze
 LEVER_WIGGLE = 0.085
 
 PEG = (0.400, 0.000)
-PEDAL_TIP = (0.210, 0.018)         # local to the peg
+PEDAL_TIP = (0.235, 0.018)         # local to the peg
 PEDAL_PRESS = 0.26                 # radians, tip down
 
-HEADLAMP = (1.325, 0.430)
-HEADLAMP_R = 0.085
+HEADLAMP = (1.320, 0.445)
+HEADLAMP_R = 0.082
 TAILLAMP = (0.070, 0.520)
 TAILLAMP_R = 0.042
-IND_FRONT = (1.430, 0.370)
+IND_FRONT = (1.448, 0.390)
 IND_REAR = (0.030, 0.395)
 IND_R = 0.028
 
@@ -201,8 +200,8 @@ BAND_Z = GROUND_Z + 0.018
 # The four framings. ((x, z), ortho_scale).
 WIDE = ((0.70, 0.20), 2.50)
 BARS = ((1.28, 0.575), 0.95)
-PEG_VIEW = ((0.56, -0.04), 0.95)
-UNDER = ((0.58, -0.16), 1.30)
+PEG_VIEW = ((0.55, 0.02), 1.50)
+UNDER = ((0.58, 0.05), 1.45)
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(_REPO, "public", "guides")
@@ -282,6 +281,32 @@ def disc(name, r, loc, *, material=None, parent=None, verts=48):
     # A cylinder stands up the Z axis; a quarter turn about X lays its face
     # flat against the lens, which is what every round thing here wants.
     return put(o, loc=loc, rot=(math.pi / 2, 0, 0), material=material, parent=parent)
+
+
+def arc_band(name, centre, r_in, r_out, a0, a1, y, *,
+             material=None, parent=None, steps=40):
+    """An annular sector facing the camera, built as one mesh.
+
+    A run of chord-shaped plates laid end to end was the obvious way to draw
+    a mudguard and it does not work: at this plate thickness every joint
+    interpenetrates, the depth buffer picks a different winner along each
+    seam, and the arc renders as a comb. One mesh has no seams to fight over.
+    """
+    verts, faces = [], []
+    for i in range(steps + 1):
+        a = a0 + (a1 - a0) * i / steps
+        ca, sa = math.cos(a), math.sin(a)
+        verts.append((centre[0] + r_in * ca, y, centre[1] + r_in * sa))
+        verts.append((centre[0] + r_out * ca, y, centre[1] + r_out * sa))
+    for i in range(steps):
+        j = i * 2
+        faces.append((j, j + 1, j + 3, j + 2))
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    me.update()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    return put(o, material=material, parent=parent)
 
 
 def triangle(name, r, loc, *, material=None, parent=None, spin=0.0):
@@ -456,9 +481,11 @@ def build_bike(mats):
           material=m_heavy, parent=bike)
     plate("Cylinder", 0.260, 0.220, (0.835, LAY["mass"], 0.300),
           material=m_heavy, parent=bike, spin=0.25)
-    # The airbox and side panel. Drawn in the body colour, not a paler one:
-    # a light rectangle in the middle of the machine reads as a hole in it.
-    plate("SideCover", 0.260, 0.240, (0.500, LAY["mass"], 0.300),
+    # The panel under the front of the seat. Small, and the body colour
+    # rather than a paler one: a light rectangle in the middle of the machine
+    # reads as a hole in it, and a big one closes the open triangle between
+    # engine, seat and swingarm that is half of what says motorcycle.
+    plate("SidePanel", 0.230, 0.170, (0.570, LAY["mass"], 0.370),
           material=m, parent=bike)
     bar("DownTube", (1.140, 0.460), (0.940, 0.150), 0.034, LAY["frame"],
         material=m, parent=bike)
@@ -468,7 +495,7 @@ def build_bike(mats):
     # between a fuel tank and a packing case.
     plate("Tank", 0.440, 0.190, (0.890, LAY["mass"], 0.495), material=m,
           parent=bike, spin=0.22)
-    plate("Seat", 0.400, 0.065, (0.460, LAY["mass"], 0.472), material=m,
+    plate("Seat", 0.440, 0.065, (0.480, LAY["mass"], 0.472), material=m,
           parent=bike)
     bar("Tail", (0.330, 0.470), (0.110, 0.530), 0.105, LAY["mass"],
         material=m, parent=bike)
@@ -480,24 +507,22 @@ def build_bike(mats):
     # cannot afford to look like.
     bar("Riser", (1.168, 0.524), (1.150, 0.614), 0.032, LAY["frame"],
         material=m, parent=bike)
+    plate("HeadLug", 0.078, 0.078, (HEAD[0], LAY["frame"], HEAD[1]),
+          material=m, parent=bike)
     bar("Bars", BAR_FRONT, BAR_BACK, 0.030, LAY["frame"], material=m, parent=bike)
-    plate("Cluster", 0.120, 0.060, (1.120, LAY["frame"] + 0.012, 0.690),
+    plate("Grip", 0.080, 0.048, (1.202, LAY["frame"] - 0.012, 0.604),
+          material=m_dim, parent=bike, spin=0.270)
+    plate("Cluster", 0.120, 0.060, (1.120, LAY["frame"] + 0.012, 0.676),
           material=m_dim, parent=bike)
     # The silencer, stopped short of the rear wheel so it never covers the
     # spokes the roll beat needs to be readable.
-    bar("Silencer", (0.880, -0.010), (0.350, 0.120), 0.072, LAY["pipe"],
+    bar("Silencer", (0.880, -0.010), (0.300, 0.135), 0.072, LAY["pipe"],
         material=m_dim, parent=bike)
-    # The mudguard, as a run of chords round the tyre. It is the single shape
-    # that settles what the machine is before anything else has been read.
-    # Each chord is a hair nearer the lens than the last: at one depth the
-    # overlapping corners z-fight, and the guard renders as a comb.
-    steps = 33
-    guard = [(FRONT_AXLE[0] + math.cos(math.radians(34 + i * 3.5)) * GUARD_R,
-              FRONT_AXLE[1] + math.sin(math.radians(34 + i * 3.5)) * GUARD_R)
-             for i in range(steps + 1)]
-    for i in range(steps):
-        bar("Guard%d" % i, guard[i], guard[i + 1], 0.040,
-            LAY["limb"] - i * 0.0002, material=m, parent=bike)
+    # The mudguard. It is the single shape that settles what the machine is
+    # before anything else on screen has been read.
+    arc_band("Guard", FRONT_AXLE, GUARD_R, GUARD_R + 0.042,
+             math.radians(32), math.radians(148), LAY["limb"],
+             material=m, parent=bike)
 
     rear = build_wheel("Rear", REAR_AXLE, mats, bike)
     front = build_wheel("Front", FRONT_AXLE, mats, bike)
@@ -515,9 +540,9 @@ def build_bike(mats):
     # goes with the lever above. It genuinely rotates in the plane of this
     # drawing, so a plain rotation is the whole of it.
     pedal = empty("PedalPivot", (PEG[0], 0, PEG[1]), parent=bike)
-    disc("Peg", 0.024, (0, LAY["lever"] + 0.02, 0), material=m_dim,
+    disc("Peg", 0.030, (0, LAY["lever"] + 0.02, 0), material=m_dim,
          parent=pedal, verts=16)
-    bar("Pedal", (0, 0), PEDAL_TIP, 0.020, LAY["lever"],
+    bar("Pedal", (0, 0), PEDAL_TIP, 0.026, LAY["lever"],
         material=mats["pedal"], parent=pedal)
 
     # Lamps. Unlit they are steel, which is a lamp that is not on rather than
@@ -528,7 +553,7 @@ def build_bike(mats):
         LAY["stalk"], material=m_dim, parent=bike)
     tail = disc("TailLamp", TAILLAMP_R, (TAILLAMP[0], LAY["lamp"], TAILLAMP[1]),
                 material=mats["tail"], parent=bike, verts=24)
-    bar("IndFrontStalk", (1.345, 0.400), IND_FRONT, 0.014, LAY["stalk"],
+    bar("IndFrontStalk", (1.370, 0.420), IND_FRONT, 0.014, LAY["stalk"],
         material=m_dim, parent=bike)
     disc("IndFront", IND_R, (IND_FRONT[0], LAY["lamp"], IND_FRONT[1]),
          material=mats["ind"], parent=bike, verts=20)
@@ -816,7 +841,6 @@ def main() -> int:
         "dash": flat("Dash", STEEL),
         "text": flat("Text", TEXT),
         "ink": flat("Ink", INK),
-        "ink_soft": flat("InkSoft", INK_SOFT),
         "machine": flat("Machine", SLATE),
         "machine_dim": flat("MachineDim", STEEL),
         # The engine and the cylinder, darker than the bodywork so the
@@ -824,7 +848,6 @@ def main() -> int:
         "machine_heavy": flat("MachineHeavy", INK_SOFT),
         "steel": flat("Steel", STUD_GREY),
         "brand": flat("Brand", BRAND),
-        "brand_deep": flat("BrandDeep", BRAND_DEEP),
         # Everything below changes colour as it is checked, so each gets a
         # material of its own rather than sharing one. The two indicators do
         # share, because they blink together.
@@ -881,6 +904,10 @@ def main() -> int:
         scene.render.image_settings.file_format = "FFMPEG"
         scene.render.ffmpeg.format = "MPEG4"
         scene.render.ffmpeg.codec = "H264"
+        # MEDIUM comes in at about 870 KB for these 17.5 seconds, which is
+        # inside the budget this has to live in, so nothing is given away to
+        # buy space it does not need. Flat colour and hard edges survive the
+        # setting; the size is printed below so it is checked, not assumed.
         scene.render.ffmpeg.constant_rate_factor = crf
         scene.render.ffmpeg.ffmpeg_preset = "GOOD"
         scene.render.ffmpeg.audio_codec = "NONE"

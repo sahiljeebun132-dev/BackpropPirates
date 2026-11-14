@@ -158,14 +158,14 @@ KILL_THROW = 0.013              # how far the toggle slides between detents
 # full. Keying it to a bare offset parks the switch on the rear axle.
 KILL_STOP = (KILL_C[0], 0, KILL_C[1] - KILL_THROW)
 KILL_RUN = (KILL_C[0], 0, KILL_C[1] + KILL_THROW)
-CLUTCH_PIVOT = (-1.205, 0.618)
+CLUTCH_PIVOT = (-1.198, 0.596)
 CLUTCH_LEN = 0.165
-CLUTCH_REST = math.radians(186)   # screen angle of the lever, out from the bar
-CLUTCH_IN = math.radians(172)     # pulled back towards the grip
+CLUTCH_REST = math.radians(202)   # screen angle of the lever, out from the bar
+CLUTCH_IN = math.radians(184)     # pulled back towards the grip
 YOKE_C = (-1.070, 0.686)
-CLUSTER_C = (-1.080, 0.760)
-IGN_C = (-1.116, 0.760)
-NEU_C = (-1.044, 0.760)
+CLUSTER_C = (-1.080, 0.745)
+IGN_C = (-1.116, 0.745)
+NEU_C = (-1.044, 0.745)
 KEY_C = (-0.995, 0.700)
 KEY_LEN = 0.048
 KEY_ON = math.radians(-20)        # stem out of the barrel, lying back
@@ -493,18 +493,12 @@ def build_bike(mats):
     arc("GuardRear", REAR_C, 0.345, math.radians(58), math.radians(132),
         6, 0.026, LAY["frame"], m)
 
-    # The drive chain, which is the other thing that says motorcycle at a
-    # glance. Same drivetrain as scripts/fix_chain.py draws in close-up, two
-    # runs and two sprockets rather than a hundred links, because here it is
-    # scenery and there it is the subject.
-    disc("SprocketRear", 0.098, (REAR_C[0], LAY["frame"] + 0.01, REAR_C[1]),
-         material=m_mid)
-    disc("SprocketFront", 0.044,
-         (SWING_PIVOT[0], LAY["frame"] + 0.01, SWING_PIVOT[1]), material=m_mid)
-    bar("ChainTop", (SWING_PIVOT[0], SWING_PIVOT[1] + 0.044),
-        (REAR_C[0], REAR_C[1] + 0.098), 0.013, LAY["mass"], m_mid)
-    bar("ChainBottom", (SWING_PIVOT[0], SWING_PIVOT[1] - 0.044),
-        (REAR_C[0], REAR_C[1] - 0.098), 0.013, LAY["mass"], m_mid)
+    # No drive chain. It was drawn here at first, and two pale runs and a
+    # sprocket landed in exactly the wedge of frame where the side stand
+    # folds and the kick lever swings, which are two of the six steps. The
+    # chain is scenery in this clip and the subject of fix_chain.py, so it
+    # is left to that one; the engine, the fat tyres and the mudguards carry
+    # the "this is a motorcycle" job on their own.
 
     # The front end: bars on a riser on a top yoke, with the cluster and the
     # ignition barrel both standing on that yoke. Hung in mid air, as they
@@ -515,7 +509,7 @@ def build_bike(mats):
     bar("Grip", (GRIP_C[0] - 0.048, GRIP_C[1] - 0.009),
         (GRIP_C[0] + 0.048, GRIP_C[1] + 0.009), 0.038, LAY["near"] + 0.02,
         mats["ink"])
-    plate("ClusterStem", 0.030, 0.034, (CLUSTER_C[0], LAY["frame"], 0.705),
+    plate("ClusterStem", 0.030, 0.024, (CLUSTER_C[0], LAY["frame"], 0.700),
           material=m)
 
     rear = build_wheel("RearWheel", REAR_C, mats)
@@ -586,7 +580,7 @@ def build_kill(mats):
 
 
 def build_clutch(mats):
-    plate("ClutchPerch", 0.030, 0.034, (CLUTCH_PIVOT[0], LAY["near"], CLUTCH_PIVOT[1]),
+    plate("ClutchPerch", 0.030, 0.058, (CLUTCH_PIVOT[0], LAY["near"], 0.608),
           material=mats["stud"])
     root = empty("Clutch", (CLUTCH_PIVOT[0], 0, CLUTCH_PIVOT[1]))
     plate("ClutchLever", CLUTCH_LEN, 0.020, (CLUTCH_LEN / 2, LAY["near"], 0),
@@ -602,11 +596,13 @@ def build_tank_cutaway(mats):
     rectangle in the middle of the tank is still a rectangle.
     """
     root = empty("Cutaway", (TANK_C[0] - 0.060, 0, TANK_C[1]))
+    plate("CutFrame", 0.316, 0.166, (0, LAY["window"] + 0.02, 0),
+          material=mats["stud"], parent=root)
     plate("CutWindow", 0.300, 0.150, (0, LAY["window"], 0),
           material=mats["bg"], parent=root)
     plate("CutFuel", 0.300, 0.035, (0, LAY["fuel"], -0.0575),
           material=mats["fuel"], parent=root)
-    root.scale = (0, 0, 0)
+    root.scale = (1, 1, 0)
 
     cap = empty("Cap", (CAP_HINGE[0], 0, CAP_HINGE[1]))
     plate("CapLid", CAP_LEN, 0.022, (-CAP_LEN / 2, LAY["trim"], 0),
@@ -629,18 +625,18 @@ def build_stand(mats):
     to swing back along the swingarm; that is the whole of step two.
     """
     root = empty("Stand", (STAND_PIVOT[0], 0, STAND_PIVOT[1]))
-    bar("StandLeg", (0, 0), (-0.130, -0.310), 0.016, LAY["near"], mats["stand"],
+    bar("StandLeg", (0, 0), (-0.122, -0.288), 0.022, LAY["near"], mats["stand"],
         parent=root)
-    plate("StandFoot", 0.070, 0.012, (-0.140, LAY["near"], -0.316),
+    plate("StandFoot", 0.082, 0.016, (-0.130, LAY["near"], -0.284),
           material=mats["stand"], parent=root, spin=math.radians(-22))
     return root
 
 
 def build_kick(mats):
     root = empty("Kick", (KICK_PIVOT[0], 0, KICK_PIVOT[1]))
-    plate("KickArm", KICK_LEN, 0.020, (KICK_LEN / 2, LAY["near"], 0),
+    plate("KickArm", KICK_LEN, 0.026, (KICK_LEN / 2, LAY["near"], 0),
           material=mats["stud"], parent=root)
-    plate("KickPedal", 0.034, 0.040, (KICK_LEN + 0.012, LAY["near"], 0),
+    plate("KickPedal", 0.042, 0.052, (KICK_LEN + 0.016, LAY["near"], 0),
           material=mats["stud"], parent=root)
     return root
 
@@ -659,7 +655,7 @@ def build_arrow(mats):
         mats["brand"], parent=root)
     triangle("ArrowHead", 0.055, (-0.196, LAY["mark"], 0),
              material=mats["brand"], parent=root, spin=-math.pi / 2)
-    root.scale = (0, 0, 0)
+    root.scale = (0, 1, 0)
     return root
 
 
@@ -672,19 +668,25 @@ def build_pointer(mats):
     root = empty("Pointer", (0, 0, 0))
     ring("PointerRing", POINT_R, 0.011, (0, LAY["mark"], 0),
          material=mats["brand"], parent=root)
-    root.scale = (0, 0, 0)
+    root.scale = (0, 1, 0)
     return root
 
 
 # ---------------------------------------------------------------- animation
 def point_at(pointer, f_in, f_out, target, radius):
-    """Bring the ring up at a control, hold it, take it away again."""
+    """Bring the ring up at a control, hold it, take it away again.
+
+    Scaled in X and Z only. A uniform scale on an empty scales its children
+    towards its own origin in Y as well, which drags them bodily through the
+    depth order -- the first cut of this scaled the headlight glow out in
+    front of its own lens.
+    """
     k = radius / POINT_R
     key(pointer, f_in, loc=(target[0], 0, target[1]), interp="CONSTANT")
-    key(pointer, f_in, scale=(0, 0, 0))
-    key(pointer, f_in + 6, scale=(k, k, k))
-    key(pointer, f_out, scale=(k, k, k))
-    key(pointer, f_out + 5, scale=(0, 0, 0))
+    key(pointer, f_in, scale=(0, 1, 0))
+    key(pointer, f_in + 6, scale=(k, 1, k))
+    key(pointer, f_out, scale=(k, 1, k))
+    key(pointer, f_out + 5, scale=(0, 1, 0))
 
 
 def animate(rig, cam):
@@ -722,16 +724,16 @@ def animate(rig, cam):
     # built with is overwritten the moment it gets a keyframe anywhere, since
     # the first key extrapolates backwards to frame one.
     key(pointer, 1, loc=(0, 0, 0), interp="CONSTANT")
-    key(pointer, 1, scale=(0, 0, 0))
-    key(arrow, 1, scale=(0, 0, 0))
-    key(cutaway, 1, scale=(0, 0, 0))
+    key(pointer, 1, scale=(0, 1, 0))
+    key(arrow, 1, scale=(0, 1, 0))
+    key(cutaway, 1, scale=(1, 1, 0))
     key(cap, 1, rot=(0, 0, 0))
     key(keysw, 1, rot=spin_to(KEY_ON), interp="CONSTANT")
     key(kill, 1, loc=KILL_STOP)
     key(clutch, 1, rot=spin_to(CLUTCH_REST))
     key(tap, 1, rot=spin_to(TAP_OFF))
     key(kick, 1, rot=spin_to(KICK_FOLD))
-    key(glow, 1, scale=(0, 0, 0))
+    key(glow, 1, scale=(0, 1, 0))
     key_colour(mats["lens"], 1, STEEL)
     key_colour(mats["kill"], 1, YELLOW)
     key_colour(mats["tap"], 1, STUD_GREY)
@@ -750,10 +752,10 @@ def animate(rig, cam):
     key(world, 1, loc=(-ROLL_D, 0, 0))
     key(world, 6, loc=(-ROLL_D, 0, 0))
     key(world, 38, loc=(0, 0, 0))
-    key(arrow, 4, scale=(0, 0, 0))
+    key(arrow, 4, scale=(0, 1, 0))
     key(arrow, 10, scale=(1, 1, 1))
     key(arrow, 34, scale=(1, 1, 1))
-    key(arrow, 40, scale=(0, 0, 0))
+    key(arrow, 40, scale=(0, 1, 0))
     # The stand cannot be down while the bike is being pushed, so it goes down
     # at the end of the push, where a rider would put it. Step two then asks
     # for it back up again, which is exactly the order this happens in on a
@@ -779,9 +781,9 @@ def animate(rig, cam):
     # --- 3: neutral, or the clutch fully in. Both halves of the step, in the
     # order the sentence puts them.
     b = F["neutral"]
-    point_at(pointer, b, b + 20, NEU_C, 0.070)
+    point_at(pointer, b, b + 20, NEU_C, 0.062)
     key_colour(mats["neu"], b + 16, GREEN)
-    point_at(pointer, b + 28, b + 48, (-1.290, 0.610), 0.085)
+    point_at(pointer, b + 28, b + 48, (-1.270, 0.585), 0.060)
     key(clutch, b + 32, rot=spin_to(CLUTCH_REST))
     key(clutch, b + 40, rot=spin_to(CLUTCH_IN))
     key(clutch, b + 48, rot=spin_to(CLUTCH_IN))
@@ -792,7 +794,7 @@ def animate(rig, cam):
     point_at(pointer, b, b + 20, (CAP_HINGE[0] - 0.042, CAP_HINGE[1] + 0.010), 0.090)
     key(cap, b + 6, rot=(0, 0, 0))
     key(cap, b + 16, rot=(0, CAP_OPEN, 0))
-    key(cutaway, b + 8, scale=(0, 0, 0))
+    key(cutaway, b + 8, scale=(1, 1, 0))
     key(cutaway, b + 18, scale=(1, 1, 1))
     point_at(pointer, b + 28, b + 56, TAP_C, 0.085)
     key(tap, b + 30, rot=spin_to(TAP_OFF))
@@ -800,10 +802,10 @@ def animate(rig, cam):
     key_colour(mats["tap"], b + 40, GREEN)
     key(tap, b + 44, rot=spin_to(TAP_ON))
     key(tap, b + 54, rot=spin_to(TAP_RES))
-    key(cutaway, b + 48, scale=(1, 1, 1))
-    key(cutaway, b + 58, scale=(0, 0, 0))
-    key(cap, b + 48, rot=(0, CAP_OPEN, 0))
-    key(cap, b + 58, rot=(0, 0, 0))
+    key(cutaway, b + 54, scale=(1, 1, 1))
+    key(cutaway, b + 60, scale=(1, 1, 0))
+    key(cap, b + 46, rot=(0, CAP_OPEN, 0))
+    key(cap, b + 56, rot=(0, 0, 0))
 
     # --- 5: turn the key and watch the headlight. Bright and steady first,
     # for a reference, then the sag and the fast flicker that is what a flat
@@ -818,14 +820,12 @@ def animate(rig, cam):
     key_colour(mats["ign"], b + 22, YELLOW)
     key_colour(mats["neu"], b + 22, GREEN)
     key_colour(mats["lens"], b + 23, YELLOW)
-    key(glow, b + 22, scale=(0, 0, 0))
+    key(glow, b + 22, scale=(0, 1, 0))
     key(glow, b + 25, scale=(1, 1, 1))
     key(glow, b + 34, scale=(1, 1, 1))
-    key(glow, b + 40, scale=(0.42, 0.42, 0.42))
+    key(glow, b + 40, scale=(0, 1, 0))
     flick = True
     for f in range(b + 41, b + 56, 3):
-        key(glow, f, scale=(0.42, 0.42, 0.42) if flick else (0.14, 0.14, 0.14),
-            interp="CONSTANT")
         key_colour(mats["lens"], f, YELLOW if flick else STEEL)
         flick = not flick
 
@@ -846,7 +846,7 @@ def animate(rig, cam):
     # the result is revealed by the cut rather than watched for.
     key_colour(mats["ign"], b + 39, STEEL)
     key_colour(mats["lens"], b + 39, YELLOW)
-    key(glow, b + 38, scale=(0.14, 0.14, 0.14), interp="CONSTANT")
+    key(glow, b + 38, scale=(0, 1, 0), interp="CONSTANT")
     key(glow, b + 39, scale=(1, 1, 1))
     key(glow, b + 44, scale=(1, 1, 1))
 

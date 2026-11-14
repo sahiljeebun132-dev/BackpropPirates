@@ -33,7 +33,9 @@ are not a line-for-line match, five places, all deliberate:
     to a car moving off the running lane onto the hard shoulder and stopping,
     hazards on. That one shot is in plan rather than elevation: seen from the
     side a car that has pulled over looks exactly like a car that has stopped,
-    and "off the road" is the whole of the instruction.
+    and "off the road" is the whole of the instruction. Being in plan, it has
+    to get the side of the road right - Mauritius drives on the left, so the
+    car moves towards the top of frame, not the bottom.
   - Step 2 ends with "switch off immediately", drawn as both needles dropping
     to their stops and the cluster going dark. Step 3 then needs a live car
     again, so the needles are back at cruise on the cut into it. That cut is
@@ -151,7 +153,7 @@ RED_Z = 0.16
 RED_X = (-1.32, -0.66, 0.00, 0.66, 1.32)   # oil, temp, brake, charge, airbag
 AMBER_Z = -0.50
 AMBER_X = (-0.99, -0.33, 0.33, 0.99)       # engine, ABS, tyre, glow plugs
-INFO_Z = -1.02
+INFO_Z = -1.14
 INFO_X = (-0.33, 0.33)                      # green, blue
 
 # Needle angles, measured the way a dial is read: anticlockwise from the +X
@@ -165,25 +167,38 @@ SPEEDO_EASED = 126.0
 
 # The pull-over, built this far along +X so it can never share a frame with
 # the cluster: the two framings are 20 apart and both are under 4 wide.
+#
+# Mauritius drives on the left, so with the car travelling to the right of
+# frame its nearside is the top of the picture and the hard shoulder is up
+# there with it. Drawn the other way round this clip would be showing a car
+# crossing the centre line to stop in oncoming traffic.
 ROAD_X = 20.0
 ROAD_W = 9.0
-ROAD_H = 2.60
-EDGE_Z = -0.50          # the solid line between lane and hard shoulder
-DASH_Z = 1.05           # the broken line on the other side of the lane
-CAR_START = (-2.40, 0.30)
-CAR_MID = (-0.40, 0.14)
-CAR_END = (1.50, -0.92)
-CAR_YAW = math.radians(9)   # nose swung towards the shoulder, mid-manoeuvre
+ROAD_H = 3.10
+EDGE_Z = 0.35           # the solid line between lane and hard shoulder
+DASH_Z = -1.40          # the broken centre line, on the other side of the lane
+CAR_START = (-2.40, -0.50)
+CAR_MID = (-0.40, -0.20)
+CAR_END = (1.50, 0.95)
+CAR_YAW = -math.radians(9)   # nose swung towards the shoulder, mid-manoeuvre
 
 # Framings. Each is ((x, z), ortho_scale); the vertical extent is 0.5625 of
 # the scale, which is what keeps the page from showing past the cluster edge.
 CLUSTER = ((0.0, BIN_CZ), 5.10)
 RED_CLOSE = ((0.0, RED_Z), 3.40)
-OIL_CLOSE = ((RED_X[0], RED_Z), 1.10)
+# Off-centre on purpose: pushed right, the framing can open out without the
+# page showing past the left edge of the cluster, and the unlit lamp next
+# door comes into shot to say which one of the row is the one being named.
+OIL_CLOSE = ((-1.08, 0.12), 1.56)
 AMBER_CLOSE = ((0.0, AMBER_Z), 2.95)
-ENGINE_CLOSE = ((AMBER_X[0], AMBER_Z), 1.30)
-INFO_CLOSE = ((0.0, INFO_Z), 1.50)
-AFTER_CLOSE = ((0.0, RED_Z), 2.30)
+ENGINE_CLOSE = ((-0.80, AMBER_Z), 1.56)
+# Wide enough to keep the unlit amber row in shot above the two chips.
+# Framed on the chips alone they stopped being tell-tales on a dashboard and
+# became two coloured pills on a dark rectangle.
+INFO_CLOSE = ((0.0, -0.76), 2.40)
+# The whole red row again, a little tighter than RED_CLOSE: the last step is
+# about one of these five, so all five have to be in shot for it to be one.
+AFTER_CLOSE = ((0.0, RED_Z), 3.20)
 PULLOVER = ((ROAD_X, 0.0), 7.40)
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -269,12 +284,17 @@ def ring(name, r, w, loc, *, material=None, parent=None):
     return put(o, loc=loc, rot=(math.pi / 2, 0, 0), material=material, parent=parent)
 
 
-def arc(name, parent, material, centre, r0, r1, a0, a1, segs, w, y):
+def arc(name, parent, material, centre, r0, r1, a0, a1, segs, w, y, over=1.10):
     """A run of short plates laid along an arc, from radius r0 to r1.
 
     Letting the radius change is what draws the glow-plug coil as one call;
     with r0 == r1 the same helper draws the brackets either side of the brake
     and ABS tell-tales. Angles are in radians, measured anticlockwise.
+
+    `over` is how much longer than its chord each plate is cut. It has to be
+    more than 1 or the joins open up, and only a little more than 1 or the
+    plate corners stand proud of the arc and the curve comes out visibly
+    lumpy - which is exactly what 1.3 did to the glow-plug coil.
     """
     cx, cz = centre
     span = a1 - a0
@@ -283,8 +303,7 @@ def arc(name, parent, material, centre, r0, r1, a0, a1, segs, w, y):
         t = (i + 0.5) / segs
         a = a0 + span * t
         r = r0 + (r1 - r0) * t
-        # A touch longer than the chord, so the joins do not open up.
-        seg_len = 2.0 * r * math.sin(step / 2.0) * 1.3
+        seg_len = 2.0 * r * math.sin(step / 2.0) * over
         tangent = a + (math.pi / 2 if span >= 0 else -math.pi / 2)
         plate(f"{name}{i}", seg_len, w,
               (cx + r * math.cos(a), y, cz + r * math.sin(a)),
@@ -383,13 +402,16 @@ def needle_rot(degrees: float):
 def g_oil(name, root, mat, cut):
     """The oil can. breakdown.ts calls this one out by name: red, and not a
     low-oil reminder."""
+    # The lid overlaps the body and the spout starts inside it. Butted edge to
+    # edge they left a hairline of face colour showing through the join, which
+    # is invisible in the wide shot and a crack across the symbol in the close.
     plate(name + "Body", 0.22, 0.12, (-0.04, LAY["lamp"], -0.02),
           material=mat, parent=root)
-    plate(name + "Lid", 0.09, 0.05, (-0.11, LAY["lamp"], 0.07),
+    plate(name + "Lid", 0.09, 0.06, (-0.105, LAY["lamp"], 0.06),
           material=mat, parent=root)
-    plate(name + "Spout", 0.14, 0.045, (0.135, LAY["lamp"], 0.046),
+    plate(name + "Spout", 0.17, 0.045, (0.109, LAY["lamp"], 0.047),
           material=mat, parent=root, spin=-math.radians(22))
-    disc(name + "Drip", 0.033, (0.185, LAY["lamp"], -0.045),
+    disc(name + "Drip", 0.034, (0.170, LAY["lamp"], -0.035),
          material=mat, parent=root)
 
 
@@ -407,9 +429,9 @@ def g_temp(name, root, mat, cut):
 def _bang_in_a_ring(name, root, mat):
     ring(name + "Ring", 0.115, 0.026, (0, LAY["lamp"], 0), material=mat, parent=root)
     arc(name + "BrkL", root, mat, (0, 0), 0.185, 0.185,
-        math.radians(118), math.radians(242), 5, 0.028, LAY["lamp"])
+        math.radians(118), math.radians(242), 7, 0.028, LAY["lamp"])
     arc(name + "BrkR", root, mat, (0, 0), 0.185, 0.185,
-        math.radians(-62), math.radians(62), 5, 0.028, LAY["lamp"])
+        math.radians(-62), math.radians(62), 7, 0.028, LAY["lamp"])
 
 
 def g_brake(name, root, mat, cut):
@@ -459,11 +481,11 @@ def g_engine(name, root, mat, cut):
     plate(name + "Top", 0.13, 0.07, (-0.03, LAY["lamp"], 0.08),
           material=mat, parent=root)
     for i, z in enumerate((0.0, -0.075)):
-        plate(f"{name}Nub{i}", 0.06, 0.035, (-0.165, LAY["lamp"], z),
+        plate(f"{name}Nub{i}", 0.06, 0.035, (-0.155, LAY["lamp"], z),
               material=mat, parent=root)
-    plate(name + "NubR", 0.06, 0.05, (0.165, LAY["lamp"], -0.02),
+    plate(name + "NubR", 0.06, 0.05, (0.155, LAY["lamp"], -0.02),
           material=mat, parent=root)
-    plate(name + "Foot", 0.20, 0.035, (0.0, LAY["lamp"], -0.125),
+    plate(name + "Foot", 0.20, 0.035, (0.0, LAY["lamp"], -0.122),
           material=mat, parent=root)
 
 
@@ -485,7 +507,7 @@ def g_tyre(name, root, mat, cut):
     plate(name + "Base", 0.355, 0.05, (0, LAY["lamp"], -0.11),
           material=mat, parent=root)
     for i, x in enumerate((-0.105, -0.035, 0.035, 0.105)):
-        plate(f"{name}Tread{i}", 0.030, 0.035, (x, LAY["lamp"], -0.155),
+        plate(f"{name}Tread{i}", 0.030, 0.035, (x, LAY["lamp"], -0.150),
               material=mat, parent=root)
     plate(name + "Bar", 0.034, 0.085, (0, LAY["lamp"], 0.045),
           material=mat, parent=root)
@@ -494,9 +516,15 @@ def g_tyre(name, root, mat, cut):
 
 def g_glow(name, root, mat, cut):
     """The glow-plug coil, drawn as a spiral of a turn and a half with a short
-    tail: a coil of wire is the whole symbol."""
+    tail: a coil of wire is the whole symbol.
+
+    It wants far more segments than an arc of constant radius does. The
+    radius falls by r0 - r1 over the whole spiral, so with too few segments
+    the step between one segment and the next is a visible stair on the
+    outline rather than a curve.
+    """
     arc(name + "Coil", root, mat, (0, 0), 0.145, 0.045,
-        0.0, -math.radians(540), 34, 0.030, LAY["lamp"])
+        0.0, -math.radians(540), 96, 0.030, LAY["lamp"])
     plate(name + "Tail", 0.062, 0.030, (0.176, LAY["lamp"], 0.0),
           material=mat, parent=root)
 
@@ -504,9 +532,9 @@ def g_glow(name, root, mat, cut):
 def g_chip(name, root, mat, cut):
     """A featureless capsule. The guide names the colours green and blue and
     no particular lamp, so drawing a symbol here would be inventing one."""
-    plate(name + "Body", 0.20, 0.135, (0, LAY["lamp"], 0), material=mat, parent=root)
-    for i, x in enumerate((-0.10, 0.10)):
-        disc(f"{name}End{i}", 0.0675, (x, LAY["lamp"], 0), material=mat, parent=root)
+    plate(name + "Body", 0.19, 0.155, (0, LAY["lamp"], 0), material=mat, parent=root)
+    for i, x in enumerate((-0.095, 0.095)):
+        disc(f"{name}End{i}", 0.0775, (x, LAY["lamp"], 0), material=mat, parent=root)
 
 
 # Order matters: these are the lamps in the order breakdown.ts names them.
@@ -537,12 +565,26 @@ def build_dial(name, cx, cz, mats):
     return pivot
 
 
+def stagger(root, step=0.0004):
+    """Pull each part of a glyph a hair nearer the lens than the last.
+
+    Parts of one symbol overlap on purpose, and two plates whose front faces
+    land on exactly the same Y fight for the depth buffer: the seam between
+    the oil can and its lid came out as a hairline crack across the symbol.
+    The step is far below a pixel at every framing in this clip, and far
+    above the depth resolution of an ortho camera clipped to 0.1 - 60.
+    """
+    for i, child in enumerate(root.children):
+        child.location.y -= step * i
+
+
 def build_lamp(name, x, z, hex_off, glyph, mats):
     """One tell-tale: an empty at its home, and a glyph of parts sharing one
     material, so the lamp lights with a single colour key."""
     mat = flat(name + "Mat", hex_off)
     root = empty(name, (x, 0, z))
     glyph(name, root, mat, mats["cut"])
+    stagger(root)
     return mat
 
 
@@ -585,9 +627,12 @@ def build_road(mats):
     getting off the running lane.
     """
     plate("Road", ROAD_W, ROAD_H, (ROAD_X, LAY["road"], 0), material=mats["road"])
-    plate("Shoulder", ROAD_W, EDGE_Z + ROAD_H / 2,
-          (ROAD_X, LAY["shoulder"], (-ROAD_H / 2 + EDGE_Z) / 2),
-          material=mats["face"])
+    # Lighter chippings for the shoulder, not darker: the car is the darkest
+    # thing in this shot and has to stay the darkest thing on both surfaces.
+    shoulder_h = ROAD_H / 2 - EDGE_Z
+    plate("Shoulder", ROAD_W, shoulder_h,
+          (ROAD_X, LAY["shoulder"], EDGE_Z + shoulder_h / 2),
+          material=mats["verge"])
     plate("EdgeLine", ROAD_W, 0.055, (ROAD_X, LAY["paint"], EDGE_Z),
           material=mats["paint"])
     x = -ROAD_W / 2 + 0.2
@@ -598,17 +643,31 @@ def build_road(mats):
         x += 0.78
         i += 1
 
+    # A car from above, built as a silhouette rather than one rectangle: a
+    # narrower nose and tail, two glass bands with the roof between them, and
+    # the mirrors standing out either side. Those are what say "car seen from
+    # above" at the size this is watched at.
     car = empty("Car", (ROAD_X + CAR_START[0], 0, CAR_START[1]))
-    # A pale plate under the car, because an ink car on slate tarmac is one
-    # shape with a soft edge rather than two things.
-    plate("CarHalo", 1.25, 0.62, (0, LAY["halo"], 0), material=mats["bg"], parent=car)
-    plate("CarBody", 1.15, 0.52, (0, LAY["car"], 0), material=mats["ink"], parent=car)
-    plate("CarGlass", 0.46, 0.40, (-0.06, LAY["glass"], 0),
+    plate("CarBody", 1.30, 0.78, (0, LAY["car"], 0), material=mats["ink"], parent=car)
+    # Nose and tail are two overlapping steps each rather than one, because a
+    # single step read as a separate box stuck on the end. The front is the
+    # narrower end, and the long run of unbroken ink ahead of the windscreen
+    # is the bonnet: that is what says which way the car is facing.
+    for nm, w, h, x in (("Nose1", 0.22, 0.70, 0.74), ("Nose2", 0.18, 0.56, 0.92),
+                        ("Tail1", 0.18, 0.70, -0.72), ("Tail2", 0.12, 0.58, -0.87)):
+        plate("Car" + nm, w, h, (x, LAY["car"], 0), material=mats["ink"], parent=car)
+    for i, z in enumerate((0.44, -0.44)):
+        plate(f"CarMirror{i}", 0.12, 0.11, (0.36, LAY["car"], z),
+              material=mats["ink"], parent=car)
+    plate("CarScreen", 0.26, 0.58, (0.18, LAY["glass"], 0),
           material=mats["glass"], parent=car)
-    for i, (hx, hz) in enumerate(((-0.50, 0.19), (-0.50, -0.19),
-                                  (0.50, 0.19), (0.50, -0.19))):
-        plate(f"Hazard{i}", 0.10, 0.10, (hx, LAY["hazard"], hz),
+    plate("CarRear", 0.20, 0.56, (-0.50, LAY["glass"], 0),
+          material=mats["glass"], parent=car)
+    for i, (hx, hz) in enumerate(((-0.68, 0.30), (-0.68, -0.30),
+                                  (0.68, 0.30), (0.68, -0.30))):
+        plate(f"Hazard{i}", 0.11, 0.11, (hx, LAY["hazard"], hz),
               material=mats["hazard"], parent=car)
+    stagger(car, 0.0006)
     return car
 
 
@@ -761,7 +820,6 @@ def main() -> int:
     scene = bpy.context.scene
 
     mats = {
-        "bg": flat("Bg", BG),
         "ink": flat("Ink", INK),
         "face": flat("FaceMat", FACE),
         "cut": flat("Cut", FACE),
@@ -769,6 +827,7 @@ def main() -> int:
         "needle": flat("Needle", STEEL),
         "mark": flat("MarkMat", RED),
         "road": flat("RoadMat", SLATE),
+        "verge": flat("Verge", STUD_GREY),
         "paint": flat("Paint", BG),
         "glass": flat("Glass", STEEL),
         "hazard": flat("HazardMat", INK),

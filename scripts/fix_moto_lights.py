@@ -207,6 +207,10 @@ PANEL_OFF_X = -1.00            # where the cover goes when it comes off
 # close-up, and at this size the strip inside is a shape rather than a
 # suggestion of one.
 DET_Z = 0.62
+# The comparison beat sits the two fuses close together, because a comparison
+# with half a frame of nothing between its two halves is not one. They part to
+# make room only when the third fuse comes down between them.
+DET_LOOK_A, DET_LOOK_B = 4.80, 5.20
 DET_A_X = 4.66                 # the one that came out: parted, blackened
 DET_C_X = 5.00                 # the wrong one: one pip too many
 DET_B_X = 5.34                 # the right one: unbroken strip, same pips
@@ -229,16 +233,18 @@ BREAK_SCALE = 0.50             # how far back each half of a parted strip pulls
 WIDE = ((0.00, 0.48), 2.60)
 BAR = ((0.64, 0.84), 0.98)
 BOX = ((-0.47, 0.615), 0.46)
-DETAIL = ((5.00, 0.60), 1.20)
-HEAD = ((0.76, 0.82), 0.74)
+LOOK = ((5.00, 0.60), 1.00)
+DETAIL = ((5.00, 0.60), 1.26)
+HEAD = ((0.72, 0.82), 0.88)
 
 # Where the hand waits, just outside the framing it is used in, so that the
 # pop from hidden to visible always happens off screen.
-PARK_HEAD = (0.30, 0.900)
+PARK_HEAD = (0.18, 0.900)
 PARK_PUSH = (-1.48, 0.780)
 TORCH_HOLD = (-0.92, 0.780)
 
 HAND_REACH = 0.059             # hand origin to fingertips
+HAND_MIRROR = (math.pi, math.pi, 0)   # same hand, fingers pointing +x
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(_REPO, "public", "guides")
@@ -362,39 +368,51 @@ def _curves(holder):
     return curves
 
 
-def _set_interp(holder, frame, kind):
-    """Force the interpolation of every key this ID has at `frame`.
+def _set_interp(holder, frame, kind, paths=None):
+    """Force the interpolation of this ID's keys at `frame`, on `paths` only.
 
     preferences.edit.keyframe_new_interpolation_type does nothing at all on
     this 5.2 build: the preference reads back as CONSTANT and the keyframe is
     still born BEZIER. Every hard cut in this clip depends on getting this
     right, so the keys are corrected after insertion instead.
+
+    It has to be told which channels it is correcting. Sweeping every curve at
+    a frame meant that keying a hand's position on the frame it appears on
+    also retagged the scale key that revealed it, so instead of appearing the
+    hand grew out of nothing and then shrank away again over the next two
+    seconds. Found by looking at a still, not by reading the code.
     """
     if kind == "BEZIER":
         return
     for curve in _curves(holder):
+        if paths is not None and curve.data_path not in paths:
+            continue
         for point in curve.keyframe_points:
             if abs(point.co[0] - frame) < 0.5:
                 point.interpolation = kind
 
 
 def key(obj, frame, *, loc=None, rot=None, scale=None, interp="BEZIER"):
+    paths = []
     if loc is not None:
         obj.location = loc
         obj.keyframe_insert("location", frame=frame)
+        paths.append("location")
     if rot is not None:
         obj.rotation_euler = Euler(rot)
         obj.keyframe_insert("rotation_euler", frame=frame)
+        paths.append("rotation_euler")
     if scale is not None:
         obj.scale = scale
         obj.keyframe_insert("scale", frame=frame)
-    _set_interp(obj, frame, interp)
+        paths.append("scale")
+    _set_interp(obj, frame, interp, paths)
 
 
 def key_value(owner, path, frame, value, *, interp="BEZIER"):
     setattr(owner, path, value)
     owner.keyframe_insert(path, frame=frame)
-    _set_interp(owner, frame, interp)
+    _set_interp(owner, frame, interp, [path])
 
 
 def key_colour(material, frame, hex_string, *, interp="CONSTANT"):
@@ -495,7 +513,7 @@ def build_headlight(mats):
     lens_mat = flat("LensMat", SLATE)
     disc("HeadLens", LENS_R, (HEADLIGHT[0], LAY["lens"], HEADLIGHT[1]),
          material=lens_mat)
-    glow = ring("HeadGlow", HEADLIGHT_R + 0.042, 0.013,
+    glow = ring("HeadGlow", HEADLIGHT_R + 0.009, 0.009,
                 (HEADLIGHT[0], LAY["glow"], HEADLIGHT[1]), material=mats["yellow"])
     return lens_mat, glow
 
@@ -529,8 +547,10 @@ def build_connector(mats):
            loom_mat, parent=root)
     plate("ConnSocket", CONN_W, CONN_H, (CONN_SOCKET_X, LAY["conn"], CONN_Z),
           material=mats["ink_soft"], parent=root)
+    # Steel against the socket's ink, so that the two halves are still two
+    # halves once they are pushed together.
     plug = plate("ConnPlug", CONN_W, CONN_H, (CONN_PLUG_LOOSE, LAY["conn"], CONN_Z),
-                 material=mats["slate"], parent=root)
+                 material=mats["steel"], parent=root)
     return root, loom_mat, plug
 
 
@@ -626,9 +646,14 @@ def build_hand(mats):
     """A glove, near enough. It says "by hand", which is half the instruction.
 
     Built pointing along -X, fingers first, so one glyph can push a plug home
-    and hold a phone without being redrawn; a half turn about Y points it the
-    other way. The torch rides on it as a child with its own switch, so it is
-    only there for the last beat.
+    and hold a phone without being redrawn. To point it the other way it is
+    mirrored rather than spun: a half turn about Y alone takes the thumb
+    under the fingers, which turns a hand into a claw. HAND_MIRROR turns it
+    about X as well, and since every part of it is a plate with no depth, the
+    second turn costs nothing and puts the thumb back on top.
+
+    The torch rides on it as a child with its own switch, so it is only there
+    for the last beat.
     """
     root = empty("Hand")
     m = mats["brand"]
@@ -675,7 +700,8 @@ def animate(cam, rig):
     frame_at(1, WIDE)
     frame_at(F["switch"] + 16, BAR)
     frame_at(F["fuse_find"], BOX)
-    frame_at(F["fuse_look"], DETAIL)
+    frame_at(F["fuse_look"], LOOK)
+    frame_at(F["fuse_fit"], DETAIL)
     frame_at(F["fuse_fit"] + 80, BOX)
     frame_at(F["connector"], HEAD)
     frame_at(F["push"], WIDE)
@@ -694,7 +720,8 @@ def animate(cam, rig):
     key(front, 1, rot=(0, 0, 0), interp="CONSTANT")
     key(dashes, 1, loc=(0, 0, 0), interp="CONSTANT")
     key(C["root"], 1, loc=(DET_C_X, 0, DET_ABOVE_Z), interp="CONSTANT")
-    key(B["root"], 1, loc=(DET_B_X, 0, DET_Z), interp="CONSTANT")
+    key(A["root"], 1, loc=(DET_LOOK_A, 0, DET_Z), interp="CONSTANT")
+    key(B["root"], 1, loc=(DET_LOOK_B, 0, DET_Z), interp="CONSTANT")
     key_colour(lens, 1, SLATE)
     key_colour(loom, 1, SLATE)
     key_colour(new_mat, 1, YELLOW)
@@ -740,27 +767,29 @@ def animate(cam, rig):
     # three of its pips find a partner and the fourth does not, and it goes
     # back where it came from. Then the right one is counted in and accepted.
     s = F["fuse_fit"]
-    key(C["root"], s + 4, loc=(DET_C_X, 0, DET_ABOVE_Z), interp="LINEAR")
-    key(C["root"], s + 19, loc=(DET_C_X, 0, DET_Z))
+    key(A["root"], s + 2, loc=(DET_LOOK_A, 0, DET_Z), interp="LINEAR")
+    key(B["root"], s + 2, loc=(DET_LOOK_B, 0, DET_Z), interp="LINEAR")
+    key(A["root"], s + 16, loc=(DET_A_X, 0, DET_Z))
+    key(B["root"], s + 16, loc=(DET_B_X, 0, DET_Z))
+    key(C["root"], s + 6, loc=(DET_C_X, 0, DET_ABOVE_Z), interp="LINEAR")
+    key(C["root"], s + 20, loc=(DET_C_X, 0, DET_Z))
     for i in range(3):
-        f = s + 24 + i * 6
+        f = s + 24 + i * 5
         key_colour(A["pips"][i], f, BRAND)
         key_colour(C["pips"][i], f, BRAND)
     for i in range(3):
-        key_colour(A["pips"][i], s + 46, INK)
-        key_colour(C["pips"][i], s + 46, INK)
-    key(C["root"], s + 44, loc=(DET_C_X, 0, DET_Z), interp="LINEAR")
-    key(C["root"], s + 58, loc=(DET_C_X, 0, DET_ABOVE_Z))
+        key_colour(A["pips"][i], s + 40, INK)
+        key_colour(C["pips"][i], s + 40, INK)
+    key(C["root"], s + 38, loc=(DET_C_X, 0, DET_Z), interp="LINEAR")
+    key(C["root"], s + 52, loc=(DET_C_X, 0, DET_ABOVE_Z))
 
     for i in range(3):
-        f = s + 60 + i * 5
+        f = s + 56 + i * 5
         key_colour(A["pips"][i], f, BRAND)
         key_colour(B["pips"][i], f, BRAND)
     for i in range(3):
-        key_colour(A["pips"][i], s + 74, GREEN)
-        key_colour(B["pips"][i], s + 74, GREEN)
-    key(B["root"], s + 66, loc=(DET_B_X, 0, DET_Z), interp="LINEAR")
-    key(B["root"], s + 78, loc=(DET_C_X, 0, DET_Z))
+        key_colour(A["pips"][i], s + 70, GREEN)
+        key_colour(B["pips"][i], s + 70, GREEN)
 
     # Back at the box, the new fuse goes into the empty slot.
     show(new_fuse, s + 81, True)
@@ -774,7 +803,9 @@ def animate(cam, rig):
     s = F["blows"]
     key_colour(new_mat, s + 6, BRAND)
     key_colour(new_mat, s + 14, BG)
-    key_colour(new_mat, s + 17, SLATE)
+    # Steel, not slate: slate against the ink of an empty slot reads as a hole
+    # rather than as a dead fuse still sitting in it.
+    key_colour(new_mat, s + 17, STEEL)
     show(new_scorch, s + 19, True)
     key(panel, s + 24, loc=(PANEL_OFF_X, LAY["panel"], BOX_C[1]), interp="LINEAR")
     key(panel, s + 40, loc=(BOX_C[0], LAY["panel"], BOX_C[1]))
@@ -784,7 +815,7 @@ def animate(cam, rig):
     # cut is hard and the light is allowed to work here.
     s = F["connector"]
     show(loom_root, s, True)
-    key(hand, s, rot=(0, math.pi, 0), interp="CONSTANT")  # fingers now point +x
+    key(hand, s, rot=HAND_MIRROR, interp="CONSTANT")  # fingers now point +x
     show(hand, s + 3, True)
     key(hand, s + 3, loc=(PARK_HEAD[0], 0, PARK_HEAD[1]), interp="LINEAR")
     push_from = CONN_PLUG_LOOSE - CONN_W / 2 - HAND_REACH
@@ -882,8 +913,8 @@ def main() -> int:
     fuses, panel, marker, new_fuse, new_mat, new_scorch = build_fuse_box(mats)
     hand, torch = build_hand(mats)
 
-    fuse_a = build_big_fuse("FuseA", DET_A_X, mats, pips=3, parted=True)
-    fuse_b = build_big_fuse("FuseB", DET_B_X, mats, pips=3, parted=False)
+    fuse_a = build_big_fuse("FuseA", DET_LOOK_A, mats, pips=3, parted=True)
+    fuse_b = build_big_fuse("FuseB", DET_LOOK_B, mats, pips=3, parted=False)
     fuse_c = build_big_fuse("FuseC", DET_C_X, mats, pips=4, parted=False)
     fuse_c["root"].location = (DET_C_X, 0, DET_ABOVE_Z)
 
