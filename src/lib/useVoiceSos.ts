@@ -14,6 +14,10 @@ import {
   type VoiceStatus,
 } from './nativeCrash'
 import { hearSos, matchedWord, ShoutDetector } from './sosVoice'
+import {
+  activeMargin, high, marginFrom, median, readCalibration, writeCalibration,
+  type Calibration,
+} from './shoutCalibration'
 
 /**
  * Hands-free help, as one piece of state two screens can share.
@@ -75,6 +79,13 @@ export type VoiceSos = {
   /** True while the app's own voice is talking and the microphone is being
    *  deliberately ignored. On screen, so a deaf moment is explained. */
   deaf: boolean
+  /** Which half of the measurement is running, or null. */
+  calibrating: 'quiet' | 'shout' | null
+  /** What this phone measured last time, if ever. */
+  calibration: Calibration | null
+  /** Measure the room and the rider's shout, and set the threshold from
+   *  them. Needs to be listening already. */
+  calibrate: () => Promise<void>
   arm: () => Promise<void>
   disarm: () => Promise<void>
   cancel: () => void
@@ -115,8 +126,15 @@ export function useVoiceSos(options: {
   const [offline, setOffline] = useState(false)
   const [words, setWords] = useState(true)
   const [deaf, setDeaf] = useState(false)
+  const [calibrating, setCalibrating] = useState<'quiet' | 'shout' | null>(null)
+  const [calibration, setCalibration] = useState<Calibration | null>(() =>
+    readCalibration(),
+  )
 
-  const detector = useRef(new ShoutDetector())
+  const detector = useRef(new ShoutDetector(activeMargin()))
+  /** While a measurement is running, readings go here instead of to the
+   *  detector, so calibrating cannot set its own alarm off. */
+  const sampling = useRef<number[] | null>(null)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const phaseRef = useRef<VoicePhase>('off')
   const onFireRef = useRef(onFire)
@@ -267,6 +285,10 @@ export function useVoiceSos(options: {
         setLevel(l)
         // The app's own speech is loud and would otherwise read as a shout.
         if (Date.now() < muteUntil.current) return
+        if (sampling.current) {
+          sampling.current.push(l)
+          return
+        }
         const fired = detector.current.push(l, Date.now())
         setQuiet(detector.current.quietLevel)
         setPeakOver(detector.current.peakOver)
@@ -279,7 +301,7 @@ export function useVoiceSos(options: {
         setOffline(onDevice)
         // The two level sources are not the same scale, so a baseline learnt
         // from one is nonsense against the other. Start again.
-        detector.current.reset()
+        detector.current = new ShoutDetector(activeMargin())
         setPeakOver(0)
         setQuiet(null)
       })
@@ -319,6 +341,66 @@ export function useVoiceSos(options: {
     }
   }, [begin, cancel, clearTimer, setPhaseBoth])
 
+  /**
+   * Three seconds of the room, three seconds of shouting, and the difference
+   * is the threshold. Measured rather than assumed, because the assumption
+   * was a single number applied to two audio sources that report on
+   * different scales, on hardware nobody had ever tested it against.
+   */
+  const calibrate = useCallback(async () => {
+    if (phaseRef.current !== 'armed') return
+
+    const listen = (ms: number) =>
+      new Promise<number[]>((resolve) => {
+        sampling.current = []
+        window.setTimeout(() => {
+          const got = sampling.current ?? []
+          sampling.current = null
+          resolve(got)
+        }, ms)
+      })
+
+    const afterSpeaking = () =>
+      new Promise<void>((resolve) =>
+        window.setTimeout(resolve, Math.max(0, muteUntil.current - Date.now()) + 150),
+      )
+
+    setCalibrating('quiet')
+    say('Stay quiet for three seconds.')
+    await afterSpeaking()
+    const quietSamples = await listen(3000)
+
+    setCalibrating('shout')
+    say('Now shout, until I stop you.')
+    await afterSpeaking()
+    const shoutSamples = await listen(3000)
+
+    setCalibrating(null)
+
+    // Too few readings means the microphone was not delivering; saying so
+    // beats storing a threshold derived from nothing.
+    if (quietSamples.length < 5 || shoutSamples.length < 5) {
+      setReason('Could not measure — the microphone sent almost no readings.')
+      say('I could not measure that. Try again.')
+      return
+    }
+
+    const quiet = median(quietSamples)
+    const shout = high(shoutSamples)
+    const next: Calibration = {
+      quiet,
+      gap: Math.max(0, shout - quiet),
+      margin: marginFrom(quiet, shout),
+      at: new Date().toISOString(),
+    }
+    writeCalibration(next)
+    setCalibration(next)
+    detector.current = new ShoutDetector(next.margin)
+    setPeakOver(0)
+    setQuiet(null)
+    say('Got it. Your shout is set.')
+  }, [say])
+
   const arm = useCallback(async () => {
     // A countdown left running from a previous session would fire into a
     // screen that no longer shows it and offers no way to stop it.
@@ -328,7 +410,10 @@ export function useVoiceSos(options: {
     setHeardWord(null)
 
     setStatus(await nativeVoiceStatus())
-    detector.current.reset()
+    // Rebuilt rather than reset, so a measurement taken since last time is
+    // picked up without needing a reload.
+    detector.current = new ShoutDetector(activeMargin())
+    setCalibration(readCalibration())
     setPeakOver(0)
     setTranscript([])
     setReason(null)
@@ -381,12 +466,15 @@ export function useVoiceSos(options: {
     level,
     quiet,
     peakOver,
-    margin: ShoutDetector.MARGIN,
+    margin: detector.current.margin,
     status,
     language,
     offline,
     words,
     deaf,
+    calibrating,
+    calibration,
+    calibrate,
     arm,
     disarm,
     cancel,

@@ -176,11 +176,19 @@ export const CANCEL_PHRASES = ['Stop', 'Mo korek', 'I am fine']
  * reason: what matters is the departure, not the number.
  */
 export class ShoutDetector {
-  /** How far above the quiet baseline counts as shouting. Both level sources
-   *  are scaled to put a real shout comfortably past this; the screen shows
-   *  the largest gap actually seen, so it can be checked on a real phone in
-   *  a few seconds rather than argued about. */
+  /** The fallback, for a phone nobody has measured. The real threshold is
+   *  whatever that phone's own calibration produced — see shoutCalibration —
+   *  because the two level sources report on different scales and neither
+   *  was ever measured against real hardware. A number picked by argument is
+   *  a poor way to decide whether somebody gets an ambulance. */
   static readonly MARGIN = 3.0
+
+  /** The threshold this instance is actually using. */
+  readonly margin: number
+
+  constructor(margin: number = ShoutDetector.MARGIN) {
+    this.margin = Number.isFinite(margin) ? margin : ShoutDetector.MARGIN
+  }
 
   /** How long it must stay up. Long enough to rule out a horn, a door slam
    *  or a single bark; short enough that one cry for help is enough. */
@@ -243,7 +251,7 @@ export class ShoutDetector {
 
     const over = level - this.baseline
     if (over > this.peak) this.peak = over
-    const shouting = over >= ShoutDetector.MARGIN
+    const shouting = over >= this.margin
 
     if (shouting) {
       this.loud.push({ at: now, level })
