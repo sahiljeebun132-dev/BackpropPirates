@@ -4,7 +4,11 @@ Run:
     blender --background --factory-startup --python scripts/fix_moto_overheating.py -- --still 120
     blender --background --factory-startup --python scripts/fix_moto_overheating.py -- --render
 
-    --still N    one frame to docs/pitch-assets/overheat_NNNN.png, for checking framing
+    --still N    one frame to docs/pitch-assets/moto_overheat_NNNN.png, for framing
+                 ("moto_" because scripts/fix_overheating.py, the car clip,
+                 writes overheat_NNNN.png: the two were overwriting each
+                 other's check frames, which is a nasty way to verify a clip
+                 against someone else's picture)
     --render     the whole thing to public/guides/fix-moto-overheating.mp4
     --crf NAME   Blender's constant_rate_factor; a lower setting is a smaller file
     --save       also write the .blend, so it can be opened and nudged by hand
@@ -180,10 +184,11 @@ GAUGE_COLD = math.radians(142)
 CLOCK_C, CLOCK_R = (0.86, 0.95), 0.10
 CLOCK_SEGS = 12   # a half sweep, so twelve five-minute bins: thirty minutes
 
-# Where the reservoir cap is put down while the tank is open: straight up,
-# into the gap between the back of the fuel tank and the front of the seat,
-# which is the only clear air above that part of the bike.
-CAP_OFF = (RES_CAP_C[0] - 0.06, LAY["cap"], RES_CAP_C[1] + 0.185)
+# Where the reservoir cap is put down while the tank is open: laid on the
+# seat, which is the nearest flat thing to that filler. Hung in the gap
+# between the back of the tank and the front of the seat, as it was first
+# drawn, it rested on nothing and read as a cap still being held.
+CAP_OFF = (-0.52, LAY["cap"], 0.9825)
 # The bottle is built round its own mouth, so the mouth is what these place.
 # A positive Y rotation carries the body of it up and to the right, which is
 # the way a bottle leans when it is being poured leftwards into a tank.
@@ -197,10 +202,25 @@ BOTTLE_PARK = (2.60, 1.60)
 
 SUN_C, SUN_R = (-1.68, 1.28), 0.10
 SHADE_X0, SHADE_X1 = -1.25, 7.40
+# The centre line, drawn on the strip of road below the contact patch. High
+# enough on that strip to be inside the ride framing as well as the wide: at
+# -0.40 it was under the bottom edge of every framing but the widest, and the
+# one beat that needs the road to move is not shot wide.
+DASH_Z = -0.26
+
+# Out of the tail of the can, up and back, in clear air: the nearest point of
+# this path is 0.49 m from the rear axle and the tyre's outer edge is 0.32 m.
+PUFF_OUT = (-1.06, 0.70)
 
 ARRIVE_FROM = -2.60   # where the bike enters from, off the left of the wide
 RIDE_ROLL = 2.60      # how far the road runs under it while it is "under way"
-RIDE_AWAY = 3.80      # and how far it carries on once the camera lets it go
+# And how far it carries on once the camera lets it go. Short enough that the
+# instruments are still inside the frame on the last frame - the step says to
+# watch the gauge the whole way, and the ring round it is the last thing the
+# clip has to say. At 3.80 the machine had left the wide by frame 410 and the
+# clip ended on twenty frames of empty road. 1.35 m in the 0.9 s this beat
+# lasts is also about the pace "ride gently" describes.
+RIDE_AWAY = 1.35
 
 # The two emblems of the cooling fork live out here in world space, well right
 # of anything else, so one hard cut reaches them and nothing has to be hidden.
@@ -211,6 +231,13 @@ AIR_X, LIQ_X = 5.50, 6.50
 # the height is nine sixteenths of it.
 WIDE = ((0.00, 0.72), 4.00)
 MID_FRONT = ((0.42, 0.60), 2.40)
+# The ride framing is MID_FRONT dropped and widened until the road is in it.
+# The bike holds still in that beat and the road moves, so a framing whose
+# bottom edge is above the centre line shows a stationary machine with its
+# wheels spinning, which is a bike on a paddock stand, not a bike being
+# ridden. The top edge still clears the instruments: that beat is also the
+# one that says to watch the gauge.
+MID_RIDE = ((0.42, 0.44), 2.80)
 CLOSE_CAP = ((0.42, 0.83), 1.30)
 CARD = (CARD_C, 2.00)
 MID_TANKS = ((0.00, 0.72), 1.50)
@@ -420,7 +447,7 @@ def build_road(mats):
     x = -3.4
     i = 0
     while x < 4.6:
-        plate("Dash%d" % i, 0.16, 0.016, (x, LAY["dash"], -0.40),
+        plate("Dash%d" % i, 0.16, 0.016, (x, LAY["dash"], DASH_Z),
               material=mats["dim"], parent=dashes)
         x += 0.34
         i += 1
@@ -505,12 +532,17 @@ def build_bike(mats):
     plate("Headlight", 0.12, 0.15, (0.655, LAY["body"], 0.855),
           material=mats["machine"], parent=root)
 
-    # The pipe runs in front of the rear wheel because on this side of a bike
-    # it does: the can is outboard of the tyre, not behind it.
-    bar("Header", (0.08, 0.30), (-0.24, 0.26), 0.030, LAY["pipe"], mats["steel"],
+    # A high pipe: the header climbs behind the cylinder and the can runs back
+    # in the wedge between the top of the rear tyre and the side cover. Every
+    # point of it is further from the rear axle than the tyre's outer edge, so
+    # it never crosses the wheel. Two lower routes were drawn first and both
+    # failed the same way - a grey bar lying across a spoked wheel reads as a
+    # bar through the wheel, and the exhaust puffs then left the can from
+    # somewhere inside the tyre.
+    bar("Header", (0.08, 0.30), (-0.36, 0.49), 0.030, LAY["pipe"], mats["steel"],
         parent=root)
-    plate("Muffler", 0.40, 0.10, (-0.56, LAY["pipe"], 0.36),
-          material=mats["steel"], parent=root, spin=0.06)
+    bar("Muffler", (-0.34, 0.48), (-0.98, 0.66), 0.095, LAY["pipe"], mats["steel"],
+        parent=root)
 
     return dict(root=root, wheels=(rear, front))
 
@@ -659,7 +691,10 @@ def build_hand(mats):
     for i, dz in enumerate((0.042, 0.000, -0.042)):
         plate("Finger%d" % i, 0.085, 0.030, (-0.045, LAY["hand"], dz),
               material=mats["brand"], parent=root)
-    plate("Thumb", 0.082, 0.033, (-0.012, LAY["hand"], 0.080),
+    # Overlapping the palm, not perched on its corner: at z 0.080 the rotated
+    # end lifted clear of it and read as a second blue shape floating beside
+    # the hand.
+    plate("Thumb", 0.082, 0.033, (0.004, LAY["hand"], 0.068),
           material=mats["brand"], parent=root, spin=math.radians(-26))
     plate("Cuff", 0.055, 0.150, (0.140, LAY["hand"], 0),
           material=mats["brand"], parent=root)
@@ -707,9 +742,11 @@ def build_card(mats):
     for i in range(5):
         plate("AirFin%d" % i, 0.38, 0.026, (AIR_X, LAY["rad"], 0.97 + i * 0.06),
               material=mats["machine"])
-    plate("AirTank", 0.16, 0.20, (AIR_X, LAY["res"], 0.68), material=mats["steel"])
-    plate("AirTankFluid", 0.13, 0.11, (AIR_X, LAY["fluid"], 0.635),
-          material=mats["brand"])
+    # The air-cooled tank is drawn empty, and in the grey of a part that is
+    # not fitted. Crossing out a tank with coolant showing in it says "do not
+    # check this full reservoir", and what the guide says is that an
+    # air-cooled engine has no reservoir to check at all.
+    plate("AirTank", 0.16, 0.20, (AIR_X, LAY["res"], 0.68), material=mats["dim"])
     air_no = build_no_entry("AirNo", (AIR_X, 0.68), 0.145, mats)
 
     plate("LiqCore", 0.32, 0.36, (LIQ_X, LAY["rad"], 1.12), material=mats["steel"])
@@ -754,7 +791,7 @@ def build_exhaust(mats):
     An instrument light is four pixels across at that framing; this is the
     same fact said at a size the opening beat can carry.
     """
-    return [disc("Puff%d" % i, 0.045, (-0.80, LAY["steam"], 0.36),
+    return [disc("Puff%d" % i, 0.045, (PUFF_OUT[0], LAY["steam"], PUFF_OUT[1]),
                  material=mats["dim"]) for i in range(4)]
 
 
@@ -765,7 +802,13 @@ def build_rings(mats):
                material=mats["inspect_fan"])
     res = ring("InspectRes", 0.160, 0.012, (RES_C[0] - 0.06, LAY["mark"], RES_C[1]),
                material=mats["inspect_res"])
-    return face, fan, res
+    # Round the dial, for the last step. "Watch the gauge the whole way" is
+    # the only instruction in this guide that is about where to look rather
+    # than what to do, and a gauge merely present in the corner of the frame
+    # is not the same as a gauge being watched.
+    gauge = ring("InspectGauge", 0.078, 0.009, (GAUGE_C[0], LAY["mark"], GAUGE_C[1]),
+                 material=mats["inspect_gauge"])
+    return face, fan, res, gauge
 
 
 def build_fill_tick(mats):
@@ -807,7 +850,7 @@ def animate(scene_objs, mats, cam):
     bottle, drops = scene_objs["bottle"]
     exhaust = scene_objs["exhaust"]
     air_no, liq_tick, card_pick = scene_objs["card"]
-    insp_face, insp_fan, insp_res = scene_objs["rings"]
+    insp_face, insp_fan, insp_res, insp_gauge = scene_objs["rings"]
     fill_tick = scene_objs["fill_tick"]
     airflow = scene_objs["airflow"]
 
@@ -824,7 +867,7 @@ def animate(scene_objs, mats, cam):
     frame_at(F["level"], MID_TANKS)
     frame_at(F["look"], CLOSE_RAD)
     frame_at(F["topup"], CLOSE_FILL)
-    frame_at(F["ride"], MID_FRONT)
+    frame_at(F["ride"], MID_RIDE)
     frame_at(F_RIDE_OUT, WIDE)
 
     # --- the starting state, keyed explicitly. A value an object was merely
@@ -840,7 +883,8 @@ def animate(scene_objs, mats, cam):
         rot=(0, 0, 0), interp="CONSTANT")
     key(fan, 1, rot=(0, 0, 0), interp="CONSTANT")
     for obj in (clock, cap_no, air_no, liq_tick, card_pick, insp_face, insp_fan,
-                insp_res, fill_tick, res["marks"], *airflow, *drops, *exhaust):
+                insp_res, insp_gauge, fill_tick, res["marks"], *airflow, *drops,
+                *exhaust):
         show(obj, 1, False)
     for seg in clock_segs:
         show(seg, 1, False)
@@ -873,10 +917,11 @@ def animate(scene_objs, mats, cam):
     key_colour(mats["ign"], 1, YELLOW)
     for i, p in enumerate(exhaust):
         s = F["idle"] + 2 + i * 3
-        key(p, s, loc=(-0.80, LAY["steam"], 0.36), scale=(0.0, 0.0, 0.0),
+        key(p, s, loc=(PUFF_OUT[0], LAY["steam"], PUFF_OUT[1]), scale=(0.0, 0.0, 0.0),
             interp="CONSTANT")
         key(p, s + 2, scale=(0.9, 0.9, 0.9))
-        key(p, s + 13, loc=(-1.06 - 0.04 * i, LAY["steam"], 0.50 + 0.03 * i),
+        key(p, s + 13, loc=(PUFF_OUT[0] - 0.26 - 0.04 * i, LAY["steam"],
+                            PUFF_OUT[1] + 0.16 + 0.03 * i),
             scale=(0.2, 0.2, 0.2))
         show(p, s + 14, False)
     key_colour(mats["ign"], F_IDLE_IN + 8, YELLOW)
@@ -948,17 +993,26 @@ def animate(scene_objs, mats, cam):
     key(insp_face, o0 + 8, scale=(1.0, 1.0, 1.0))
     key(hand, o0 + 6, loc=(0.86, 0, 0.465), rot=(0, 0, 0), interp="CONSTANT")
     key(hand, o0 + 8, loc=(0.86, 0, 0.465))
-    key(hand, o0 + 26, loc=(0.02, 0, 0.465))
+    # The sweep stops at 0.14 rather than 0.02: the fingertips are past the
+    # last blob by then, and going further only walks the hand off the left
+    # edge of this framing, where half of it is a blue shape leaving frame.
+    SWEEP_END = 0.14
+    key(hand, o0 + 26, loc=(SWEEP_END, 0, 0.465))
     for i, blob in enumerate(grit):
         # Each blob goes as the fingertips reach its x, so the sweep is doing
         # the clearing rather than happening next to it.
         gx = blob.location[0]
-        t = (0.86 - HAND_REACH - gx) / (0.86 - 0.02)
+        t = (0.86 - HAND_REACH - gx) / (0.86 - SWEEP_END)
         show(blob, o0 + 8 + int(round(18 * max(0.0, min(1.0, t)))), False)
-    key(hand, o0 + 28, loc=(0.02, 0, 0.465))
+    key(hand, o0 + 28, loc=(SWEEP_END, 0, 0.465))
     key(hand, o0 + 36, loc=(0.86, 0, 0.465))
     key(hand, o0 + 37, loc=(HAND_PARK[0], 0, HAND_PARK[1]), interp="CONSTANT")
-    key_colour(mats["inspect_face"], 1, BRAND)
+    # Amber, not brand blue, and for two reasons. A packed core is a fault
+    # found rather than a place to look, which is what amber means everywhere
+    # else in this clip; and the hand sweeping it clean is brand blue, so a
+    # blue ring and a blue glove met in the middle of the frame and merged
+    # into one shape. It goes green when the core is clear.
+    key_colour(mats["inspect_face"], 1, YELLOW)
     key_colour(mats["inspect_face"], o0 + 30, GREEN)
     show(insp_face, o0 + 38, False)
     key(insp_fan, o0 + 38, scale=(0.0, 0.0, 0.0), interp="CONSTANT")
@@ -1002,6 +1056,11 @@ def animate(scene_objs, mats, cam):
     show(fill_tick, r0, False)
     show(res["marks"], r0, False)
     show(clock, r0, False)
+    # The dial is ringed for the rest of the clip, including the last wide,
+    # because the instruction is to watch it the whole way and not until the
+    # bike is rolling.
+    key(insp_gauge, r0 + 4, scale=(0.0, 0.0, 0.0))
+    key(insp_gauge, r0 + 10, scale=(1.0, 1.0, 1.0))
     key(dashes, r0, loc=(0, 0, 0), interp="LINEAR")
     rolled = []
     for f in range(r0, F_RIDE_OUT + 1, 3):
@@ -1013,9 +1072,16 @@ def animate(scene_objs, mats, cam):
         for w in wheels:
             key(w, f, rot=(0, -d / WHEEL_R, 0), interp="LINEAR")
 
+    # Two passes, twelve frames apart, which is exactly the length of one
+    # pass: at ten frames apart the third pass was keying the same object
+    # back to its start while the second was still in flight, and what
+    # rendered was a chevron that jumped backwards and a second one stuck
+    # half-size in open air. Both passes are also finished before the cut to
+    # the wide, because these arrows are not parented to the bike and would
+    # otherwise be left hanging in the road it has just left.
     for i, arrow in enumerate(airflow):
-        for pass_no in range(3):
-            s = r0 + 6 + pass_no * 10 + i * 4
+        for pass_no in range(2):
+            s = r0 + 6 + pass_no * 12 + i * 4
             z = (0.645, 0.745)[i]
             key(arrow, s, loc=(1.16, 0, z), scale=(0.0, 0.0, 0.0), interp="CONSTANT")
             key(arrow, s + 2, scale=(1.0, 1.0, 1.0), interp="LINEAR")
@@ -1083,9 +1149,10 @@ def main() -> int:
         "warn": flat("WarnDot", RED),
         "ign": flat("IgnDot", YELLOW),
         "min": flat("MinMark", BG),
-        "inspect_face": flat("InspectFaceMat", BRAND),
+        "inspect_face": flat("InspectFaceMat", YELLOW),
         "inspect_fan": flat("InspectFanMat", BRAND),
         "inspect_res": flat("InspectResMat", BRAND),
+        "inspect_gauge": flat("InspectGaugeMat", BRAND),
     }
 
     dashes = build_road(mats)
@@ -1138,7 +1205,7 @@ def main() -> int:
         os.makedirs(STILL_DIR, exist_ok=True)
         scene.frame_set(still)
         scene.render.image_settings.file_format = "PNG"
-        scene.render.filepath = os.path.join(STILL_DIR, "overheat_%04d.png" % still)
+        scene.render.filepath = os.path.join(STILL_DIR, "moto_overheat_%04d.png" % still)
         bpy.ops.render.render(write_still=True)
         print("WROTE " + scene.render.filepath)
     elif do_render:

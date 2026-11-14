@@ -848,10 +848,24 @@ def build_pump(mats):
 
 
 # ---------------------------------------------------------------- animation
-def hose_to(valve):
-    """Rotation and stretch that put the far end of the hose on the valve."""
+def hose_to(valve, near=None):
+    """Rotation and stretch that put the far end of the hose on the valve.
+
+    `near` is the rotation of the previous key, and the angle returned is the
+    one nearest to it. The pump stands almost level with the valve, so the
+    hose works within a couple of degrees of straight back along -X - which
+    is exactly where atan2 cuts its range. Two consecutive keys a tenth of a
+    degree apart therefore came back as +173 and -180, and Blender, having no
+    idea they are the same direction, interpolated the long way: for the eight
+    frames between them the air line swung through most of a full turn, out
+    through the road and back, in the middle of the one beat that has to read
+    as "connected to the valve". Checked against a render, not reasoned about.
+    """
     dx, dz = valve[0] - HOSE_ROOT[0], valve[1] - HOSE_ROOT[1]
-    return (0, -math.atan2(dz, dx), 0), (math.hypot(dx, dz) / HOSE_LEN, 1.0, 1.0)
+    rot = -math.atan2(dz, dx)
+    if near is not None:
+        rot += 2 * math.pi * round((near - rot) / (2 * math.pi))
+    return (0, rot, 0), (math.hypot(dx, dz) / HOSE_LEN, 1.0, 1.0)
 
 
 def roll(rig, world, frame, dist, *, interp="LINEAR"):
@@ -1015,6 +1029,7 @@ def animate(rig, world, hand, inset, sect, pump, cam):
     rot, hscale = hose_to(tilt_point(math.cos(VALVE_PHI) * VALVE_TIP_R,
                                      math.sin(VALVE_PHI) * VALVE_TIP_R, FLAT_ANGLE))
     key(pump["hose"], f0, rot=rot, scale=hscale, interp="CONSTANT")
+    hose_rot = rot[1]   # carried forward so no two keys straddle the cut
 
     # Read the figure off the bike first: the mark on the chain guard and the
     # mark on the dial are the same blue, and they pulse one after the other,
@@ -1041,7 +1056,8 @@ def animate(rig, world, hand, inset, sect, pump, cam):
         valve = tilt_point(math.cos(VALVE_PHI) * VALVE_TIP_R,
                            math.sin(VALVE_PHI) * VALVE_TIP_R,
                            FLAT_ANGLE * (1.0 - u))
-        rot, hscale = hose_to(valve)
+        rot, hscale = hose_to(valve, near=hose_rot)
+        hose_rot = rot[1]
         key(pump["hose"], f, rot=rot, scale=hscale, interp="LINEAR")
     # The plug is in the tyre from the first frame of this beat, where the
     # nail used to be: the cut lands on it, so the green the section beat

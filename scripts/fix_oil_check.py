@@ -103,7 +103,12 @@ STEEL = "#94a3b8"
 SLATE = "#334155"
 GRIT = "#64748b"
 OIL = "#d97706"      # clean oil
-OIL_OLD = INK        # and oil that is done: near black, which is what it is
+# Oil that is done. On the road it is nearly black, and this was INK for
+# exactly that reason, but the sump casting is INK too: the drain beat
+# rendered as one solid black box with no oil visible inside it. A burnt
+# brown is the same amber taken most of the way down, which still reads as
+# spent against the clean oil and still reads as oil against the casting.
+OIL_OLD = "#7a4708"
 
 # -------------------------------------------------------------------- layers
 # Everything is a flat plate facing the camera, which sits at -Y. A smaller
@@ -196,6 +201,11 @@ SMEAR = 0.85
 TRUE_S = 0.42
 
 RAG_PARK = (E + 1.85, 1.75)
+# Where the rag is set down once it has done its job, chosen to be inside
+# the tight framing rather than outside it. The beat that follows is the
+# stick sitting still in its tube, and an empty right-hand half makes that
+# deliberate stillness look like a video that has stopped.
+RAG_REST = (E + 0.98, 1.30)
 BOTTLE_PARK = (E + 0.035, 2.45)
 BOTTLE_POUR = (E + 0.035, 1.760)
 BOTTLE_TIP = -2.20
@@ -220,9 +230,15 @@ LEVEL_LOW = 0.21     # short of MIN, which is what step 3 is written about
 
 WIDE = ((0.00, 0.74), 4.70)
 ENG_FULL = ((E + 0.05, 0.88), 2.80)
-ENG_TOP = ((E + 0.365, 1.475), 1.87)
+# The top framing is cut to the dipstick's own travel and no wider. Its top
+# edge clears the handle loop at full draw by a hair, and its bottom edge is
+# set just above the crank pulley, because a pulley caught by the frame edge
+# put a grey nub in the corner that read as a fault in the drawing.
+ENG_TOP = ((E + 0.365, 1.595), 1.511)
 MACRO = ((M - 0.04, 0.95), 1.44)
-MACRO_T = ((M + 0.10, 0.93), 1.10)
+# Pushed right of M + 0.10, which split the handle neck on the frame edge and
+# left a blue splinter stuck to the side of the picture.
+MACRO_T = ((M + 0.12, 0.93), 1.10)
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(_REPO, "public", "guides")
@@ -353,39 +369,54 @@ def _curves(holder):
     return curves
 
 
-def _set_interp(holder, frame, kind):
-    """Force the interpolation of every key this ID has at `frame`.
+def _set_interp(holder, frame, kind, paths=None):
+    """Force the interpolation of the keys a single call just inserted.
 
-    The obvious route, preferences.edit.keyframe_new_interpolation_type, does
-    nothing on this 5.2 build: the preference reads back as CONSTANT and the
-    keyframe is still born BEZIER. Every hard cut in this clip depends on
-    this, so the keys are corrected after insertion instead.
+    Two separate things make this necessary rather than tidy. The documented
+    route, preferences.edit.keyframe_new_interpolation_type, does nothing on
+    this 5.2 build: the preference reads back as CONSTANT and the keyframe is
+    still born BEZIER. And a key inserted into a curve whose previous key is
+    CONSTANT is itself born CONSTANT, which is the subtler of the two and
+    cost this clip three moves before it was caught: the oil never reached
+    the drain pan, the grit never faded up and the pointer never swept, in
+    every case because the key before them was a deliberate hold and the
+    hold was inherited forwards. So BEZIER is forced too, never assumed.
+
+    `paths` is the set of properties the calling key() actually wrote. Two
+    calls can land on one frame wanting different things — the pointer pops
+    to full scale and starts sliding on the same frame — and without this
+    filter the second call would reach back and undo the first.
     """
-    if kind == "BEZIER":
-        return
     for curve in _curves(holder):
+        if paths is not None and curve.data_path not in paths:
+            continue
         for point in curve.keyframe_points:
             if abs(point.co[0] - frame) < 0.5:
                 point.interpolation = kind
 
 
 def key(obj, frame, *, loc=None, rot=None, scale=None, interp="BEZIER"):
+    paths = set()
     if loc is not None:
         obj.location = loc
         obj.keyframe_insert("location", frame=frame)
+        paths.add("location")
     if rot is not None:
         obj.rotation_euler = Euler(rot)
         obj.keyframe_insert("rotation_euler", frame=frame)
+        paths.add("rotation_euler")
     if scale is not None:
         obj.scale = scale
         obj.keyframe_insert("scale", frame=frame)
-    _set_interp(obj, frame, interp)
+        paths.add("scale")
+    if paths:
+        _set_interp(obj, frame, interp, paths)
 
 
 def key_value(owner, path, frame, value, *, interp="BEZIER"):
     setattr(owner, path, value)
     owner.keyframe_insert(path, frame=frame)
-    _set_interp(owner, frame, interp)
+    _set_interp(owner, frame, interp, {path})
 
 
 def key_colour(material, frame, hex_string, *, interp="CONSTANT"):
@@ -726,7 +757,11 @@ def animate(mats, bubble, eng, mac, cam):
         key(drop, start, loc=(CHANNEL_X, LAY["drop"], 1.24), interp="LINEAR")
         key(drop, start + 13, loc=(CHANNEL_X, LAY["drop"], 0.78),
             interp="CONSTANT")
-        key(drop, 71, scale=(0, 0, 0), interp="CONSTANT")
+        # Gone the frame after it lands. They all fall down one gallery to
+        # one place, so a drop that stays is a drop the next one lands on
+        # top of, and five stacked discs read as one fat dot that arrived
+        # by itself rather than as oil running back down.
+        key(drop, start + 14, scale=(0, 0, 0), interp="CONSTANT")
 
     key(clock, 39, scale=(0, 0, 0), interp="CONSTANT")
     key(clock, 40, scale=(0.02, 0.02, 0.02))
@@ -761,7 +796,7 @@ def animate(mats, bubble, eng, mac, cam):
     key(eng["rag"], 102, loc=(RAG_PARK[0], 0, RAG_PARK[1]))
     key(eng["rag"], 112, loc=(DIP_ASIDE_X, 0, 1.79), interp="LINEAR")
     key(eng["rag"], 130, loc=(DIP_ASIDE_X, 0, 1.43), interp="LINEAR")
-    key(eng["rag"], 138, loc=(RAG_PARK[0], 0, 1.43))
+    key(eng["rag"], 138, loc=(RAG_REST[0], 0, RAG_REST[1]))
 
     # The film goes with the rag, not before or after it.
     key(film, 112, scale=(1, 1, SMEAR), interp="LINEAR")
@@ -772,16 +807,26 @@ def animate(mats, bubble, eng, mac, cam):
     key(film, 211, scale=(1, 1, 0.001), interp="CONSTANT")
 
     # ================================================ 3. read where it ends
-    key(mac["root"], 211, rot=(0, 0.07, 0), interp="CONSTANT")
+    # The blade arrives on the cut still carrying the tilt it had in the
+    # tube and settles level. The hold that keeps it tilted until here is
+    # the frame-1 key, so this one has to interpolate or it never settles.
+    key(mac["root"], 211, rot=(0, 0.07, 0))
     key(mac["root"], 220, rot=(0, 0, 0))
     key(mac["marks"], 221, scale=(0, 0, 0), interp="CONSTANT")
     key(mac["marks"], 222, scale=(0.02, 0.02, 0.02))
     key(mac["marks"], 230, scale=(1, 1, 1))
     key(mac["pointer"], 231, scale=(0, 0, 0), interp="CONSTANT")
-    key(mac["pointer"], 232, loc=(TIP_X, LAY["point"], 0.80), scale=(1, 1, 1),
-        interp="CONSTANT")
+    # Two calls on frame 232, deliberately disagreeing: the pointer appears
+    # at full size in one frame, and from the same frame slides up the blade
+    # to where the film ends, which is the whole instruction of this step.
+    key(mac["pointer"], 232, scale=(1, 1, 1), interp="CONSTANT")
+    key(mac["pointer"], 232, loc=(TIP_X, LAY["point"], 0.80))
+    # CONSTANT on arrival, so the pointer parks on the reading instead of
+    # drifting on towards the low film it is given at 265. A pointer that
+    # creeps while the caption says "read where the oil film ends" is
+    # pointing at the wrong place for most of the beat.
     key(mac["pointer"], 246,
-        loc=(TIP_X - MAC_FILM * LEVEL_OK, LAY["point"], 0.80))
+        loc=(TIP_X - MAC_FILM * LEVEL_OK, LAY["point"], 0.80), interp="CONSTANT")
 
     # ====================================== 4. if it is below minimum, a
     #                                           little at a time, then re-check
@@ -840,7 +885,10 @@ def animate(mats, bubble, eng, mac, cam):
     key(eng["pan"], 399, loc=(PAN_PARK_X, 0, 0.10))
     key(eng["pan"], 408, loc=(PAN_X, 0, 0.10))
     key(eng["plug"], 407, loc=(PLUG[0], LAY["acc"], PLUG[1]))
-    key(eng["plug"], 414, loc=(E + 0.40, LAY["acc"], 0.17))
+    # Set down to the left of the pan, not in it. The pan's oil is drawn in
+    # front of everything it contains, so a plug dropped inside it is a plug
+    # the viewer watches disappear.
+    key(eng["plug"], 414, loc=(E - 0.30, LAY["acc"], 0.16))
     key(eng["drain"], 412, scale=(1, 1, 0.001), interp="CONSTANT")
     key(eng["drain"], 419, scale=(1, 1, 1.0))
     key(eng["drain"], 428, scale=(1, 1, 1.0))
