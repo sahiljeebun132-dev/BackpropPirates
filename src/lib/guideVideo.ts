@@ -83,6 +83,7 @@ const CLIP: Record<string, { src: string; seconds: number }> = {
   'moto-chain': { src: '/guides/fix-chain.mp4', seconds: 15 },
   'moto-dropped': { src: '/guides/fix-moto-dropped.mp4', seconds: 18 },
   'moto-lights': { src: '/guides/fix-moto-lights.mp4', seconds: 17 },
+  'moto-out-of-fuel': { src: '/guides/fix-moto-fuel.mp4', seconds: 18 },
   'moto-puncture': { src: '/guides/fix-moto-puncture.mp4', seconds: 18 },
   'moto-wont-start': { src: '/guides/fix-moto-start.mp4', seconds: 16 },
   'out-of-fuel': { src: '/guides/fix-out-of-fuel.mp4', seconds: 17 },
